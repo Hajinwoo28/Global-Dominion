@@ -1,10 +1,12 @@
 import os
 import random
 from datetime import datetime
+
 from flask import Flask, request, jsonify, session, redirect, url_for, render_template_string
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 
+app = Flask(__name__)
 # -------------------------------------------------------------------------
 # HTML TEMPLATE STRINGS (INLINED)
 # -------------------------------------------------------------------------
