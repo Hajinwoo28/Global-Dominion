@@ -1418,7 +1418,11 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "gd_imperial_secret_key_9921")
 
 # Database initialization
-db_url = os.environ.get("DATABASE_URL", "sqlite:///global_dominion.db")
+# Default to the requested Supabase PostgreSQL database if DATABASE_URL is not set.
+db_url = os.environ.get(
+    "DATABASE_URL",
+    "postgresql://postgres:q3amuJslGHOMAFMR@db.kvqczkuociaarzzdsdll.supabase.co:5432/postgres"
+)
 if db_url.startswith("postgres://"):
     db_url = db_url.replace("postgres://", "postgresql://", 1)
 app.config['SQLALCHEMY_DATABASE_URI'] = db_url
