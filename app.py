@@ -1754,7 +1754,7 @@ def register():
         if existing_user:
             return render_template_string(REGISTER_HTML, error="Username or Email already exists.")
 
-        hashed = generate_password_hash(password, method='sha256')
+        hashed = generate_password_hash(password, method='pbkdf2:sha256')
         new_user = User(username=username, email=email, password_hash=hashed)
         db.session.add(new_user)
         db.session.commit()
