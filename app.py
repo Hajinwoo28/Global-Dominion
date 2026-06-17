@@ -1418,15 +1418,18 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "gd_imperial_secret_key_9921")
 
 # Database initialization
-# Default to the requested Supabase PostgreSQL database if DATABASE_URL is not set.
-db_url = os.environ.get(
-    "DATABASE_URL",
-    "postgresql://postgres:q3amuJslGHOMAFMR@db.kvqczkuociaarzzdsdll.supabase.co:5432/postgres"
-)
-if db_url.startswith("postgres://"):
+# Use DATABASE_URL when provided, otherwise fall back to local SQLite.
+# The app import must not crash if the external database is unavailable.
+db_url = os.environ.get("DATABASE_URL")
+if not db_url:
+    db_url = "sqlite:///global_dominion.db"
+elif db_url.startswith("postgres://"):
     db_url = db_url.replace("postgres://", "postgresql://", 1)
 app.config['SQLALCHEMY_DATABASE_URI'] = db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_pre_ping': True,
+}
 
 db = SQLAlchemy(app)
 
@@ -2042,9 +2045,8 @@ def seed_database():
 # APPLICATION ENTRYPOINT
 # -------------------------------------------------------------------------
 
-with app.app_context():
-    db.create_all()
-    seed_database()
-
 if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()
+        seed_database()
     app.run(host='0.0.0.0', port=5000, debug=True)
