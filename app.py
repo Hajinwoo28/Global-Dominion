@@ -1,12 +1,29 @@
 import os
 import random
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from flask import Flask, request, jsonify, session, redirect, url_for, render_template_string
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
+app.permanent_session_lifetime = timedelta(days=30)
+app.secret_key = os.environ.get("SECRET_KEY", "gd_imperial_secret_key_9921")
+
+# Database initialization
+# Use DATABASE_URL when provided, otherwise fall back to local SQLite.
+# The app import must not crash if the external database is unavailable.
+db_url = os.environ.get("DATABASE_URL")
+if not db_url:
+    db_url = "sqlite:///global_dominion.db"
+elif db_url.startswith("postgres://"):
+    db_url = db_url.replace("postgres://", "postgresql://", 1)
+app.config['SQLALCHEMY_DATABASE_URI'] = db_url
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_pre_ping': True,
+}
+
 # -------------------------------------------------------------------------
 # HTML TEMPLATE STRINGS (INLINED)
 # -------------------------------------------------------------------------
@@ -128,6 +145,13 @@ LOGIN_HTML = """
             <div class="input-group">
                 <label>Password</label>
                 <input type="password" name="password" required>
+            </div>
+            <div class="input-group" style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+                <label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; color:#94A3B8;">
+                    <input type="checkbox" name="remember" style="transform:scale(1.1);">
+                    Remember Me
+                </label>
+                <a href="/forgot_password" style="color:#D4AF37; text-decoration:none; font-size:0.85rem;">Forgot Password?</a>
             </div>
             <button type="submit" class="btn">Login</button>
         </form>
@@ -269,10 +293,121 @@ REGISTER_HTML = """
                 <label>Confirm Password</label>
                 <input type="password" name="confirm_password" required>
             </div>
+            <div class="input-group" style="display:flex; align-items:center; gap:10px; margin-top:0;">
+                <label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; color:#94A3B8;">
+                    <input type="checkbox" name="terms" required style="transform:scale(1.1);">
+                    I agree to the <a href="#" style="color:#D4AF37; text-decoration:none;">Terms & Conditions</a>
+                </label>
+            </div>
             <button type="submit" class="btn">Register & Enlist</button>
         </form>
         <div class="footer-link">
             Already registered? <a href="/login">Return to Command Center</a>
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+FORGOT_PASSWORD_HTML = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global Dominion - Recover Access</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: radial-gradient(circle, #0F1E36 0%, #050B14 100%);
+            color: #E2E8F0;
+            font-family: 'Cinzel', serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .container {
+            background: linear-gradient(135deg, #0d1a30, #050b14);
+            border: 2px solid #8c6239;
+            box-shadow: 0 0 25px rgba(212, 175, 55, 0.2);
+            padding: 40px;
+            border-radius: 8px;
+            width: 100%;
+            max-width: 420px;
+            text-align: center;
+        }
+        h2 {
+            color: #D4AF37;
+            margin-bottom: 20px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+        .message {
+            color: #94A3B8;
+            margin-bottom: 20px;
+            font-size: 0.95rem;
+        }
+        .input-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+        label {
+            display: block;
+            font-size: 0.8rem;
+            color: #8C6239;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+        input[type="email"] {
+            width: 100%;
+            padding: 12px;
+            background-color: #0A1220;
+            border: 1px solid #8C6239;
+            color: #FFF;
+            border-radius: 4px;
+            font-size: 0.95rem;
+        }
+        .btn {
+            background: linear-gradient(180deg, #D4AF37 0%, #8C6239 100%);
+            color: #0A1220;
+            border: none;
+            width: 100%;
+            padding: 14px;
+            font-weight: bold;
+            font-size: 1rem;
+            cursor: pointer;
+            border-radius: 4px;
+            text-transform: uppercase;
+            transition: all 0.2s ease-in-out;
+        }
+        .footer-link {
+            margin-top: 20px;
+            font-size: 0.85rem;
+        }
+        .footer-link a {
+            color: #D4AF37;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Recover Your Command</h2>
+        <p class="message">Enter your registered email address. A recovery link will be sent if the account exists.</p>
+        {% if message %}
+            <div class="message" style="color:#A7F3D0;">{{ message }}</div>
+        {% endif %}
+        <form action="/forgot_password" method="POST">
+            <div class="input-group">
+                <label>Email Address</label>
+                <input type="email" name="email" required>
+            </div>
+            <button type="submit" class="btn">Send Recovery Link</button>
+        </form>
+        <div class="footer-link">
+            Remembered your access? <a href="/login">Return to Login</a>
         </div>
     </div>
 </body>
@@ -1411,25 +1546,8 @@ INDEX_HTML = """
 
 
 # -------------------------------------------------------------------------
-# FLASK BACKEND CONFIGURATION
+# DATABASE MODELS
 # -------------------------------------------------------------------------
-
-app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "gd_imperial_secret_key_9921")
-
-# Database initialization
-# Use DATABASE_URL when provided, otherwise fall back to local SQLite.
-# The app import must not crash if the external database is unavailable.
-db_url = os.environ.get("DATABASE_URL")
-if not db_url:
-    db_url = "sqlite:///global_dominion.db"
-elif db_url.startswith("postgres://"):
-    db_url = db_url.replace("postgres://", "postgresql://", 1)
-app.config['SQLALCHEMY_DATABASE_URI'] = db_url
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-    'pool_pre_ping': True,
-}
 
 db = SQLAlchemy(app)
 
@@ -1497,17 +1615,49 @@ COUNTRY_DATA = {
         "bonus": "+10% Resource Production",
         "units": ["Marine Infantry", "Abrams Tank", "F-35 Fighter", "Aircraft Carrier"]
     },
+    "China": {
+        "bonus": "+12% Production Efficiency",
+        "units": ["Guard Infantry", "Type 99 Tank", "J-20 Fighter", "Carrier Task Force"]
+    },
     "Japan": {
         "bonus": "+15% Tactical Attack Power",
         "units": ["Samurai Guard", "Modern Infantry", "Type-10 Tank", "Drone Squadron"]
+    },
+    "Germany": {
+        "bonus": "+18% Defense and Armor",
+        "units": ["Panzer Infantry", "Leopard Tank", "Stealth Fighter", "Railgun Cruiser"]
     },
     "Russia": {
         "bonus": "+20% Defensive Unit Fortification",
         "units": ["Spetsnaz", "T-90 Tank", "Missile Launcher", "Attack Helicopter"]
     },
+    "United Kingdom": {
+        "bonus": "+10% Naval Command",
+        "units": ["Royal Guards", "Challenger Tank", "Typhoon Jet", "Battle Carrier"]
+    },
+    "France": {
+        "bonus": "+12% Mobility and Precision",
+        "units": ["Legion Infantry", "Leclerc Tank", "Rafale Fighter", "Submarine Fleet"]
+    },
+    "India": {
+        "bonus": "+14% Resource Gathering",
+        "units": ["Mountain Infantry", "Arjun Tank", "Tejas Jet", "Ocean Frigate"]
+    },
+    "Brazil": {
+        "bonus": "+10% Territory Growth",
+        "units": ["Jungle Rangers", "Armored Cavalry", "Falcon Fighter", "River Monitor"]
+    },
     "Philippines": {
         "bonus": "+15% Unit Speed & Magic Resistance",
         "units": ["Scout Infantry", "Marine Battalion", "Jungle Rangers", "Coastal Defense Unit"]
+    },
+    "South Korea": {
+        "bonus": "+16% Technology Advancement",
+        "units": ["Cyber Infantry", "K2 Tank", "FA-50 Fighter", "Stealth Corvette"]
+    },
+    "Canada": {
+        "bonus": "+12% Resource Stability",
+        "units": ["Arctic Infantry", "Armored Recon", "Aurora Jet", "Polar Cruiser"]
     }
 }
 
@@ -1630,12 +1780,21 @@ def login():
         user = User.query.filter((User.username == identifier) | (User.email == identifier)).first()
         if user and check_password_hash(user.password_hash, password):
             session['user_id'] = user.id
+            if request.form.get('remember'):
+                session.permanent = True
             if not user.country:
                 return redirect(url_for('country_selection'))
             return redirect(url_for('home'))
         return render_template_string(LOGIN_HTML, error="Invalid credentials submitted.")
     
     return render_template_string(LOGIN_HTML)
+
+@app.route('/forgot_password', methods=['GET', 'POST'])
+def forgot_password():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        return render_template_string(FORGOT_PASSWORD_HTML, message="If this email exists, a recovery link has been sent.")
+    return render_template_string(FORGOT_PASSWORD_HTML)
 
 @app.route('/logout')
 def logout():
