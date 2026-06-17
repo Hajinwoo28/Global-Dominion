@@ -35,128 +35,163 @@ LOGIN_HTML = """
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Global Dominion: Rise of Nations - Login</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/favicon-32.png') }}">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/favicon-180.png') }}">
     <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background: radial-gradient(circle, #0F1E36 0%, #050B14 100%);
-            color: #E2E8F0;
-            font-family: 'Cinzel', 'Georgia', serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            overflow: hidden;
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Cinzel+Decorative:wght@700;900&family=Inter:wght@300;400;500;600;700&display=swap');
+
+        :root {
+            --ink: #050b14; --void: #02050a; --navy: #0c1a30; --navy-2: #112340;
+            --gold: #d4af37; --gold-bright: #f3d27a; --gold-dim: #a8842c; --bronze: #8c6239;
+            --crimson: #9a2530; --crimson-bright: #c0392b; --ember: #d2691e;
+            --parchment: #e7ecf3; --muted: #8fa1b8; --line: rgba(212,175,55,0.25);
         }
-        .container {
-            background: linear-gradient(135deg, #0d1a30, #050b14);
-            border: 2px solid #8c6239;
-            box-shadow: 0 0 25px rgba(212, 175, 55, 0.2);
-            padding: 40px;
-            border-radius: 8px;
-            width: 100%;
-            max-width: 420px;
+        * { box-sizing: border-box; }
+        body {
+            margin: 0; min-height: 100vh;
+            background: radial-gradient(ellipse 900px 600px at 50% -10%, rgba(212,175,55,0.10), transparent 60%),
+                        radial-gradient(ellipse 700px 500px at 90% 110%, rgba(154,37,48,0.12), transparent 60%),
+                        linear-gradient(180deg, #0a1422 0%, var(--void) 100%);
+            color: var(--parchment);
+            font-family: 'Inter', sans-serif;
+            display: flex; align-items: center; justify-content: center;
+            padding: 40px 20px; position: relative; overflow-x: hidden;
+        }
+        .embers { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+        .ember-mote {
+            position: absolute; bottom: -10px; width: 4px; height: 4px; border-radius: 50%;
+            background: var(--ember); box-shadow: 0 0 8px 2px rgba(210,105,30,0.7);
+            opacity: 0; animation: drift 9s linear infinite;
+        }
+        @keyframes drift {
+            0% { opacity: 0; transform: translateY(0) translateX(0); }
+            10% { opacity: 0.85; } 90% { opacity: 0.4; }
+            100% { opacity: 0; transform: translateY(-94vh) translateX(20px); }
+        }
+        @media (prefers-reduced-motion: reduce) { .ember-mote { animation: none; display: none; } }
+
+        .frame-outer {
+            position: relative; z-index: 1; width: 100%; max-width: 440px;
+            border: 1px solid var(--bronze); border-radius: 16px; padding: 3px;
+            background: linear-gradient(160deg, rgba(212,175,55,0.16), rgba(0,0,0,0) 40%);
+            box-shadow: 0 30px 70px rgba(0,0,0,0.55), 0 0 0 1px rgba(0,0,0,0.4);
+        }
+        .frame-inner {
+            border: 1px solid var(--line); border-radius: 13px; padding: 38px 36px 34px;
+            background: linear-gradient(165deg, rgba(17,35,64,0.92), rgba(5,11,20,0.97) 55%);
             text-align: center;
         }
-        h2 {
-            color: #D4AF37;
-            font-size: 1.8rem;
-            letter-spacing: 2px;
-            margin-bottom: 25px;
-            text-transform: uppercase;
-            text-shadow: 0 0 8px rgba(212, 175, 55, 0.4);
+        .crest {
+            width: 96px; margin: 0 auto 10px; display: block;
+            filter: drop-shadow(0 6px 16px rgba(212,175,55,0.3));
+            -webkit-mask-image: radial-gradient(circle, #000 62%, transparent 100%);
+            mask-image: radial-gradient(circle, #000 62%, transparent 100%);
         }
-        .error {
-            color: #C24A1D;
-            font-size: 0.9rem;
-            margin-bottom: 15px;
-            font-weight: bold;
+        .wordmark {
+            font-family: 'Cinzel Decorative', 'Cinzel', serif; font-weight: 700;
+            font-size: 1.65rem; line-height: 1.15; margin: 6px 0 2px;
+            background: linear-gradient(180deg, var(--gold-bright) 10%, var(--gold) 55%, var(--gold-dim) 90%);
+            -webkit-background-clip: text; background-clip: text; color: transparent;
+            letter-spacing: 0.02em;
         }
-        .input-group {
-            margin-bottom: 20px;
-            text-align: left;
+        .ribbon {
+            position: relative; display: inline-block; margin: 10px 0 26px; padding: 7px 26px;
+            font-family: 'Cinzel', serif; font-weight: 600; font-size: 0.7rem;
+            letter-spacing: 0.22em; text-transform: uppercase; color: var(--ink);
+            background: linear-gradient(180deg, var(--gold-bright), var(--gold) 60%, var(--bronze));
+            clip-path: polygon(3% 0%, 97% 0%, 100% 50%, 97% 100%, 3% 100%, 0% 50%);
+            box-shadow: 0 8px 18px rgba(0,0,0,0.35);
         }
-        label {
-            display: block;
-            font-size: 0.8rem;
-            color: #8C6239;
-            margin-bottom: 5px;
-            text-transform: uppercase;
+        .alert-banner {
+            background: rgba(154,37,48,0.16); border: 1px solid rgba(192,57,43,0.45);
+            color: #ff9b8a; font-size: 0.82rem; font-weight: 600; padding: 10px 14px;
+            border-radius: 8px; margin-bottom: 20px; text-align: left;
         }
-        input[type="text"], input[type="password"] {
-            width: 100%;
-            padding: 12px;
-            background-color: #0A1220;
-            border: 1px solid #8C6239;
-            color: #FFF;
-            border-radius: 4px;
-            box-sizing: border-box;
-            font-size: 0.95rem;
+        .field { margin-bottom: 18px; text-align: left; }
+        .field label {
+            display: block; font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase;
+            color: var(--bronze); margin-bottom: 7px; font-weight: 600;
         }
-        input[type="text"]:focus, input[type="password"]:focus {
-            border-color: #D4AF37;
-            outline: none;
-            box-shadow: 0 0 8px rgba(212, 175, 55, 0.3);
+        .input-shell {
+            position: relative; display: flex; align-items: center;
+            background: rgba(2,5,10,0.65); border: 1px solid rgba(140,98,57,0.55); border-radius: 7px;
+            transition: border-color 0.2s, box-shadow 0.2s;
         }
-        .btn {
-            background: linear-gradient(180deg, #D4AF37 0%, #8C6239 100%);
-            color: #0A1220;
-            border: none;
-            width: 100%;
-            padding: 14px;
-            font-weight: bold;
-            font-size: 1rem;
-            cursor: pointer;
-            border-radius: 4px;
-            text-transform: uppercase;
-            transition: all 0.2s ease-in-out;
+        .input-shell:focus-within { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(212,175,55,0.14); }
+        .input-shell .icon { width: 40px; height: 46px; display: flex; align-items: center; justify-content: center; color: var(--bronze); flex-shrink: 0; }
+        .input-shell input {
+            flex: 1; background: none; border: none; outline: none; color: #fff;
+            font-size: 0.95rem; padding: 13px 14px 13px 0; font-family: 'Inter', sans-serif; min-width: 0;
         }
-        .btn:hover {
-            box-shadow: 0 0 15px rgba(212, 175, 55, 0.6);
-            transform: translateY(-1px);
+        .row-between { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; font-size: 0.8rem; flex-wrap: wrap; gap: 8px; }
+        .remember { display: flex; align-items: center; gap: 7px; color: var(--muted); cursor: pointer; }
+        .remember input { accent-color: var(--gold); }
+        a.link { color: var(--gold); text-decoration: none; }
+        a.link:hover { text-decoration: underline; }
+        .btn-gold {
+            position: relative; width: 100%; border: none; padding: 15px; border-radius: 7px;
+            font-family: 'Cinzel', serif; font-weight: 700; font-size: 0.92rem; letter-spacing: 0.1em;
+            text-transform: uppercase; color: var(--ink);
+            background: linear-gradient(180deg, var(--gold-bright) 0%, var(--gold) 55%, var(--bronze) 100%);
+            cursor: pointer; box-shadow: 0 12px 26px rgba(212,175,55,0.22), inset 0 1px 0 rgba(255,255,255,0.4);
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
         }
-        .footer-link {
-            margin-top: 20px;
-            font-size: 0.85rem;
-        }
-        .footer-link a {
-            color: #D4AF37;
-            text-decoration: none;
-        }
-        .footer-link a:hover {
-            text-decoration: underline;
+        .btn-gold:hover { transform: translateY(-1px); box-shadow: 0 16px 30px rgba(212,175,55,0.3), inset 0 1px 0 rgba(255,255,255,0.4); }
+        .btn-gold:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 3px; }
+        .divider { display: flex; align-items: center; gap: 12px; margin: 22px 0 18px; color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; }
+        .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+        .footer-note { font-size: 0.85rem; color: var(--muted); }
+        @media (max-width: 480px) {
+            .frame-inner { padding: 30px 22px 26px; }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h2>Global Dominion</h2>
-        <p style="color:#8C6239; font-size:0.8rem; margin-top:-20px; margin-bottom:30px; letter-spacing:1px;">RISE OF NATIONS</p>
-        
-        {% if error %}
-            <div class="error">{{ error }}</div>
-        {% endif %}
+    <div class="embers">
+        <span class="ember-mote" style="left:8%; animation-delay:0s;"></span>
+        <span class="ember-mote" style="left:18%; animation-delay:2.4s;"></span>
+        <span class="ember-mote" style="left:30%; animation-delay:1.1s;"></span>
+        <span class="ember-mote" style="left:46%; animation-delay:3.6s;"></span>
+        <span class="ember-mote" style="left:62%; animation-delay:0.6s;"></span>
+        <span class="ember-mote" style="left:74%; animation-delay:2.9s;"></span>
+        <span class="ember-mote" style="left:85%; animation-delay:1.8s;"></span>
+        <span class="ember-mote" style="left:93%; animation-delay:4.2s;"></span>
+    </div>
 
-        <form action="/login" method="POST">
-            <div class="input-group">
-                <label>Username / Email</label>
-                <input type="text" name="identifier" required>
-            </div>
-            <div class="input-group">
-                <label>Password</label>
-                <input type="password" name="password" required>
-            </div>
-            <div class="input-group" style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
-                <label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; color:#94A3B8;">
-                    <input type="checkbox" name="remember" style="transform:scale(1.1);">
-                    Remember Me
-                </label>
-                <a href="/forgot_password" style="color:#D4AF37; text-decoration:none; font-size:0.85rem;">Forgot Password?</a>
-            </div>
-            <button type="submit" class="btn">Login</button>
-        </form>
-        <div class="footer-link">
-            Need an account? <a href="/register">Register Here</a>
+    <div class="frame-outer">
+        <div class="frame-inner">
+            <img class="crest" src="{{ url_for('static', filename='img/emblem.jpg') }}" alt="Global Dominion crest">
+            <div class="wordmark">GLOBAL DOMINION</div>
+            <div class="ribbon">Rise of Nations &middot; Login</div>
+
+            {% if error %}
+                <div class="alert-banner">{{ error }}</div>
+            {% endif %}
+
+            <form action="/login" method="POST">
+                <div class="field">
+                    <label>Commander Identity</label>
+                    <div class="input-shell">
+                        <span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+                        <input type="text" name="identifier" placeholder="Username or Email" required>
+                    </div>
+                </div>
+                <div class="field">
+                    <label>Access Cipher</label>
+                    <div class="input-shell">
+                        <span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>
+                        <input type="password" name="password" placeholder="Password" required>
+                    </div>
+                </div>
+                <div class="row-between">
+                    <label class="remember"><input type="checkbox" name="remember"> Remember Me</label>
+                    <a href="/forgot_password" class="link">Forgot Password?</a>
+                </div>
+                <button type="submit" class="btn-gold">Enter the War Room</button>
+            </form>
+
+            <div class="divider">New Commander</div>
+            <div class="footer-note">Need an account? <a href="/register" class="link">Register Here</a></div>
         </div>
     </div>
 </body>
@@ -170,139 +205,175 @@ REGISTER_HTML = """
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Global Dominion - Establish Command</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/favicon-32.png') }}">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/favicon-180.png') }}">
     <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background: radial-gradient(circle, #0F1E36 0%, #050B14 100%);
-            color: #E2E8F0;
-            font-family: 'Cinzel', 'Georgia', serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            overflow: hidden;
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Cinzel+Decorative:wght@700;900&family=Inter:wght@300;400;500;600;700&display=swap');
+
+        :root {
+            --ink: #050b14; --void: #02050a; --navy: #0c1a30; --navy-2: #112340;
+            --gold: #d4af37; --gold-bright: #f3d27a; --gold-dim: #a8842c; --bronze: #8c6239;
+            --crimson: #9a2530; --crimson-bright: #c0392b; --ember: #d2691e;
+            --parchment: #e7ecf3; --muted: #8fa1b8; --line: rgba(212,175,55,0.25);
         }
-        .container {
-            background: linear-gradient(135deg, #0d1a30, #050b14);
-            border: 2px solid #8c6239;
-            box-shadow: 0 0 25px rgba(212, 175, 55, 0.2);
-            padding: 35px;
-            border-radius: 8px;
-            width: 100%;
-            max-width: 440px;
+        * { box-sizing: border-box; }
+        body {
+            margin: 0; min-height: 100vh;
+            background: radial-gradient(ellipse 900px 600px at 50% -10%, rgba(212,175,55,0.10), transparent 60%),
+                        radial-gradient(ellipse 700px 500px at 90% 110%, rgba(154,37,48,0.12), transparent 60%),
+                        linear-gradient(180deg, #0a1422 0%, var(--void) 100%);
+            color: var(--parchment);
+            font-family: 'Inter', sans-serif;
+            display: flex; align-items: center; justify-content: center;
+            padding: 40px 20px; position: relative; overflow-x: hidden;
+        }
+        .embers { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+        .ember-mote {
+            position: absolute; bottom: -10px; width: 4px; height: 4px; border-radius: 50%;
+            background: var(--ember); box-shadow: 0 0 8px 2px rgba(210,105,30,0.7);
+            opacity: 0; animation: drift 9s linear infinite;
+        }
+        @keyframes drift {
+            0% { opacity: 0; transform: translateY(0) translateX(0); }
+            10% { opacity: 0.85; } 90% { opacity: 0.4; }
+            100% { opacity: 0; transform: translateY(-94vh) translateX(20px); }
+        }
+        @media (prefers-reduced-motion: reduce) { .ember-mote { animation: none; display: none; } }
+
+        .frame-outer {
+            position: relative; z-index: 1; width: 100%; max-width: 460px;
+            border: 1px solid var(--bronze); border-radius: 16px; padding: 3px;
+            background: linear-gradient(160deg, rgba(212,175,55,0.16), rgba(0,0,0,0) 40%);
+            box-shadow: 0 30px 70px rgba(0,0,0,0.55), 0 0 0 1px rgba(0,0,0,0.4);
+        }
+        .frame-inner {
+            border: 1px solid var(--line); border-radius: 13px; padding: 34px 36px 30px;
+            background: linear-gradient(165deg, rgba(17,35,64,0.92), rgba(5,11,20,0.97) 55%);
             text-align: center;
         }
-        h2 {
-            color: #D4AF37;
-            font-size: 1.6rem;
-            letter-spacing: 2px;
-            margin-bottom: 5px;
-            text-transform: uppercase;
+        .crest {
+            width: 80px; margin: 0 auto 8px; display: block;
+            filter: drop-shadow(0 6px 16px rgba(212,175,55,0.3));
+            -webkit-mask-image: radial-gradient(circle, #000 62%, transparent 100%);
+            mask-image: radial-gradient(circle, #000 62%, transparent 100%);
         }
-        .subtitle {
-            color: #8C6239;
-            font-size: 0.8rem;
-            margin-bottom: 25px;
-            letter-spacing: 1px;
+        .wordmark {
+            font-family: 'Cinzel Decorative', 'Cinzel', serif; font-weight: 700;
+            font-size: 1.5rem; line-height: 1.15; margin: 4px 0 2px;
+            background: linear-gradient(180deg, var(--gold-bright) 10%, var(--gold) 55%, var(--gold-dim) 90%);
+            -webkit-background-clip: text; background-clip: text; color: transparent;
+            letter-spacing: 0.02em;
         }
-        .error {
-            color: #C24A1D;
-            font-size: 0.9rem;
-            margin-bottom: 15px;
-            font-weight: bold;
+        .ribbon {
+            position: relative; display: inline-block; margin: 10px 0 22px; padding: 7px 26px;
+            font-family: 'Cinzel', serif; font-weight: 600; font-size: 0.7rem;
+            letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink);
+            background: linear-gradient(180deg, var(--gold-bright), var(--gold) 60%, var(--bronze));
+            clip-path: polygon(3% 0%, 97% 0%, 100% 50%, 97% 100%, 3% 100%, 0% 50%);
+            box-shadow: 0 8px 18px rgba(0,0,0,0.35);
         }
-        .input-group {
-            margin-bottom: 15px;
-            text-align: left;
+        .alert-banner {
+            background: rgba(154,37,48,0.16); border: 1px solid rgba(192,57,43,0.45);
+            color: #ff9b8a; font-size: 0.82rem; font-weight: 600; padding: 10px 14px;
+            border-radius: 8px; margin-bottom: 18px; text-align: left;
         }
-        label {
-            display: block;
-            font-size: 0.75rem;
-            color: #8C6239;
-            margin-bottom: 4px;
-            text-transform: uppercase;
+        .field { margin-bottom: 15px; text-align: left; }
+        .field label {
+            display: block; font-size: 0.68rem; letter-spacing: 0.12em; text-transform: uppercase;
+            color: var(--bronze); margin-bottom: 6px; font-weight: 600;
         }
-        input[type="text"], input[type="email"], input[type="password"] {
-            width: 100%;
-            padding: 10px;
-            background-color: #0A1220;
-            border: 1px solid #8C6239;
-            color: #FFF;
-            border-radius: 4px;
-            box-sizing: border-box;
-            font-size: 0.9rem;
+        .input-shell {
+            position: relative; display: flex; align-items: center;
+            background: rgba(2,5,10,0.65); border: 1px solid rgba(140,98,57,0.55); border-radius: 7px;
+            transition: border-color 0.2s, box-shadow 0.2s;
         }
-        input:focus {
-            border-color: #D4AF37;
-            outline: none;
-            box-shadow: 0 0 8px rgba(212, 175, 55, 0.3);
+        .input-shell:focus-within { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(212,175,55,0.14); }
+        .input-shell .icon { width: 38px; height: 42px; display: flex; align-items: center; justify-content: center; color: var(--bronze); flex-shrink: 0; }
+        .input-shell input {
+            flex: 1; background: none; border: none; outline: none; color: #fff;
+            font-size: 0.92rem; padding: 11px 14px 11px 0; font-family: 'Inter', sans-serif; min-width: 0;
         }
-        .btn {
-            background: linear-gradient(180deg, #D4AF37 0%, #8C6239 100%);
-            color: #0A1220;
-            border: none;
-            width: 100%;
-            padding: 12px;
-            font-weight: bold;
-            font-size: 0.95rem;
-            cursor: pointer;
-            border-radius: 4px;
-            text-transform: uppercase;
-            transition: all 0.2s ease;
+        .terms-row { display: flex; align-items: flex-start; gap: 9px; margin: 4px 0 22px; text-align: left; font-size: 0.8rem; color: var(--muted); }
+        .terms-row input { margin-top: 3px; accent-color: var(--gold); flex-shrink: 0; }
+        a.link { color: var(--gold); text-decoration: none; }
+        a.link:hover { text-decoration: underline; }
+        .btn-gold {
+            position: relative; width: 100%; border: none; padding: 15px; border-radius: 7px;
+            font-family: 'Cinzel', serif; font-weight: 700; font-size: 0.9rem; letter-spacing: 0.08em;
+            text-transform: uppercase; color: var(--ink);
+            background: linear-gradient(180deg, var(--gold-bright) 0%, var(--gold) 55%, var(--bronze) 100%);
+            cursor: pointer; box-shadow: 0 12px 26px rgba(212,175,55,0.22), inset 0 1px 0 rgba(255,255,255,0.4);
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
         }
-        .btn:hover {
-            box-shadow: 0 0 15px rgba(212, 175, 55, 0.5);
-        }
-        .footer-link {
-            margin-top: 20px;
-            font-size: 0.85rem;
-        }
-        .footer-link a {
-            color: #D4AF37;
-            text-decoration: none;
-        }
-        .footer-link a:hover {
-            text-decoration: underline;
+        .btn-gold:hover { transform: translateY(-1px); box-shadow: 0 16px 30px rgba(212,175,55,0.3), inset 0 1px 0 rgba(255,255,255,0.4); }
+        .btn-gold:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 3px; }
+        .divider { display: flex; align-items: center; gap: 12px; margin: 20px 0 16px; color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; }
+        .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+        .footer-note { font-size: 0.85rem; color: var(--muted); }
+        @media (max-width: 480px) {
+            .frame-inner { padding: 26px 22px 22px; }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h2>Global Dominion</h2>
-        <div class="subtitle">ESTABLISH YOUR COALITION SECURELY</div>
-        
-        {% if error %}
-            <div class="error">{{ error }}</div>
-        {% endif %}
+    <div class="embers">
+        <span class="ember-mote" style="left:8%; animation-delay:0s;"></span>
+        <span class="ember-mote" style="left:20%; animation-delay:2.4s;"></span>
+        <span class="ember-mote" style="left:34%; animation-delay:1.1s;"></span>
+        <span class="ember-mote" style="left:50%; animation-delay:3.6s;"></span>
+        <span class="ember-mote" style="left:66%; animation-delay:0.6s;"></span>
+        <span class="ember-mote" style="left:80%; animation-delay:2.9s;"></span>
+        <span class="ember-mote" style="left:92%; animation-delay:1.8s;"></span>
+    </div>
 
-        <form action="/register" method="POST">
-            <div class="input-group">
-                <label>Username</label>
-                <input type="text" name="username" required>
-            </div>
-            <div class="input-group">
-                <label>Email Address</label>
-                <input type="email" name="email" required>
-            </div>
-            <div class="input-group">
-                <label>Password</label>
-                <input type="password" name="password" required>
-            </div>
-            <div class="input-group">
-                <label>Confirm Password</label>
-                <input type="password" name="confirm_password" required>
-            </div>
-            <div class="input-group" style="display:flex; align-items:center; gap:10px; margin-top:0;">
-                <label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; color:#94A3B8;">
-                    <input type="checkbox" name="terms" required style="transform:scale(1.1);">
-                    I agree to the <a href="#" style="color:#D4AF37; text-decoration:none;">Terms & Conditions</a>
+    <div class="frame-outer">
+        <div class="frame-inner">
+            <img class="crest" src="{{ url_for('static', filename='img/emblem.jpg') }}" alt="Global Dominion crest">
+            <div class="wordmark">GLOBAL DOMINION</div>
+            <div class="ribbon">New Commander Enlistment</div>
+
+            {% if error %}
+                <div class="alert-banner">{{ error }}</div>
+            {% endif %}
+
+            <form action="/register" method="POST">
+                <div class="field">
+                    <label>Callsign / Username</label>
+                    <div class="input-shell">
+                        <span class="icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+                        <input type="text" name="username" placeholder="Choose a callsign" required>
+                    </div>
+                </div>
+                <div class="field">
+                    <label>Email Address</label>
+                    <div class="input-shell">
+                        <span class="icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></svg></span>
+                        <input type="email" name="email" placeholder="you@example.com" required>
+                    </div>
+                </div>
+                <div class="field">
+                    <label>Access Cipher</label>
+                    <div class="input-shell">
+                        <span class="icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>
+                        <input type="password" name="password" placeholder="Create a password" required>
+                    </div>
+                </div>
+                <div class="field">
+                    <label>Confirm Cipher</label>
+                    <div class="input-shell">
+                        <span class="icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+                        <input type="password" name="confirm_password" placeholder="Re-enter password" required>
+                    </div>
+                </div>
+                <label class="terms-row">
+                    <input type="checkbox" name="terms" required>
+                    <span>I agree to the <a href="#" class="link">Terms &amp; Conditions</a> of service</span>
                 </label>
-            </div>
-            <button type="submit" class="btn">Register & Enlist</button>
-        </form>
-        <div class="footer-link">
-            Already registered? <a href="/login">Return to Command Center</a>
+                <button type="submit" class="btn-gold">Register &amp; Enlist</button>
+            </form>
+
+            <div class="divider">Already Serving</div>
+            <div class="footer-note">Already registered? <a href="/login" class="link">Return to Command Center</a></div>
         </div>
     </div>
 </body>
@@ -1613,51 +1684,63 @@ class Research(db.Model):
 COUNTRY_DATA = {
     "USA": {
         "bonus": "+10% Resource Production",
-        "units": ["Marine Infantry", "Abrams Tank", "F-35 Fighter", "Aircraft Carrier"]
+        "units": ["Marine Infantry", "Abrams Tank", "F-35 Fighter", "Aircraft Carrier"],
+        "color": "#2563EB"
     },
     "China": {
         "bonus": "+12% Production Efficiency",
-        "units": ["Guard Infantry", "Type 99 Tank", "J-20 Fighter", "Carrier Task Force"]
+        "units": ["Guard Infantry", "Type 99 Tank", "J-20 Fighter", "Carrier Task Force"],
+        "color": "#DB2777"
     },
     "Japan": {
         "bonus": "+15% Tactical Attack Power",
-        "units": ["Samurai Guard", "Modern Infantry", "Type-10 Tank", "Drone Squadron"]
+        "units": ["Samurai Guard", "Modern Infantry", "Type-10 Tank", "Drone Squadron"],
+        "color": "#DC2626"
     },
     "Germany": {
         "bonus": "+18% Defense and Armor",
-        "units": ["Panzer Infantry", "Leopard Tank", "Stealth Fighter", "Railgun Cruiser"]
+        "units": ["Panzer Infantry", "Leopard Tank", "Stealth Fighter", "Railgun Cruiser"],
+        "color": "#EAB308"
     },
     "Russia": {
         "bonus": "+20% Defensive Unit Fortification",
-        "units": ["Spetsnaz", "T-90 Tank", "Missile Launcher", "Attack Helicopter"]
+        "units": ["Spetsnaz", "T-90 Tank", "Missile Launcher", "Attack Helicopter"],
+        "color": "#16A34A"
     },
     "United Kingdom": {
         "bonus": "+10% Naval Command",
-        "units": ["Royal Guards", "Challenger Tank", "Typhoon Jet", "Battle Carrier"]
+        "units": ["Royal Guards", "Challenger Tank", "Typhoon Jet", "Battle Carrier"],
+        "color": "#4F46E5"
     },
     "France": {
         "bonus": "+12% Mobility and Precision",
-        "units": ["Legion Infantry", "Leclerc Tank", "Rafale Fighter", "Submarine Fleet"]
+        "units": ["Legion Infantry", "Leclerc Tank", "Rafale Fighter", "Submarine Fleet"],
+        "color": "#0EA5E9"
     },
     "India": {
         "bonus": "+14% Resource Gathering",
-        "units": ["Mountain Infantry", "Arjun Tank", "Tejas Jet", "Ocean Frigate"]
+        "units": ["Mountain Infantry", "Arjun Tank", "Tejas Jet", "Ocean Frigate"],
+        "color": "#F97316"
     },
     "Brazil": {
         "bonus": "+10% Territory Growth",
-        "units": ["Jungle Rangers", "Armored Cavalry", "Falcon Fighter", "River Monitor"]
+        "units": ["Jungle Rangers", "Armored Cavalry", "Falcon Fighter", "River Monitor"],
+        "color": "#84CC16"
     },
     "Philippines": {
         "bonus": "+15% Unit Speed & Magic Resistance",
-        "units": ["Scout Infantry", "Marine Battalion", "Jungle Rangers", "Coastal Defense Unit"]
+        "units": ["Scout Infantry", "Marine Battalion", "Jungle Rangers", "Coastal Defense Unit"],
+        "color": "#D97706"
     },
     "South Korea": {
         "bonus": "+16% Technology Advancement",
-        "units": ["Cyber Infantry", "K2 Tank", "FA-50 Fighter", "Stealth Corvette"]
+        "units": ["Cyber Infantry", "K2 Tank", "FA-50 Fighter", "Stealth Corvette"],
+        "color": "#A855F7"
     },
     "Canada": {
         "bonus": "+12% Resource Stability",
-        "units": ["Arctic Infantry", "Armored Recon", "Aurora Jet", "Polar Cruiser"]
+        "units": ["Arctic Infantry", "Armored Recon", "Aurora Jet", "Polar Cruiser"],
+        "color": "#06B6D4"
     }
 }
 
@@ -2201,11 +2284,28 @@ def seed_database():
 
 
 # -------------------------------------------------------------------------
+# DATABASE BOOTSTRAP
+# -------------------------------------------------------------------------
+# Runs at import time -- NOT only under `if __name__ == "__main__"`.
+# Vercel (and any WSGI server) imports this module directly; it never runs
+# it as the main script. With bootstrap gated behind `__main__`, the
+# users/territories/units/research tables were never created against the
+# production Postgres database, so the very first query in register() or
+# login() failed with "relation does not exist" -> the blank 500 page.
+with app.app_context():
+    try:
+        db.create_all()
+        seed_database()
+    except Exception as boot_error:
+        # A transient hiccup here shouldn't take down the whole app at cold
+        # start -- log it so it's visible in Vercel's function logs instead
+        # of silently resurfacing as an unexplained 500 on the next request.
+        app.logger.error(f"Database bootstrap failed: {boot_error}")
+
+
+# -------------------------------------------------------------------------
 # APPLICATION ENTRYPOINT
 # -------------------------------------------------------------------------
 
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
-        seed_database()
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(debug=True, host='0.0.0.0', port=5000)
