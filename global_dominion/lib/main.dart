@@ -65,8 +65,8 @@ class _SplashScreenState extends State<SplashScreen>
       if (mounted) {
         Navigator.of(context).pushReplacement(
           PageRouteBuilder(
-            pageBuilder: (_, __, ___) => const HomeScreen(),
-            transitionsBuilder: (_, anim, __, child) =>
+            pageBuilder: (_, _, _) => const HomeScreen(),
+            transitionsBuilder: (_, anim, _, child) =>
                 FadeTransition(opacity: anim, child: child),
             transitionDuration: const Duration(milliseconds: 800),
           ),
@@ -90,8 +90,8 @@ class _SplashScreenState extends State<SplashScreen>
           // Tap to skip splash
           Navigator.of(context).pushReplacement(
             PageRouteBuilder(
-              pageBuilder: (_, __, ___) => const HomeScreen(),
-              transitionsBuilder: (_, anim, __, child) =>
+              pageBuilder: (_, _, _) => const HomeScreen(),
+              transitionsBuilder: (_, anim, _, child) =>
                   FadeTransition(opacity: anim, child: child),
               transitionDuration: const Duration(milliseconds: 600),
             ),
@@ -121,8 +121,8 @@ class _SplashScreenState extends State<SplashScreen>
                   center: Alignment.center,
                   radius: 1.0,
                   colors: [
-                    Colors.black.withOpacity(0.1),
-                    Colors.black.withOpacity(0.65),
+                    Colors.black.withValues(alpha: 0.1),
+                    Colors.black.withValues(alpha: 0.65),
                   ],
                 ),
               ),
@@ -202,10 +202,10 @@ class _HomeScreenState extends State<HomeScreen>
     } else {
       Navigator.of(context).push(
         PageRouteBuilder(
-          pageBuilder: (_, __, ___) => item.route == '/game'
+          pageBuilder: (_, _, _) => item.route == '/game'
               ? const GameScreen()
               : const SettingsScreen(),
-          transitionsBuilder: (_, anim, __, child) => FadeTransition(
+          transitionsBuilder: (_, anim, _, child) => FadeTransition(
             opacity: anim,
             child: SlideTransition(
               position: Tween<Offset>(
@@ -283,8 +283,8 @@ class _HomeScreenState extends State<HomeScreen>
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                Colors.black.withOpacity(0.25),
-                Colors.black.withOpacity(0.75),
+                Colors.black.withValues(alpha: 0.25),
+                Colors.black.withValues(alpha: 0.75),
               ],
             ),
           ),
@@ -370,8 +370,8 @@ class _MenuButtonWidgetState extends State<_MenuButtonWidget> {
             ),
             borderRadius: BorderRadius.circular(3),
             boxShadow: _hovered
-                ? [BoxShadow(color: const Color(0xFFFFD700).withOpacity(0.45), blurRadius: 18, spreadRadius: 2)]
-                : [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 8)],
+                ? [BoxShadow(color: const Color(0xFFFFD700).withValues(alpha: 0.45), blurRadius: 18, spreadRadius: 2)]
+                : [BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 8)],
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -530,8 +530,8 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                             onPressed: () {
                               Navigator.of(context).pushReplacement(
                                 PageRouteBuilder(
-                                  pageBuilder: (_, __, ___) => const CommandCenterScreen(),
-                                  transitionsBuilder: (_, anim, __, child) => FadeTransition(opacity: anim, child: child),
+                                  pageBuilder: (_, _, _) => const CommandCenterScreen(),
+                                  transitionsBuilder: (_, anim, _, child) => FadeTransition(opacity: anim, child: child),
                                 ),
                               );
                             },
@@ -736,8 +736,8 @@ class CommandCenterScreen extends StatelessWidget {
                                 onPressed: () {
                                   Navigator.of(context).push(
                                     PageRouteBuilder(
-                                      pageBuilder: (_, __, ___) => const DeployArmyScreen(),
-                                      transitionsBuilder: (_, anim, __, child) => FadeTransition(opacity: anim, child: child),
+                                      pageBuilder: (_, _, _) => const DeployArmyScreen(),
+                                      transitionsBuilder: (_, anim, _, child) => FadeTransition(opacity: anim, child: child),
                                     ),
                                   );
                                 },
@@ -749,8 +749,8 @@ class CommandCenterScreen extends StatelessWidget {
                                 onPressed: () {
                                   Navigator.of(context).push(
                                     PageRouteBuilder(
-                                      pageBuilder: (_, __, ___) => const WorldMapScreen(),
-                                      transitionsBuilder: (_, anim, __, child) => FadeTransition(opacity: anim, child: child),
+                                      pageBuilder: (_, _, _) => const WorldMapScreen(),
+                                      transitionsBuilder: (_, anim, _, child) => FadeTransition(opacity: anim, child: child),
                                     ),
                                   );
                                 },
@@ -1105,7 +1105,7 @@ class WorldMapScreen extends StatelessWidget {
                         gradient: LinearGradient(
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
-                          colors: [Colors.black.withOpacity(0.2), Colors.black.withOpacity(0.6)],
+                          colors: [Colors.black.withValues(alpha: 0.2), Colors.black.withValues(alpha: 0.6)],
                         ),
                       ),
                     ),
@@ -1116,7 +1116,7 @@ class WorldMapScreen extends StatelessWidget {
                       child: Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.45),
+                          color: Colors.black.withValues(alpha: 0.45),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: const Text(
@@ -1202,7 +1202,7 @@ class _MapIndicator extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF121E29),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: color.withOpacity(0.5)),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1456,7 +1456,7 @@ class _ToggleSetting extends StatelessWidget {
           Switch(
             value: value,
             onChanged: onChanged,
-            activeColor: const Color(0xFFFFD700),
+            activeThumbColor: const Color(0xFFFFD700),
             activeTrackColor: const Color(0xFF3A2800),
           ),
         ],
