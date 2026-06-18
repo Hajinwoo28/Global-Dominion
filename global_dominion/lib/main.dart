@@ -530,7 +530,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                             onPressed: () {
                               Navigator.of(context).pushReplacement(
                                 PageRouteBuilder(
-                                  pageBuilder: (_, __, ___) => const HomeScreen(),
+                                  pageBuilder: (_, __, ___) => const CommandCenterScreen(),
                                   transitionsBuilder: (_, anim, __, child) => FadeTransition(opacity: anim, child: child),
                                 ),
                               );
@@ -606,6 +606,83 @@ class _ResourceChip extends StatelessWidget {
         const SizedBox(width: 4),
         Text(label, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 13)),
       ],
+    );
+  }
+}
+
+class CommandCenterScreen extends StatelessWidget {
+  const CommandCenterScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF07090F),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              decoration: const BoxDecoration(
+                border: Border(bottom: BorderSide(color: Color(0xFF1F2A38), width: 1)),
+                color: Color(0xFF080C12),
+              ),
+              child: Row(
+                children: [
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFFFFD700), size: 18),
+                  ),
+                  const SizedBox(width: 10),
+                  const Text(
+                    'COMMAND CENTER',
+                    style: TextStyle(
+                      color: Color(0xFFFFD700),
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 2,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const Spacer(),
+                  _ResourceChip(icon: Icons.grain_rounded, label: '1,200', color: const Color(0xFFFFD700)),
+                  const SizedBox(width: 14),
+                  _ResourceChip(icon: Icons.people_rounded, label: '850', color: const Color(0xFF4FC3F7)),
+                  const SizedBox(width: 14),
+                  _ResourceChip(icon: Icons.shield_rounded, label: '300', color: const Color(0xFFEF9A9A)),
+                ],
+              ),
+            ),
+            Expanded(
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Icon(Icons.public_rounded, size: 88, color: Color(0xFF70A653)),
+                    SizedBox(height: 24),
+                    Text(
+                      'COMMAND CENTER READY',
+                      style: TextStyle(
+                        color: Color(0xFFF4E19C),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 28,
+                        letterSpacing: 3,
+                      ),
+                    ),
+                    SizedBox(height: 16),
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 44),
+                      child: Text(
+                        'Your global strategy overview is live. Select a nation, manage forces, and deploy your first campaign.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.white70, fontSize: 16, height: 1.8),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
