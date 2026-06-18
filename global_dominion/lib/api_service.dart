@@ -26,14 +26,47 @@ class ApiService {
   Future<bool> login(String identifier, String password) async {
     final response = await http.post(
       Uri.parse('$baseUrl/login'),
-      body: {
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({
         'identifier': identifier,
         'password': password,
-      },
+      }),
     );
 
     if (response.statusCode == 302 || response.statusCode == 200) {
       _updateCookie(response);
+      return true;
+    }
+    return false;
+  }
+
+  Future<bool> register(String username, String email, String password, String confirmPassword) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/register'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({
+        'username': username,
+        'email': email,
+        'password': password,
+        'confirm_password': confirmPassword,
+      }),
+    );
+
+    if (response.statusCode == 302 || response.statusCode == 200) {
+      _updateCookie(response);
+      return true;
+    }
+    return false;
+  }
+
+  Future<bool> setCountry(String country) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/country_selection'),
+      headers: _headers,
+      body: json.encode({'country': country}),
+    );
+
+    if (response.statusCode == 302 || response.statusCode == 200) {
       return true;
     }
     return false;

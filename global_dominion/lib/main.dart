@@ -55,6 +55,18 @@ class GameManager extends ChangeNotifier {
     }
   }
 
+  Future<bool> register(String username, String email, String password, String confirmPassword) async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      final success = await apiService.register(username, email, password, confirmPassword);
+      return success;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
   Future<Map<String, dynamic>> attack(int territoryId, {String? spell}) async {
     final result = await apiService.attack(territoryId, spell: spell);
     await refreshState();
@@ -74,6 +86,8 @@ class GlobalDominion extends StatelessWidget {
       home: const SplashScreen(),
       routes: {
         '/login': (context) => const LoginScreen(),
+        '/register': (context) => const RegisterScreen(),
+        '/country_selection': (context) => const CountrySelectionScreen(),
         '/home': (context) => const HomeScreen(),
         '/game': (context) => const GameScreen(),
         '/settings': (context) => const SettingsScreen(),
@@ -95,6 +109,7 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _identifierController = TextEditingController();
   final _passwordController = TextEditingController();
+  bool _obscurePassword = true;
   String? _error;
 
   void _login() async {
@@ -130,8 +145,10 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              Image.asset('assets/images/game_logo.png', width: 100, height: 100),
+              const SizedBox(height: 24),
               const Text(
-                'COMMANDER LOGIN',
+                'GLOBAL DOMINION',
                 style: TextStyle(
                   color: Color(0xFFFFD700),
                   fontSize: 24,
@@ -152,12 +169,19 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 16),
               TextField(
                 controller: _passwordController,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Access Cipher',
-                  labelStyle: TextStyle(color: Colors.white70),
-                  enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF8B6914))),
+                  labelStyle: const TextStyle(color: Colors.white70),
+                  enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF8B6914))),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                      color: const Color(0xFF8B6914),
+                    ),
+                    onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                  ),
                 ),
-                obscureText: true,
+                obscureText: _obscurePassword,
                 style: const TextStyle(color: Colors.white),
               ),
               if (_error != null)
@@ -177,6 +201,11 @@ class _LoginScreenState extends State<LoginScreen> {
                       onPressed: _login,
                       child: const Text('ENTER WAR ROOM', style: TextStyle(fontWeight: FontWeight.bold)),
                     ),
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: () => Navigator.of(context).pushNamed('/register'),
+                child: const Text('NEW COMMANDER? ENLIST HERE', style: TextStyle(color: Color(0xFFFFD700), fontSize: 12)),
+              ),
             ],
           ),
         ),
@@ -186,7 +215,259 @@ class _LoginScreenState extends State<LoginScreen> {
 }
 
 // ─────────────────────────────────────────────
-// SPLASH SCREEN — auto-navigates to HomeScreen
+// REGISTER SCREEN
+// ─────────────────────────────────────────────
+class RegisterScreen extends StatefulWidget {
+  const RegisterScreen({super.key});
+
+  @override
+  State<RegisterScreen> createState() => _RegisterScreenState();
+}
+
+class _RegisterScreenState extends State<RegisterScreen> {
+  final _usernameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
+  String? _error;
+
+  void _register() async {
+    if (_passwordController.text != _confirmPasswordController.text) {
+      setState(() => _error = 'Passwords do not match');
+      return;
+    }
+
+    final gameManager = context.read<GameManager>();
+    final success = await gameManager.register(
+      _usernameController.text,
+      _emailController.text,
+      _passwordController.text,
+      _confirmPasswordController.text,
+    );
+    if (success) {
+      if (mounted) {
+        Navigator.of(context).pushReplacementNamed('/country_selection');
+      }
+    } else {
+      setState(() => _error = 'Registration failed');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isLoading = context.watch<GameManager>().isLoading;
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Center(
+        child: Container(
+          width: 450,
+          padding: const EdgeInsets.all(32),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A1208),
+            border: Border.all(color: const Color(0xFFAA8820), width: 2),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Image.asset('assets/images/game_logo.png', width: 80, height: 80),
+                const SizedBox(height: 24),
+                const Text(
+                  'GLOBAL DOMINION',
+                  style: TextStyle(
+                    color: Color(0xFFFFD700),
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 2,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 32),
+                TextField(
+                  controller: _usernameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Callsign / Username',
+                    labelStyle: TextStyle(color: Colors.white70),
+                    enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF8B6914))),
+                  ),
+                  style: const TextStyle(color: Colors.white),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _emailController,
+                  decoration: const InputDecoration(
+                    labelText: 'Email Address',
+                    labelStyle: TextStyle(color: Colors.white70),
+                    enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF8B6914))),
+                  ),
+                  style: const TextStyle(color: Colors.white),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _passwordController,
+                  decoration: InputDecoration(
+                    labelText: 'Access Cipher',
+                    labelStyle: const TextStyle(color: Colors.white70),
+                    enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF8B6914))),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                        color: const Color(0xFF8B6914),
+                      ),
+                      onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                    ),
+                  ),
+                  obscureText: _obscurePassword,
+                  style: const TextStyle(color: Colors.white),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _confirmPasswordController,
+                  decoration: InputDecoration(
+                    labelText: 'Confirm Cipher',
+                    labelStyle: const TextStyle(color: Colors.white70),
+                    enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF8B6914))),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
+                        color: const Color(0xFF8B6914),
+                      ),
+                      onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+                    ),
+                  ),
+                  obscureText: _obscureConfirmPassword,
+                  style: const TextStyle(color: Colors.white),
+                ),
+                if (_error != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 16),
+                    child: Text(_error!, style: const TextStyle(color: Colors.redAccent)),
+                  ),
+                const SizedBox(height: 32),
+                isLoading
+                    ? const CircularProgressIndicator(color: Color(0xFFFFD700))
+                    : ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFFFD700),
+                          foregroundColor: Colors.black,
+                          minimumSize: const Size(double.infinity, 50),
+                        ),
+                        onPressed: _register,
+                        child: const Text('REGISTER & ENLIST', style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                const SizedBox(height: 16),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('ALREADY SERVING? RETURN TO LOGIN', style: TextStyle(color: Color(0xFFFFD700), fontSize: 12)),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+// COUNTRY SELECTION SCREEN
+// ─────────────────────────────────────────────
+class CountrySelectionScreen extends StatelessWidget {
+  const CountrySelectionScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // Hardcoded countries for now to match app.py COUNTRY_DATA
+    final countries = [
+      {'name': 'USA', 'bonus': '+10% Resource Production'},
+      {'name': 'Japan', 'bonus': '+15% Tactical Attack Power'},
+      {'name': 'Russia', 'bonus': '+20% Defensive Unit Fortification'},
+      {'name': 'Philippines', 'bonus': '+15% Unit Speed & Magic Resistance'},
+    ];
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          children: [
+            const Text(
+              'SELECT YOUR NATION',
+              style: TextStyle(
+                color: Color(0xFFFFD700),
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 4,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Your choice is permanent. Choose your tactical alignment.',
+              style: TextStyle(color: Colors.white70, fontSize: 16),
+            ),
+            const SizedBox(height: 48),
+            Expanded(
+              child: GridView.builder(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  childAspectRatio: 1.5,
+                  crossAxisSpacing: 24,
+                  mainAxisSpacing: 24,
+                ),
+                itemCount: countries.length,
+                itemBuilder: (context, index) {
+                  final country = countries[index];
+                  return InkWell(
+                    onTap: () async {
+                      final gameManager = context.read<GameManager>();
+                      final success = await gameManager.apiService.setCountry(country['name']!);
+                      if (success) {
+                        await gameManager.refreshState();
+                        if (context.mounted) {
+                          Navigator.of(context).pushReplacementNamed('/home');
+                        }
+                      }
+                    },
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1A1208),
+                        border: Border.all(color: const Color(0xFF8B6914), width: 2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            country['name']!,
+                            style: const TextStyle(color: Color(0xFFFFD700), fontSize: 20, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            country['bonus']!,
+                            style: const TextStyle(color: Colors.white70, fontSize: 12),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+// SPLASH SCREEN — auto-navigates to LoginScreen
 // ─────────────────────────────────────────────
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -628,7 +909,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.public_rounded, size: 80, color: Color(0xFF4A7040)),
+                        Image.asset('assets/images/game_logo.png', width: 120, height: 120),
                         const SizedBox(height: 24),
                         const Text(
                           'YOUR EMPIRE AWAITS',
