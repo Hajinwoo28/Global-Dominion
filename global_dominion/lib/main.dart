@@ -37,7 +37,7 @@ class HomeScreen extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Text(
-          'GLOBAL DOMINION',
+          '',
           style: TextStyle(
             fontSize: 48,
             fontWeight: FontWeight.bold,
