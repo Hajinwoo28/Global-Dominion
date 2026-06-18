@@ -1,10 +1,65 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import 'api_service.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
-  runApp(const GlobalDominion());
+  
+  final apiService = ApiService(baseUrl: 'http://localhost:5000'); // Assuming local backend
+
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => GameManager(apiService: apiService),
+      child: const GlobalDominion(),
+    ),
+  );
+}
+
+class GameManager extends ChangeNotifier {
+  final ApiService apiService;
+  Map<String, dynamic>? _state;
+  bool _isLoading = false;
+
+  GameManager({required this.apiService});
+
+  Map<String, dynamic>? get state => _state;
+  bool get isLoading => _isLoading;
+
+  Future<void> refreshState() async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      _state = await apiService.getState();
+    } catch (e) {
+      debugPrint('Error refreshing state: $e');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> login(String identifier, String password) async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      final success = await apiService.login(identifier, password);
+      if (success) {
+        await refreshState();
+      }
+      return success;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<Map<String, dynamic>> attack(int territoryId, {String? spell}) async {
+    final result = await apiService.attack(territoryId, spell: spell);
+    await refreshState();
+    return result;
+  }
 }
 
 class GlobalDominion extends StatelessWidget {
@@ -18,10 +73,114 @@ class GlobalDominion extends StatelessWidget {
       theme: ThemeData.dark(),
       home: const SplashScreen(),
       routes: {
+        '/login': (context) => const LoginScreen(),
         '/home': (context) => const HomeScreen(),
         '/game': (context) => const GameScreen(),
         '/settings': (context) => const SettingsScreen(),
       },
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+// LOGIN SCREEN
+// ─────────────────────────────────────────────
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final _identifierController = TextEditingController();
+  final _passwordController = TextEditingController();
+  String? _error;
+
+  void _login() async {
+    final gameManager = context.read<GameManager>();
+    final success = await gameManager.login(
+      _identifierController.text,
+      _passwordController.text,
+    );
+    if (success) {
+      if (mounted) {
+        Navigator.of(context).pushReplacementNamed('/home');
+      }
+    } else {
+      setState(() => _error = 'Invalid credentials');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isLoading = context.watch<GameManager>().isLoading;
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Center(
+        child: Container(
+          width: 400,
+          padding: const EdgeInsets.all(32),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A1208),
+            border: Border.all(color: const Color(0xFFAA8820), width: 2),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'COMMANDER LOGIN',
+                style: TextStyle(
+                  color: Color(0xFFFFD700),
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 3,
+                ),
+              ),
+              const SizedBox(height: 32),
+              TextField(
+                controller: _identifierController,
+                decoration: const InputDecoration(
+                  labelText: 'Identifier',
+                  labelStyle: TextStyle(color: Colors.white70),
+                  enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF8B6914))),
+                ),
+                style: const TextStyle(color: Colors.white),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _passwordController,
+                decoration: const InputDecoration(
+                  labelText: 'Access Cipher',
+                  labelStyle: TextStyle(color: Colors.white70),
+                  enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF8B6914))),
+                ),
+                obscureText: true,
+                style: const TextStyle(color: Colors.white),
+              ),
+              if (_error != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: Text(_error!, style: const TextStyle(color: Colors.redAccent)),
+                ),
+              const SizedBox(height: 32),
+              isLoading
+                  ? const CircularProgressIndicator(color: Color(0xFFFFD700))
+                  : ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFFD700),
+                        foregroundColor: Colors.black,
+                        minimumSize: const Size(double.infinity, 50),
+                      ),
+                      onPressed: _login,
+                      child: const Text('ENTER WAR ROOM', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -60,12 +219,12 @@ class _SplashScreenState extends State<SplashScreen>
 
     _controller.forward();
 
-    // Auto-navigate to home after 3 seconds
+    // Auto-navigate to login after 3 seconds
     Future.delayed(const Duration(seconds: 3), () {
       if (mounted) {
         Navigator.of(context).pushReplacement(
           PageRouteBuilder(
-            pageBuilder: (_, _, _) => const HomeScreen(),
+            pageBuilder: (_, _, _) => const LoginScreen(),
             transitionsBuilder: (_, anim, _, child) =>
                 FadeTransition(opacity: anim, child: child),
             transitionDuration: const Duration(milliseconds: 800),
@@ -90,7 +249,7 @@ class _SplashScreenState extends State<SplashScreen>
           // Tap to skip splash
           Navigator.of(context).pushReplacement(
             PageRouteBuilder(
-              pageBuilder: (_, _, _) => const HomeScreen(),
+              pageBuilder: (_, _, _) => const LoginScreen(),
               transitionsBuilder: (_, anim, _, child) =>
                   FadeTransition(opacity: anim, child: child),
               transitionDuration: const Duration(milliseconds: 600),
@@ -600,11 +759,19 @@ class _ResourceChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final state = context.watch<GameManager>().state;
+    String dynamicLabel = label;
+    if (state != null && state['profile'] != null) {
+      if (icon == Icons.grain_rounded) dynamicLabel = state['profile']['gold'].toString();
+      if (icon == Icons.people_rounded) dynamicLabel = state['profile']['supplies'].toString();
+      if (icon == Icons.shield_rounded) dynamicLabel = state['profile']['crystals'].toString();
+    }
+
     return Row(
       children: [
         Icon(icon, color: color, size: 16),
         const SizedBox(width: 4),
-        Text(label, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 13)),
+        Text(dynamicLabel, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 13)),
       ],
     );
   }
@@ -691,16 +858,16 @@ class CommandCenterScreen extends StatelessWidget {
                             children: [
                               _DashboardCard(
                                 title: 'Territories',
-                                value: '16 / 24',
+                                value: context.watch<GameManager>().state?['profile']?['power_level']?.toString() ?? '16 / 24',
                                 accent: Color(0xFFFFD700),
-                                subtitle: 'Controlled regions',
+                                subtitle: 'Current Power Level',
                               ),
                               const SizedBox(width: 18),
                               _DashboardCard(
-                                title: 'Allies',
-                                value: '4',
+                                title: 'Nation',
+                                value: context.watch<GameManager>().state?['profile']?['country'] ?? 'USA',
                                 accent: Color(0xFF4FC3F7),
-                                subtitle: 'Active pacts',
+                                subtitle: 'Strategic Alignment',
                               ),
                             ],
                           ),
@@ -944,6 +1111,11 @@ class DeployArmyScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final gameManager = context.watch<GameManager>();
+    final territories = gameManager.state?['territories'] as List<dynamic>?;
+    // For simplicity, we'll attack the first neutral territory found
+    final targetTerritory = territories?.firstWhere((t) => t['controlling_country'] == 'Neutral', orElse: () => null);
+
     return Scaffold(
       backgroundColor: const Color(0xFF05070E),
       appBar: AppBar(
@@ -969,9 +1141,11 @@ class DeployArmyScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-            const Text(
-              'Select a strike force and launch your next ground operation from the forward staging zone.',
-              style: TextStyle(color: Color(0xFFB0B7C5), fontSize: 16, height: 1.7),
+            Text(
+              targetTerritory != null 
+                ? 'Targeting: ${targetTerritory['name']}. Prepare for assault.'
+                : 'All sectors secured or contested by allies. Monitor world map for intel.',
+              style: const TextStyle(color: Color(0xFFB0B7C5), fontSize: 16, height: 1.7),
             ),
             const SizedBox(height: 24),
             Expanded(
@@ -1005,7 +1179,27 @@ class DeployArmyScreen extends StatelessWidget {
                               padding: const EdgeInsets.symmetric(vertical: 16),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
                             ),
-                            onPressed: () {},
+                            onPressed: targetTerritory == null ? null : () async {
+                              try {
+                                final result = await gameManager.attack(targetTerritory['id']);
+                                if (context.mounted) {
+                                  showDialog(
+                                    context: context,
+                                    builder: (_) => AlertDialog(
+                                      title: Text(result['battle_won'] ? 'VICTORY' : 'DEFEAT'),
+                                      content: Text(result['message']),
+                                      actions: [
+                                        TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))
+                                      ],
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                                }
+                              }
+                            },
                             child: const Text('DEPLOY NOW', style: TextStyle(fontWeight: FontWeight.bold)),
                           ),
                         ],
