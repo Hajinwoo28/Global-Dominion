@@ -82,7 +82,31 @@ class GlobalDominion extends StatelessWidget {
     return MaterialApp(
       title: 'Global Dominion',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark(),
+      theme: ThemeData(
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: Colors.black,
+        primaryColor: const Color(0xFFFFD700),
+        colorScheme: const ColorScheme.dark(
+          primary: Color(0xFFFFD700),
+          secondary: Color(0xFF4FC3F7),
+          surface: Color(0xFF1A1208),
+        ),
+        textTheme: const TextTheme(
+          displayLarge: TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.bold, letterSpacing: 2),
+          bodyLarge: TextStyle(color: Colors.white70),
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: const Color(0xFF2A1E12).withValues(alpha: 0.7),
+          labelStyle: const TextStyle(color: Color(0xFFAA8820)),
+          enabledBorder: const OutlineInputBorder(
+            borderSide: BorderSide(color: Color(0xFF5C4008), width: 1),
+          ),
+          focusedBorder: const OutlineInputBorder(
+            borderSide: BorderSide(color: Color(0xFFFFD700), width: 2),
+          ),
+        ),
+      ),
       home: const SplashScreen(),
       routes: {
         '/login': (context) => const LoginScreen(),
@@ -91,13 +115,1435 @@ class GlobalDominion extends StatelessWidget {
         '/home': (context) => const HomeScreen(),
         '/game': (context) => const GameScreen(),
         '/settings': (context) => const SettingsScreen(),
+        '/rankings': (context) => const RankingsScreen(),
       },
+// ─────────────────────────────────────────────
+// RANKINGS SCREEN — New screen based on Image 5
+// ─────────────────────────────────────────────
+class RankingsScreen extends StatefulWidget {
+  const RankingsScreen({super.key});
+
+  @override
+  State<RankingsScreen> createState() => _RankingsScreenState();
+}
+
+class _RankingsScreenState extends State<RankingsScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          // Background
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0.5,
+              child: Image.asset('assets/images/world_map.jpg', fit: BoxFit.cover),
+            ),
+          ),
+          // Content
+          Column(
+            children: [
+              // Header
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(colors: [Colors.transparent, Colors.black87, Colors.transparent]),
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      'RANKING SYSTEM',
+                      style: TextStyle(color: Color(0xFFF4E19C), fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 2),
+                    ),
+                    const SizedBox(height: 10),
+                    Image.asset('assets/images/game_logo.png', width: 150),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Main Table Area
+                      Expanded(
+                        flex: 3,
+                        child: GameCard(
+                          padding: EdgeInsets.zero,
+                          child: Column(
+                            children: [
+                              TabBar(
+                                controller: _tabController,
+                                indicatorColor: const Color(0xFFFFD700),
+                                labelColor: const Color(0xFFFFD700),
+                                unselectedLabelColor: Colors.white54,
+                                tabs: const [
+                                  Tab(text: 'GLOBAL RANKINGS'),
+                                  Tab(text: 'COUNTRY RANKINGS'),
+                                ],
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: Row(
+                                  children: [
+                                    _RankSubTab(label: 'Total Power', isActive: true),
+                                    _RankSubTab(label: 'Territory'),
+                                    _RankSubTab(label: 'Wins'),
+                                    _RankSubTab(label: 'Alliance Score'),
+                                  ],
+                                ),
+                              ),
+                              const _RankTableHeader(),
+                              Expanded(
+                                child: ListView.builder(
+                                  itemCount: 10,
+                                  itemBuilder: (context, index) => _RankTableRow(index: index),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 30),
+                      // Sidebar
+                      Expanded(
+                        flex: 1,
+                        child: Column(
+                          children: [
+                            _SidebarSection(
+                              title: 'YOUR RANK',
+                              child: _ProfileRankCard(
+                                label: 'Rank: 42',
+                                sublabel: '273.23M',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Strongest General',
+                              child: _MiniProfileCard(
+                                name: 'GeneralDominus',
+                                stat: 'Power: 206,557',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Most Conquered Land',
+                              child: _MiniProfileCard(
+                                name: 'Kusnia',
+                                stat: 'Land Area: 230,634',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: TacticalButton(
+                  label: 'CLOSE',
+                  width: 200,
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankSubTab extends StatelessWidget {
+  final String label;
+  final bool isActive;
+
+  const _RankSubTab({required this.label, this.isActive = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: isActive ? const Color(0xFF5C4008) : Colors.transparent,
+        border: Border.all(color: const Color(0xFF5C4008)),
+        borderRadius: BorderRadius.circular(2),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: isActive ? const Color(0xFFFFD700) : Colors.white54, fontSize: 12),
+      ),
+    );
+  }
+}
+
+class _RankTableHeader extends StatelessWidget {
+  const _RankTableHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: Colors.black45,
+      child: const Row(
+        children: [
+          SizedBox(width: 50, child: Text('Rank', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          Expanded(child: Text('Player', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 150, child: Text('Territory Controlled', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 100, child: Text('Wins', style: TextStyle(color: Colors.white54, fontSize: 12))),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankTableRow extends StatelessWidget {
+  final int index;
+  const _RankTableRow({required this.index});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = [const Color(0xFFFFD700), const Color(0xFFC0C0C0), const Color(0xFFCD7F32)];
+    final isTop3 = index < 3;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+        color: index % 2 == 0 ? Colors.transparent : Colors.white.withValues(alpha: 0.02),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 50,
+            child: isTop3
+                ? Icon(Icons.workspace_premium, color: colors[index], size: 20)
+                : Text('${index + 1}', style: const TextStyle(color: Colors.white70)),
+          ),
+          Expanded(
+            child: Row(
+              children: [
+                const CircleAvatar(radius: 12, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 14)),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('GeneralDominus', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    Text('Level ${42 - index}', style: const TextStyle(color: Colors.white54, fontSize: 10)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 150, child: Text('17,366', style: TextStyle(color: Colors.white70))),
+          const SizedBox(width: 100, child: Text('189,296', style: TextStyle(color: Color(0xFFFFD700)))),
+        ],
+      ),
+    );
+  }
+}
+
+class _SidebarSection extends StatelessWidget {
+  final String title;
+  final Widget child;
+
+  const _SidebarSection({required this.title, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title.toUpperCase(), style: const TextStyle(color: Color(0xFFAA8820), fontSize: 12, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        child,
+      ],
+    );
+  }
+}
+
+class _ProfileRankCard extends StatelessWidget {
+  final String label;
+  final String sublabel;
+
+  const _ProfileRankCard({required this.label, required this.sublabel});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 20, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 24)),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              Text(sublabel, style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniProfileCard extends StatelessWidget {
+  final String name;
+  final String stat;
+
+  const _MiniProfileCard({required this.name, required this.stat});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(10),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 16, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 18)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                Text(stat, style: const TextStyle(color: Colors.white54, fontSize: 10)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+// HELPER UI COMPONENTS
+// ─────────────────────────────────────────────
+
+class GameCard extends StatelessWidget {
+  final Widget child;
+  final double? width;
+  final double? height;
+  final EdgeInsetsGeometry? padding;
+
+  const GameCard({super.key, required this.child, this.width, this.height, this.padding});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      padding: padding ?? const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1208).withValues(alpha: 0.85),
+        border: Border.all(color: const Color(0xFFAA8820), width: 2),
+        borderRadius: BorderRadius.circular(4),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.5),
+            blurRadius: 20,
+            spreadRadius: 5,
+          )
+        ],
+      ),
+      child: child,
+// ─────────────────────────────────────────────
+// RANKINGS SCREEN — New screen based on Image 5
+// ─────────────────────────────────────────────
+class RankingsScreen extends StatefulWidget {
+  const RankingsScreen({super.key});
+
+  @override
+  State<RankingsScreen> createState() => _RankingsScreenState();
+}
+
+class _RankingsScreenState extends State<RankingsScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          // Background
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0.5,
+              child: Image.asset('assets/images/world_map.jpg', fit: BoxFit.cover),
+            ),
+          ),
+          // Content
+          Column(
+            children: [
+              // Header
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(colors: [Colors.transparent, Colors.black87, Colors.transparent]),
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      'RANKING SYSTEM',
+                      style: TextStyle(color: Color(0xFFF4E19C), fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 2),
+                    ),
+                    const SizedBox(height: 10),
+                    Image.asset('assets/images/game_logo.png', width: 150),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Main Table Area
+                      Expanded(
+                        flex: 3,
+                        child: GameCard(
+                          padding: EdgeInsets.zero,
+                          child: Column(
+                            children: [
+                              TabBar(
+                                controller: _tabController,
+                                indicatorColor: const Color(0xFFFFD700),
+                                labelColor: const Color(0xFFFFD700),
+                                unselectedLabelColor: Colors.white54,
+                                tabs: const [
+                                  Tab(text: 'GLOBAL RANKINGS'),
+                                  Tab(text: 'COUNTRY RANKINGS'),
+                                ],
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: Row(
+                                  children: [
+                                    _RankSubTab(label: 'Total Power', isActive: true),
+                                    _RankSubTab(label: 'Territory'),
+                                    _RankSubTab(label: 'Wins'),
+                                    _RankSubTab(label: 'Alliance Score'),
+                                  ],
+                                ),
+                              ),
+                              const _RankTableHeader(),
+                              Expanded(
+                                child: ListView.builder(
+                                  itemCount: 10,
+                                  itemBuilder: (context, index) => _RankTableRow(index: index),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 30),
+                      // Sidebar
+                      Expanded(
+                        flex: 1,
+                        child: Column(
+                          children: [
+                            _SidebarSection(
+                              title: 'YOUR RANK',
+                              child: _ProfileRankCard(
+                                label: 'Rank: 42',
+                                sublabel: '273.23M',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Strongest General',
+                              child: _MiniProfileCard(
+                                name: 'GeneralDominus',
+                                stat: 'Power: 206,557',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Most Conquered Land',
+                              child: _MiniProfileCard(
+                                name: 'Kusnia',
+                                stat: 'Land Area: 230,634',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: TacticalButton(
+                  label: 'CLOSE',
+                  width: 200,
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankSubTab extends StatelessWidget {
+  final String label;
+  final bool isActive;
+
+  const _RankSubTab({required this.label, this.isActive = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: isActive ? const Color(0xFF5C4008) : Colors.transparent,
+        border: Border.all(color: const Color(0xFF5C4008)),
+        borderRadius: BorderRadius.circular(2),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: isActive ? const Color(0xFFFFD700) : Colors.white54, fontSize: 12),
+      ),
+    );
+  }
+}
+
+class _RankTableHeader extends StatelessWidget {
+  const _RankTableHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: Colors.black45,
+      child: const Row(
+        children: [
+          SizedBox(width: 50, child: Text('Rank', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          Expanded(child: Text('Player', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 150, child: Text('Territory Controlled', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 100, child: Text('Wins', style: TextStyle(color: Colors.white54, fontSize: 12))),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankTableRow extends StatelessWidget {
+  final int index;
+  const _RankTableRow({required this.index});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = [const Color(0xFFFFD700), const Color(0xFFC0C0C0), const Color(0xFFCD7F32)];
+    final isTop3 = index < 3;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+        color: index % 2 == 0 ? Colors.transparent : Colors.white.withValues(alpha: 0.02),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 50,
+            child: isTop3
+                ? Icon(Icons.workspace_premium, color: colors[index], size: 20)
+                : Text('${index + 1}', style: const TextStyle(color: Colors.white70)),
+          ),
+          Expanded(
+            child: Row(
+              children: [
+                const CircleAvatar(radius: 12, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 14)),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('GeneralDominus', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    Text('Level ${42 - index}', style: const TextStyle(color: Colors.white54, fontSize: 10)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 150, child: Text('17,366', style: TextStyle(color: Colors.white70))),
+          const SizedBox(width: 100, child: Text('189,296', style: TextStyle(color: Color(0xFFFFD700)))),
+        ],
+      ),
+    );
+  }
+}
+
+class _SidebarSection extends StatelessWidget {
+  final String title;
+  final Widget child;
+
+  const _SidebarSection({required this.title, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title.toUpperCase(), style: const TextStyle(color: Color(0xFFAA8820), fontSize: 12, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        child,
+      ],
+    );
+  }
+}
+
+class _ProfileRankCard extends StatelessWidget {
+  final String label;
+  final String sublabel;
+
+  const _ProfileRankCard({required this.label, required this.sublabel});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 20, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 24)),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              Text(sublabel, style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniProfileCard extends StatelessWidget {
+  final String name;
+  final String stat;
+
+  const _MiniProfileCard({required this.name, required this.stat});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(10),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 16, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 18)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                Text(stat, style: const TextStyle(color: Colors.white54, fontSize: 10)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class TacticalButton extends StatelessWidget {
+  final String label;
+  final VoidCallback? onPressed;
+  final Color color;
+  final double width;
+
+  const TacticalButton({
+    super.key,
+    required this.label,
+    this.onPressed,
+    this.color = const Color(0xFFFFD700),
+    this.width = double.infinity,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      height: 50,
+      child: Stack(
+        children: [
+          // Background with clip
+          Positioned.fill(
+            child: CustomPaint(
+              painter: _TacticalButtonPainter(color: color, isPressed: false),
+            ),
+          ),
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onPressed,
+              child: Center(
+                child: Text(
+                  label.toUpperCase(),
+                  style: const TextStyle(
+                    color: Colors.black,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 2,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+// ─────────────────────────────────────────────
+// RANKINGS SCREEN — New screen based on Image 5
+// ─────────────────────────────────────────────
+class RankingsScreen extends StatefulWidget {
+  const RankingsScreen({super.key});
+
+  @override
+  State<RankingsScreen> createState() => _RankingsScreenState();
+}
+
+class _RankingsScreenState extends State<RankingsScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          // Background
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0.5,
+              child: Image.asset('assets/images/world_map.jpg', fit: BoxFit.cover),
+            ),
+          ),
+          // Content
+          Column(
+            children: [
+              // Header
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(colors: [Colors.transparent, Colors.black87, Colors.transparent]),
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      'RANKING SYSTEM',
+                      style: TextStyle(color: Color(0xFFF4E19C), fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 2),
+                    ),
+                    const SizedBox(height: 10),
+                    Image.asset('assets/images/game_logo.png', width: 150),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Main Table Area
+                      Expanded(
+                        flex: 3,
+                        child: GameCard(
+                          padding: EdgeInsets.zero,
+                          child: Column(
+                            children: [
+                              TabBar(
+                                controller: _tabController,
+                                indicatorColor: const Color(0xFFFFD700),
+                                labelColor: const Color(0xFFFFD700),
+                                unselectedLabelColor: Colors.white54,
+                                tabs: const [
+                                  Tab(text: 'GLOBAL RANKINGS'),
+                                  Tab(text: 'COUNTRY RANKINGS'),
+                                ],
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: Row(
+                                  children: [
+                                    _RankSubTab(label: 'Total Power', isActive: true),
+                                    _RankSubTab(label: 'Territory'),
+                                    _RankSubTab(label: 'Wins'),
+                                    _RankSubTab(label: 'Alliance Score'),
+                                  ],
+                                ),
+                              ),
+                              const _RankTableHeader(),
+                              Expanded(
+                                child: ListView.builder(
+                                  itemCount: 10,
+                                  itemBuilder: (context, index) => _RankTableRow(index: index),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 30),
+                      // Sidebar
+                      Expanded(
+                        flex: 1,
+                        child: Column(
+                          children: [
+                            _SidebarSection(
+                              title: 'YOUR RANK',
+                              child: _ProfileRankCard(
+                                label: 'Rank: 42',
+                                sublabel: '273.23M',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Strongest General',
+                              child: _MiniProfileCard(
+                                name: 'GeneralDominus',
+                                stat: 'Power: 206,557',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Most Conquered Land',
+                              child: _MiniProfileCard(
+                                name: 'Kusnia',
+                                stat: 'Land Area: 230,634',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: TacticalButton(
+                  label: 'CLOSE',
+                  width: 200,
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankSubTab extends StatelessWidget {
+  final String label;
+  final bool isActive;
+
+  const _RankSubTab({required this.label, this.isActive = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: isActive ? const Color(0xFF5C4008) : Colors.transparent,
+        border: Border.all(color: const Color(0xFF5C4008)),
+        borderRadius: BorderRadius.circular(2),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: isActive ? const Color(0xFFFFD700) : Colors.white54, fontSize: 12),
+      ),
+    );
+  }
+}
+
+class _RankTableHeader extends StatelessWidget {
+  const _RankTableHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: Colors.black45,
+      child: const Row(
+        children: [
+          SizedBox(width: 50, child: Text('Rank', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          Expanded(child: Text('Player', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 150, child: Text('Territory Controlled', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 100, child: Text('Wins', style: TextStyle(color: Colors.white54, fontSize: 12))),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankTableRow extends StatelessWidget {
+  final int index;
+  const _RankTableRow({required this.index});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = [const Color(0xFFFFD700), const Color(0xFFC0C0C0), const Color(0xFFCD7F32)];
+    final isTop3 = index < 3;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+        color: index % 2 == 0 ? Colors.transparent : Colors.white.withValues(alpha: 0.02),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 50,
+            child: isTop3
+                ? Icon(Icons.workspace_premium, color: colors[index], size: 20)
+                : Text('${index + 1}', style: const TextStyle(color: Colors.white70)),
+          ),
+          Expanded(
+            child: Row(
+              children: [
+                const CircleAvatar(radius: 12, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 14)),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('GeneralDominus', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    Text('Level ${42 - index}', style: const TextStyle(color: Colors.white54, fontSize: 10)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 150, child: Text('17,366', style: TextStyle(color: Colors.white70))),
+          const SizedBox(width: 100, child: Text('189,296', style: TextStyle(color: Color(0xFFFFD700)))),
+        ],
+      ),
+    );
+  }
+}
+
+class _SidebarSection extends StatelessWidget {
+  final String title;
+  final Widget child;
+
+  const _SidebarSection({required this.title, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title.toUpperCase(), style: const TextStyle(color: Color(0xFFAA8820), fontSize: 12, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        child,
+      ],
+    );
+  }
+}
+
+class _ProfileRankCard extends StatelessWidget {
+  final String label;
+  final String sublabel;
+
+  const _ProfileRankCard({required this.label, required this.sublabel});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 20, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 24)),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              Text(sublabel, style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniProfileCard extends StatelessWidget {
+  final String name;
+  final String stat;
+
+  const _MiniProfileCard({required this.name, required this.stat});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(10),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 16, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 18)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                Text(stat, style: const TextStyle(color: Colors.white54, fontSize: 10)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TacticalButtonPainter extends CustomPainter {
+  final Color color;
+  final bool isPressed;
+
+  _TacticalButtonPainter({required this.color, required this.isPressed});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+
+    final path = Path();
+    const double notch = 12.0;
+
+    path.moveTo(notch, 0);
+    path.lineTo(size.width - notch, 0);
+    path.lineTo(size.width, size.height / 2);
+    path.lineTo(size.width - notch, size.height);
+    path.lineTo(notch, size.height);
+    path.lineTo(0, size.height / 2);
+    path.close();
+
+    canvas.drawPath(path, paint);
+
+    // Border
+    final borderPaint = Paint()
+      ..color = Colors.black.withValues(alpha: 0.3)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+    canvas.drawPath(path, borderPaint);
+  }
+
+  @override
+  bool shouldRepaint(CustomPainter oldDelegate) => false;
+}
+
+class TacticalInput extends StatelessWidget {
+  final TextEditingController controller;
+  final String label;
+  final bool obscureText;
+  final Widget? suffixIcon;
+
+  const TacticalInput({
+    super.key,
+    required this.controller,
+    required this.label,
+    this.obscureText = false,
+    this.suffixIcon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      child: TextField(
+        controller: controller,
+        obscureText: obscureText,
+        style: const TextStyle(color: Colors.white, fontSize: 16),
+        decoration: InputDecoration(
+          labelText: '[ $label ]',
+          suffixIcon: suffixIcon,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        ),
+      ),
+// ─────────────────────────────────────────────
+// RANKINGS SCREEN — New screen based on Image 5
+// ─────────────────────────────────────────────
+class RankingsScreen extends StatefulWidget {
+  const RankingsScreen({super.key});
+
+  @override
+  State<RankingsScreen> createState() => _RankingsScreenState();
+}
+
+class _RankingsScreenState extends State<RankingsScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          // Background
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0.5,
+              child: Image.asset('assets/images/world_map.jpg', fit: BoxFit.cover),
+            ),
+          ),
+          // Content
+          Column(
+            children: [
+              // Header
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(colors: [Colors.transparent, Colors.black87, Colors.transparent]),
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      'RANKING SYSTEM',
+                      style: TextStyle(color: Color(0xFFF4E19C), fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 2),
+                    ),
+                    const SizedBox(height: 10),
+                    Image.asset('assets/images/game_logo.png', width: 150),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Main Table Area
+                      Expanded(
+                        flex: 3,
+                        child: GameCard(
+                          padding: EdgeInsets.zero,
+                          child: Column(
+                            children: [
+                              TabBar(
+                                controller: _tabController,
+                                indicatorColor: const Color(0xFFFFD700),
+                                labelColor: const Color(0xFFFFD700),
+                                unselectedLabelColor: Colors.white54,
+                                tabs: const [
+                                  Tab(text: 'GLOBAL RANKINGS'),
+                                  Tab(text: 'COUNTRY RANKINGS'),
+                                ],
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: Row(
+                                  children: [
+                                    _RankSubTab(label: 'Total Power', isActive: true),
+                                    _RankSubTab(label: 'Territory'),
+                                    _RankSubTab(label: 'Wins'),
+                                    _RankSubTab(label: 'Alliance Score'),
+                                  ],
+                                ),
+                              ),
+                              const _RankTableHeader(),
+                              Expanded(
+                                child: ListView.builder(
+                                  itemCount: 10,
+                                  itemBuilder: (context, index) => _RankTableRow(index: index),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 30),
+                      // Sidebar
+                      Expanded(
+                        flex: 1,
+                        child: Column(
+                          children: [
+                            _SidebarSection(
+                              title: 'YOUR RANK',
+                              child: _ProfileRankCard(
+                                label: 'Rank: 42',
+                                sublabel: '273.23M',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Strongest General',
+                              child: _MiniProfileCard(
+                                name: 'GeneralDominus',
+                                stat: 'Power: 206,557',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Most Conquered Land',
+                              child: _MiniProfileCard(
+                                name: 'Kusnia',
+                                stat: 'Land Area: 230,634',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: TacticalButton(
+                  label: 'CLOSE',
+                  width: 200,
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankSubTab extends StatelessWidget {
+  final String label;
+  final bool isActive;
+
+  const _RankSubTab({required this.label, this.isActive = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: isActive ? const Color(0xFF5C4008) : Colors.transparent,
+        border: Border.all(color: const Color(0xFF5C4008)),
+        borderRadius: BorderRadius.circular(2),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: isActive ? const Color(0xFFFFD700) : Colors.white54, fontSize: 12),
+      ),
+    );
+  }
+}
+
+class _RankTableHeader extends StatelessWidget {
+  const _RankTableHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: Colors.black45,
+      child: const Row(
+        children: [
+          SizedBox(width: 50, child: Text('Rank', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          Expanded(child: Text('Player', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 150, child: Text('Territory Controlled', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 100, child: Text('Wins', style: TextStyle(color: Colors.white54, fontSize: 12))),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankTableRow extends StatelessWidget {
+  final int index;
+  const _RankTableRow({required this.index});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = [const Color(0xFFFFD700), const Color(0xFFC0C0C0), const Color(0xFFCD7F32)];
+    final isTop3 = index < 3;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+        color: index % 2 == 0 ? Colors.transparent : Colors.white.withValues(alpha: 0.02),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 50,
+            child: isTop3
+                ? Icon(Icons.workspace_premium, color: colors[index], size: 20)
+                : Text('${index + 1}', style: const TextStyle(color: Colors.white70)),
+          ),
+          Expanded(
+            child: Row(
+              children: [
+                const CircleAvatar(radius: 12, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 14)),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('GeneralDominus', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    Text('Level ${42 - index}', style: const TextStyle(color: Colors.white54, fontSize: 10)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 150, child: Text('17,366', style: TextStyle(color: Colors.white70))),
+          const SizedBox(width: 100, child: Text('189,296', style: TextStyle(color: Color(0xFFFFD700)))),
+        ],
+      ),
+    );
+  }
+}
+
+class _SidebarSection extends StatelessWidget {
+  final String title;
+  final Widget child;
+
+  const _SidebarSection({required this.title, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title.toUpperCase(), style: const TextStyle(color: Color(0xFFAA8820), fontSize: 12, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        child,
+      ],
+    );
+  }
+}
+
+class _ProfileRankCard extends StatelessWidget {
+  final String label;
+  final String sublabel;
+
+  const _ProfileRankCard({required this.label, required this.sublabel});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 20, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 24)),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              Text(sublabel, style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniProfileCard extends StatelessWidget {
+  final String name;
+  final String stat;
+
+  const _MiniProfileCard({required this.name, required this.stat});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(10),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 16, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 18)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                Text(stat, style: const TextStyle(color: Colors.white54, fontSize: 10)),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
 // ─────────────────────────────────────────────
 // LOGIN SCREEN
+// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// LOGIN SCREEN — Overhauled to match Image 3
 // ─────────────────────────────────────────────
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -110,6 +1556,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _identifierController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _rememberMe = false;
   String? _error;
 
   void _login() async {
@@ -120,7 +1567,13 @@ class _LoginScreenState extends State<LoginScreen> {
     );
     if (success) {
       if (mounted) {
-        Navigator.of(context).pushReplacementNamed('/home');
+        final state = gameManager.state;
+        final hasCountry = state != null && state['profile'] != null && state['profile']['country'] != null;
+        if (hasCountry) {
+          Navigator.of(context).pushReplacementNamed('/home');
+        } else {
+          Navigator.of(context).pushReplacementNamed('/country_selection');
+        }
       }
     } else {
       setState(() => _error = 'Invalid credentials');
@@ -132,83 +1585,408 @@ class _LoginScreenState extends State<LoginScreen> {
     final isLoading = context.watch<GameManager>().isLoading;
 
     return Scaffold(
-      backgroundColor: Colors.black,
-      body: Center(
-        child: Container(
-          width: 400,
-          padding: const EdgeInsets.all(32),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1A1208),
-            border: Border.all(color: const Color(0xFFAA8820), width: 2),
-            borderRadius: BorderRadius.circular(8),
+      body: Stack(
+        children: [
+          // Background
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0.4,
+              child: Image.asset('assets/images/world_map.jpg', fit: BoxFit.cover),
+            ),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Image.asset('assets/images/game_logo.png', width: 100, height: 100),
-              const SizedBox(height: 24),
-              const Text(
-                'GLOBAL DOMINION',
-                style: TextStyle(
-                  color: Color(0xFFFFD700),
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 3,
-                ),
+          // Frame
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: const Color(0xFF3A2800), width: 10),
               ),
-              const SizedBox(height: 32),
-              TextField(
-                controller: _identifierController,
-                decoration: const InputDecoration(
-                  labelText: 'Identifier',
-                  labelStyle: TextStyle(color: Colors.white70),
-                  enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF8B6914))),
-                ),
-                style: const TextStyle(color: Colors.white),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _passwordController,
-                decoration: InputDecoration(
-                  labelText: 'Access Cipher',
-                  labelStyle: const TextStyle(color: Colors.white70),
-                  enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF8B6914))),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                      color: const Color(0xFF8B6914),
+            ),
+          ),
+          // Page Title
+          const Positioned(
+            top: 40,
+            left: 40,
+            child: Text(
+              'Login Page',
+              style: TextStyle(color: Color(0xFFF4E19C), fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+          ),
+          // Center Card
+          Center(
+            child: GameCard(
+              width: 450,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Image.asset('assets/images/game_logo.png', width: 120),
+                  const SizedBox(height: 30),
+                  TacticalInput(
+                    controller: _identifierController,
+                    label: 'Username / Email',
+                  ),
+                  TacticalInput(
+                    controller: _passwordController,
+                    label: 'Password',
+                    obscureText: _obscurePassword,
+                    suffixIcon: IconButton(
+                      icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility, color: const Color(0xFF8B6914)),
+                      onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                     ),
-                    onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                  ),
+                  Row(
+                    children: [
+                      Checkbox(
+                        value: _rememberMe,
+                        onChanged: (v) => setState(() => _rememberMe = v ?? false),
+                        activeColor: const Color(0xFFFFD700),
+                        checkColor: Colors.black,
+                      ),
+                      const Text('Remember Me', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                      const Spacer(),
+                      TextButton(
+                        onPressed: () {},
+                        child: const Text('Forgot Password', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  if (_error != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: Text(_error!, style: const TextStyle(color: Colors.redAccent)),
+                    ),
+                  isLoading
+                      ? const CircularProgressIndicator(color: Color(0xFFFFD700))
+                      : TacticalButton(
+                          label: 'LOGIN',
+                          onPressed: _login,
+                        ),
+                  const SizedBox(height: 16),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pushNamed('/register'),
+                    child: const Text('NEW COMMANDER? ENLIST HERE', style: TextStyle(color: Color(0xFFFFD700), fontSize: 10)),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+// ─────────────────────────────────────────────
+// RANKINGS SCREEN — New screen based on Image 5
+// ─────────────────────────────────────────────
+class RankingsScreen extends StatefulWidget {
+  const RankingsScreen({super.key});
+
+  @override
+  State<RankingsScreen> createState() => _RankingsScreenState();
+}
+
+class _RankingsScreenState extends State<RankingsScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          // Background
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0.5,
+              child: Image.asset('assets/images/world_map.jpg', fit: BoxFit.cover),
+            ),
+          ),
+          // Content
+          Column(
+            children: [
+              // Header
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(colors: [Colors.transparent, Colors.black87, Colors.transparent]),
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      'RANKING SYSTEM',
+                      style: TextStyle(color: Color(0xFFF4E19C), fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 2),
+                    ),
+                    const SizedBox(height: 10),
+                    Image.asset('assets/images/game_logo.png', width: 150),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Main Table Area
+                      Expanded(
+                        flex: 3,
+                        child: GameCard(
+                          padding: EdgeInsets.zero,
+                          child: Column(
+                            children: [
+                              TabBar(
+                                controller: _tabController,
+                                indicatorColor: const Color(0xFFFFD700),
+                                labelColor: const Color(0xFFFFD700),
+                                unselectedLabelColor: Colors.white54,
+                                tabs: const [
+                                  Tab(text: 'GLOBAL RANKINGS'),
+                                  Tab(text: 'COUNTRY RANKINGS'),
+                                ],
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: Row(
+                                  children: [
+                                    _RankSubTab(label: 'Total Power', isActive: true),
+                                    _RankSubTab(label: 'Territory'),
+                                    _RankSubTab(label: 'Wins'),
+                                    _RankSubTab(label: 'Alliance Score'),
+                                  ],
+                                ),
+                              ),
+                              const _RankTableHeader(),
+                              Expanded(
+                                child: ListView.builder(
+                                  itemCount: 10,
+                                  itemBuilder: (context, index) => _RankTableRow(index: index),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 30),
+                      // Sidebar
+                      Expanded(
+                        flex: 1,
+                        child: Column(
+                          children: [
+                            _SidebarSection(
+                              title: 'YOUR RANK',
+                              child: _ProfileRankCard(
+                                label: 'Rank: 42',
+                                sublabel: '273.23M',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Strongest General',
+                              child: _MiniProfileCard(
+                                name: 'GeneralDominus',
+                                stat: 'Power: 206,557',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Most Conquered Land',
+                              child: _MiniProfileCard(
+                                name: 'Kusnia',
+                                stat: 'Land Area: 230,634',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                obscureText: _obscurePassword,
-                style: const TextStyle(color: Colors.white),
               ),
-              if (_error != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 16),
-                  child: Text(_error!, style: const TextStyle(color: Colors.redAccent)),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: TacticalButton(
+                  label: 'CLOSE',
+                  width: 200,
+                  onPressed: () => Navigator.pop(context),
                 ),
-              const SizedBox(height: 32),
-              isLoading
-                  ? const CircularProgressIndicator(color: Color(0xFFFFD700))
-                  : ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFFFD700),
-                        foregroundColor: Colors.black,
-                        minimumSize: const Size(double.infinity, 50),
-                      ),
-                      onPressed: _login,
-                      child: const Text('ENTER WAR ROOM', style: TextStyle(fontWeight: FontWeight.bold)),
-                    ),
-              const SizedBox(height: 16),
-              TextButton(
-                onPressed: () => Navigator.of(context).pushNamed('/register'),
-                child: const Text('NEW COMMANDER? ENLIST HERE', style: TextStyle(color: Color(0xFFFFD700), fontSize: 12)),
               ),
             ],
           ),
-        ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankSubTab extends StatelessWidget {
+  final String label;
+  final bool isActive;
+
+  const _RankSubTab({required this.label, this.isActive = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: isActive ? const Color(0xFF5C4008) : Colors.transparent,
+        border: Border.all(color: const Color(0xFF5C4008)),
+        borderRadius: BorderRadius.circular(2),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: isActive ? const Color(0xFFFFD700) : Colors.white54, fontSize: 12),
+      ),
+    );
+  }
+}
+
+class _RankTableHeader extends StatelessWidget {
+  const _RankTableHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: Colors.black45,
+      child: const Row(
+        children: [
+          SizedBox(width: 50, child: Text('Rank', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          Expanded(child: Text('Player', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 150, child: Text('Territory Controlled', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 100, child: Text('Wins', style: TextStyle(color: Colors.white54, fontSize: 12))),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankTableRow extends StatelessWidget {
+  final int index;
+  const _RankTableRow({required this.index});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = [const Color(0xFFFFD700), const Color(0xFFC0C0C0), const Color(0xFFCD7F32)];
+    final isTop3 = index < 3;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+        color: index % 2 == 0 ? Colors.transparent : Colors.white.withValues(alpha: 0.02),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 50,
+            child: isTop3
+                ? Icon(Icons.workspace_premium, color: colors[index], size: 20)
+                : Text('${index + 1}', style: const TextStyle(color: Colors.white70)),
+          ),
+          Expanded(
+            child: Row(
+              children: [
+                const CircleAvatar(radius: 12, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 14)),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('GeneralDominus', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    Text('Level ${42 - index}', style: const TextStyle(color: Colors.white54, fontSize: 10)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 150, child: Text('17,366', style: TextStyle(color: Colors.white70))),
+          const SizedBox(width: 100, child: Text('189,296', style: TextStyle(color: Color(0xFFFFD700)))),
+        ],
+      ),
+    );
+  }
+}
+
+class _SidebarSection extends StatelessWidget {
+  final String title;
+  final Widget child;
+
+  const _SidebarSection({required this.title, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title.toUpperCase(), style: const TextStyle(color: Color(0xFFAA8820), fontSize: 12, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        child,
+      ],
+    );
+  }
+}
+
+class _ProfileRankCard extends StatelessWidget {
+  final String label;
+  final String sublabel;
+
+  const _ProfileRankCard({required this.label, required this.sublabel});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 20, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 24)),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              Text(sublabel, style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniProfileCard extends StatelessWidget {
+  final String name;
+  final String stat;
+
+  const _MiniProfileCard({required this.name, required this.stat});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(10),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 16, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 18)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                Text(stat, style: const TextStyle(color: Colors.white54, fontSize: 10)),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -216,6 +1994,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
 // ─────────────────────────────────────────────
 // REGISTER SCREEN
+// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// REGISTER SCREEN — Overhauled to match Image 2
 // ─────────────────────────────────────────────
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -229,13 +2010,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  String? _selectedCountry;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  bool _acceptTerms = false;
   String? _error;
+
+  final List<String> _countries = ['USA', 'Japan', 'Russia', 'Philippines', 'Germany', 'China', 'France', 'UK'];
 
   void _register() async {
     if (_passwordController.text != _confirmPasswordController.text) {
       setState(() => _error = 'Passwords do not match');
+      return;
+    }
+    if (!_acceptTerms) {
+      setState(() => _error = 'Please accept Terms and Conditions');
       return;
     }
 
@@ -247,8 +2036,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _confirmPasswordController.text,
     );
     if (success) {
+      if (_selectedCountry != null) {
+        await gameManager.apiService.setCountry(_selectedCountry!);
+      }
       if (mounted) {
-        Navigator.of(context).pushReplacementNamed('/country_selection');
+        Navigator.of(context).pushReplacementNamed('/home');
       }
     } else {
       setState(() => _error = 'Registration failed');
@@ -260,114 +2052,434 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final isLoading = context.watch<GameManager>().isLoading;
 
     return Scaffold(
-      backgroundColor: Colors.black,
-      body: Center(
-        child: Container(
-          width: 450,
-          padding: const EdgeInsets.all(32),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1A1208),
-            border: Border.all(color: const Color(0xFFAA8820), width: 2),
-            borderRadius: BorderRadius.circular(8),
+      body: Stack(
+        children: [
+          // Background
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0.4,
+              child: Image.asset('assets/images/world_map.jpg', fit: BoxFit.cover),
+            ),
           ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Image.asset('assets/images/game_logo.png', width: 80, height: 80),
-                const SizedBox(height: 24),
-                const Text(
-                  'GLOBAL DOMINION',
-                  style: TextStyle(
-                    color: Color(0xFFFFD700),
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 2,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 32),
-                TextField(
-                  controller: _usernameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Callsign / Username',
-                    labelStyle: TextStyle(color: Colors.white70),
-                    enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF8B6914))),
-                  ),
-                  style: const TextStyle(color: Colors.white),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _emailController,
-                  decoration: const InputDecoration(
-                    labelText: 'Email Address',
-                    labelStyle: TextStyle(color: Colors.white70),
-                    enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF8B6914))),
-                  ),
-                  style: const TextStyle(color: Colors.white),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _passwordController,
-                  decoration: InputDecoration(
-                    labelText: 'Access Cipher',
-                    labelStyle: const TextStyle(color: Colors.white70),
-                    enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF8B6914))),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                        color: const Color(0xFF8B6914),
+          // Frame
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: const Color(0xFF3A2800), width: 10),
+              ),
+            ),
+          ),
+          // Page Title
+          const Positioned(
+            top: 40,
+            left: 40,
+            child: Text(
+              'Register Page',
+              style: TextStyle(color: Color(0xFFF4E19C), fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+          ),
+          // Center Card
+          Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(vertical: 40),
+              child: GameCard(
+                width: 480,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Image.asset('assets/images/game_logo.png', width: 100),
+                    const SizedBox(height: 20),
+                    TacticalInput(controller: _usernameController, label: 'Username'),
+                    TacticalInput(controller: _emailController, label: 'Email'),
+                    TacticalInput(
+                      controller: _passwordController,
+                      label: 'Password',
+                      obscureText: _obscurePassword,
+                      suffixIcon: IconButton(
+                        icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility, color: const Color(0xFF8B6914)),
+                        onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                       ),
-                      onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                     ),
-                  ),
-                  obscureText: _obscurePassword,
-                  style: const TextStyle(color: Colors.white),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _confirmPasswordController,
-                  decoration: InputDecoration(
-                    labelText: 'Confirm Cipher',
-                    labelStyle: const TextStyle(color: Colors.white70),
-                    enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF8B6914))),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
-                        color: const Color(0xFF8B6914),
+                    TacticalInput(
+                      controller: _confirmPasswordController,
+                      label: 'Confirm Password',
+                      obscureText: _obscureConfirmPassword,
+                      suffixIcon: IconButton(
+                        icon: Icon(_obscureConfirmPassword ? Icons.visibility_off : Icons.visibility, color: const Color(0xFF8B6914)),
+                        onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
                       ),
-                      onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
                     ),
-                  ),
-                  obscureText: _obscureConfirmPassword,
-                  style: const TextStyle(color: Colors.white),
-                ),
-                if (_error != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 16),
-                    child: Text(_error!, style: const TextStyle(color: Colors.redAccent)),
-                  ),
-                const SizedBox(height: 32),
-                isLoading
-                    ? const CircularProgressIndicator(color: Color(0xFFFFD700))
-                    : ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFFFD700),
-                          foregroundColor: Colors.black,
-                          minimumSize: const Size(double.infinity, 50),
+                    // Country Dropdown
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 16),
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2A1E12).withValues(alpha: 0.7),
+                        border: Border.all(color: const Color(0xFF5C4008)),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _selectedCountry,
+                          hint: const Text('Country Selection', style: TextStyle(color: Color(0xFFAA8820))),
+                          isExpanded: true,
+                          dropdownColor: const Color(0xFF1A1208),
+                          icon: const Icon(Icons.arrow_drop_down, color: Color(0xFFFFD700)),
+                          items: _countries.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+                          onChanged: (v) => setState(() => _selectedCountry = v),
                         ),
-                        onPressed: _register,
-                        child: const Text('REGISTER & ENLIST', style: TextStyle(fontWeight: FontWeight.bold)),
                       ),
-                const SizedBox(height: 16),
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('ALREADY SERVING? RETURN TO LOGIN', style: TextStyle(color: Color(0xFFFFD700), fontSize: 12)),
+                    ),
+                    Row(
+                      children: [
+                        Checkbox(
+                          value: _acceptTerms,
+                          onChanged: (v) => setState(() => _acceptTerms = v ?? false),
+                          activeColor: const Color(0xFFFFD700),
+                          checkColor: Colors.black,
+                        ),
+                        const Text('Terms and Conditions', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    if (_error != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: Text(_error!, style: const TextStyle(color: Colors.redAccent)),
+                      ),
+                    isLoading
+                        ? const CircularProgressIndicator(color: Color(0xFFFFD700))
+                        : TacticalButton(
+                            label: 'REGISTER',
+                            onPressed: _register,
+                          ),
+                    const SizedBox(height: 16),
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('ALREADY SERVING? RETURN TO LOGIN', style: TextStyle(color: Color(0xFFFFD700), fontSize: 10)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+// ─────────────────────────────────────────────
+// RANKINGS SCREEN — New screen based on Image 5
+// ─────────────────────────────────────────────
+class RankingsScreen extends StatefulWidget {
+  const RankingsScreen({super.key});
+
+  @override
+  State<RankingsScreen> createState() => _RankingsScreenState();
+}
+
+class _RankingsScreenState extends State<RankingsScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          // Background
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0.5,
+              child: Image.asset('assets/images/world_map.jpg', fit: BoxFit.cover),
+            ),
+          ),
+          // Content
+          Column(
+            children: [
+              // Header
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(colors: [Colors.transparent, Colors.black87, Colors.transparent]),
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      'RANKING SYSTEM',
+                      style: TextStyle(color: Color(0xFFF4E19C), fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 2),
+                    ),
+                    const SizedBox(height: 10),
+                    Image.asset('assets/images/game_logo.png', width: 150),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Main Table Area
+                      Expanded(
+                        flex: 3,
+                        child: GameCard(
+                          padding: EdgeInsets.zero,
+                          child: Column(
+                            children: [
+                              TabBar(
+                                controller: _tabController,
+                                indicatorColor: const Color(0xFFFFD700),
+                                labelColor: const Color(0xFFFFD700),
+                                unselectedLabelColor: Colors.white54,
+                                tabs: const [
+                                  Tab(text: 'GLOBAL RANKINGS'),
+                                  Tab(text: 'COUNTRY RANKINGS'),
+                                ],
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: Row(
+                                  children: [
+                                    _RankSubTab(label: 'Total Power', isActive: true),
+                                    _RankSubTab(label: 'Territory'),
+                                    _RankSubTab(label: 'Wins'),
+                                    _RankSubTab(label: 'Alliance Score'),
+                                  ],
+                                ),
+                              ),
+                              const _RankTableHeader(),
+                              Expanded(
+                                child: ListView.builder(
+                                  itemCount: 10,
+                                  itemBuilder: (context, index) => _RankTableRow(index: index),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 30),
+                      // Sidebar
+                      Expanded(
+                        flex: 1,
+                        child: Column(
+                          children: [
+                            _SidebarSection(
+                              title: 'YOUR RANK',
+                              child: _ProfileRankCard(
+                                label: 'Rank: 42',
+                                sublabel: '273.23M',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Strongest General',
+                              child: _MiniProfileCard(
+                                name: 'GeneralDominus',
+                                stat: 'Power: 206,557',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Most Conquered Land',
+                              child: _MiniProfileCard(
+                                name: 'Kusnia',
+                                stat: 'Land Area: 230,634',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: TacticalButton(
+                  label: 'CLOSE',
+                  width: 200,
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankSubTab extends StatelessWidget {
+  final String label;
+  final bool isActive;
+
+  const _RankSubTab({required this.label, this.isActive = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: isActive ? const Color(0xFF5C4008) : Colors.transparent,
+        border: Border.all(color: const Color(0xFF5C4008)),
+        borderRadius: BorderRadius.circular(2),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: isActive ? const Color(0xFFFFD700) : Colors.white54, fontSize: 12),
+      ),
+    );
+  }
+}
+
+class _RankTableHeader extends StatelessWidget {
+  const _RankTableHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: Colors.black45,
+      child: const Row(
+        children: [
+          SizedBox(width: 50, child: Text('Rank', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          Expanded(child: Text('Player', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 150, child: Text('Territory Controlled', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 100, child: Text('Wins', style: TextStyle(color: Colors.white54, fontSize: 12))),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankTableRow extends StatelessWidget {
+  final int index;
+  const _RankTableRow({required this.index});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = [const Color(0xFFFFD700), const Color(0xFFC0C0C0), const Color(0xFFCD7F32)];
+    final isTop3 = index < 3;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+        color: index % 2 == 0 ? Colors.transparent : Colors.white.withValues(alpha: 0.02),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 50,
+            child: isTop3
+                ? Icon(Icons.workspace_premium, color: colors[index], size: 20)
+                : Text('${index + 1}', style: const TextStyle(color: Colors.white70)),
+          ),
+          Expanded(
+            child: Row(
+              children: [
+                const CircleAvatar(radius: 12, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 14)),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('GeneralDominus', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    Text('Level ${42 - index}', style: const TextStyle(color: Colors.white54, fontSize: 10)),
+                  ],
                 ),
               ],
             ),
           ),
-        ),
+          const SizedBox(width: 150, child: Text('17,366', style: TextStyle(color: Colors.white70))),
+          const SizedBox(width: 100, child: Text('189,296', style: TextStyle(color: Color(0xFFFFD700)))),
+        ],
+      ),
+    );
+  }
+}
+
+class _SidebarSection extends StatelessWidget {
+  final String title;
+  final Widget child;
+
+  const _SidebarSection({required this.title, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title.toUpperCase(), style: const TextStyle(color: Color(0xFFAA8820), fontSize: 12, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        child,
+      ],
+    );
+  }
+}
+
+class _ProfileRankCard extends StatelessWidget {
+  final String label;
+  final String sublabel;
+
+  const _ProfileRankCard({required this.label, required this.sublabel});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 20, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 24)),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              Text(sublabel, style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniProfileCard extends StatelessWidget {
+  final String name;
+  final String stat;
+
+  const _MiniProfileCard({required this.name, required this.stat});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(10),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 16, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 18)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                Text(stat, style: const TextStyle(color: Colors.white54, fontSize: 10)),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -376,98 +2488,826 @@ class _RegisterScreenState extends State<RegisterScreen> {
 // ─────────────────────────────────────────────
 // COUNTRY SELECTION SCREEN
 // ─────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// COUNTRY SELECTION SCREEN — Overhauled to match Image 4
+// ─────────────────────────────────────────────
 class CountrySelectionScreen extends StatelessWidget {
   const CountrySelectionScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Hardcoded countries for now to match app.py COUNTRY_DATA
     final countries = [
-      {'name': 'USA', 'bonus': '+10% Resource Production'},
-      {'name': 'Japan', 'bonus': '+15% Tactical Attack Power'},
-      {'name': 'Russia', 'bonus': '+20% Defensive Unit Fortification'},
-      {'name': 'Philippines', 'bonus': '+15% Unit Speed & Magic Resistance'},
+      {'name': 'USA', 'bonus': '+5 Marine Infantry', 'flag': '🇺🇸'},
+      {'name': 'Japan', 'bonus': '+5 F-35 Fighter', 'flag': '🇯🇵'},
+      {'name': 'Russia', 'bonus': '+5 Elite Infantry', 'flag': '🇷🇺'},
+      {'name': 'Kusnia', 'bonus': '+6 Elite Spetsnaz', 'flag': '🇷🇸'}, // Mock flag for Kusnia
+      {'name': 'USA ', 'bonus': '+3 F-35 Infantry', 'flag': '🇺🇸'}, // Variants as seen in image
+      {'name': 'Japan ', 'bonus': '+1 F-35 Fighter', 'flag': '🇯🇵'},
+      {'name': 'Kusnia ', 'bonus': '+1 Elite Infantry', 'flag': '🇷🇸'},
+      {'name': 'Russia ', 'bonus': '+1 F-35 Fighter', 'flag': '🇷🇺'},
     ];
 
     return Scaffold(
-      backgroundColor: Colors.black,
-      body: Padding(
-        padding: const EdgeInsets.all(32.0),
-        child: Column(
-          children: [
-            const Text(
-              'SELECT YOUR NATION',
-              style: TextStyle(
-                color: Color(0xFFFFD700),
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 4,
+      body: Stack(
+        children: [
+          // Background Glow
+          Positioned.fill(
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: RadialGradient(
+                  colors: [Color(0xFF1A2A3A), Colors.black],
+                  radius: 1.5,
+                ),
               ),
             ),
-            const SizedBox(height: 16),
-            const Text(
-              'Your choice is permanent. Choose your tactical alignment.',
-              style: TextStyle(color: Colors.white70, fontSize: 16),
-            ),
-            const SizedBox(height: 48),
-            Expanded(
-              child: GridView.builder(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  childAspectRatio: 1.5,
-                  crossAxisSpacing: 24,
-                  mainAxisSpacing: 24,
-                ),
-                itemCount: countries.length,
-                itemBuilder: (context, index) {
-                  final country = countries[index];
-                  return InkWell(
-                    onTap: () async {
-                      final gameManager = context.read<GameManager>();
-                      final success = await gameManager.apiService.setCountry(country['name']!);
-                      if (success) {
-                        await gameManager.refreshState();
-                        if (context.mounted) {
-                          Navigator.of(context).pushReplacementNamed('/home');
-                        }
-                      }
-                    },
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1A1208),
-                        border: Border.all(color: const Color(0xFF8B6914), width: 2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            country['name']!,
-                            style: const TextStyle(color: Color(0xFFFFD700), fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          // Content
+          Column(
+            children: [
+              const SizedBox(height: 40),
+              const Text(
+                'Choose Your Country Screen',
+                style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
+              ),
+              const Text(
+                'Permanent selection',
+                style: TextStyle(color: Colors.white54, fontSize: 16),
+              ),
+              Expanded(
+                child: Row(
+                  children: [
+                    // Left Column
+                    _buildCountryColumn(context, countries.sublist(0, 2), countries.sublist(4, 6)),
+                    // Center Globe
+                    Expanded(
+                      flex: 2,
+                      child: Center(
+                        child: Container(
+                          width: 400,
+                          height: 400,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(color: Colors.blue.withValues(alpha: 0.3), blurRadius: 100, spreadRadius: 20)
+                            ],
+                            image: const DecorationImage(
+                              image: AssetImage('assets/images/world_map.jpg'),
+                              fit: BoxFit.cover,
+                            ),
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            country['bonus']!,
-                            style: const TextStyle(color: Colors.white70, fontSize: 12),
-                            textAlign: TextAlign.center,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: RadialGradient(
+                                colors: [Colors.transparent, Colors.black.withValues(alpha: 0.5)],
+                              ),
+                            ),
                           ),
-                        ],
+                        ),
                       ),
                     ),
-                  );
-                },
+                    // Right Column
+                    _buildCountryColumn(context, countries.sublist(2, 4), countries.sublist(6, 8)),
+                  ],
+                ),
+              ),
+              TacticalButton(
+                label: 'Choose Your Country Screen',
+                width: 400,
+                onPressed: () {},
+              ),
+              const SizedBox(height: 40),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCountryColumn(BuildContext context, List<Map<String, String>> top, List<Map<String, String>> bottom) {
+    return Expanded(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          ...top.map((c) => _CountryCard(country: c)),
+          const SizedBox(height: 20),
+          ...bottom.map((c) => _CountryCard(country: c)),
+        ],
+      ),
+// ─────────────────────────────────────────────
+// RANKINGS SCREEN — New screen based on Image 5
+// ─────────────────────────────────────────────
+class RankingsScreen extends StatefulWidget {
+  const RankingsScreen({super.key});
+
+  @override
+  State<RankingsScreen> createState() => _RankingsScreenState();
+}
+
+class _RankingsScreenState extends State<RankingsScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          // Background
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0.5,
+              child: Image.asset('assets/images/world_map.jpg', fit: BoxFit.cover),
+            ),
+          ),
+          // Content
+          Column(
+            children: [
+              // Header
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(colors: [Colors.transparent, Colors.black87, Colors.transparent]),
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      'RANKING SYSTEM',
+                      style: TextStyle(color: Color(0xFFF4E19C), fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 2),
+                    ),
+                    const SizedBox(height: 10),
+                    Image.asset('assets/images/game_logo.png', width: 150),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Main Table Area
+                      Expanded(
+                        flex: 3,
+                        child: GameCard(
+                          padding: EdgeInsets.zero,
+                          child: Column(
+                            children: [
+                              TabBar(
+                                controller: _tabController,
+                                indicatorColor: const Color(0xFFFFD700),
+                                labelColor: const Color(0xFFFFD700),
+                                unselectedLabelColor: Colors.white54,
+                                tabs: const [
+                                  Tab(text: 'GLOBAL RANKINGS'),
+                                  Tab(text: 'COUNTRY RANKINGS'),
+                                ],
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: Row(
+                                  children: [
+                                    _RankSubTab(label: 'Total Power', isActive: true),
+                                    _RankSubTab(label: 'Territory'),
+                                    _RankSubTab(label: 'Wins'),
+                                    _RankSubTab(label: 'Alliance Score'),
+                                  ],
+                                ),
+                              ),
+                              const _RankTableHeader(),
+                              Expanded(
+                                child: ListView.builder(
+                                  itemCount: 10,
+                                  itemBuilder: (context, index) => _RankTableRow(index: index),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 30),
+                      // Sidebar
+                      Expanded(
+                        flex: 1,
+                        child: Column(
+                          children: [
+                            _SidebarSection(
+                              title: 'YOUR RANK',
+                              child: _ProfileRankCard(
+                                label: 'Rank: 42',
+                                sublabel: '273.23M',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Strongest General',
+                              child: _MiniProfileCard(
+                                name: 'GeneralDominus',
+                                stat: 'Power: 206,557',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Most Conquered Land',
+                              child: _MiniProfileCard(
+                                name: 'Kusnia',
+                                stat: 'Land Area: 230,634',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: TacticalButton(
+                  label: 'CLOSE',
+                  width: 200,
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankSubTab extends StatelessWidget {
+  final String label;
+  final bool isActive;
+
+  const _RankSubTab({required this.label, this.isActive = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: isActive ? const Color(0xFF5C4008) : Colors.transparent,
+        border: Border.all(color: const Color(0xFF5C4008)),
+        borderRadius: BorderRadius.circular(2),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: isActive ? const Color(0xFFFFD700) : Colors.white54, fontSize: 12),
+      ),
+    );
+  }
+}
+
+class _RankTableHeader extends StatelessWidget {
+  const _RankTableHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: Colors.black45,
+      child: const Row(
+        children: [
+          SizedBox(width: 50, child: Text('Rank', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          Expanded(child: Text('Player', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 150, child: Text('Territory Controlled', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 100, child: Text('Wins', style: TextStyle(color: Colors.white54, fontSize: 12))),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankTableRow extends StatelessWidget {
+  final int index;
+  const _RankTableRow({required this.index});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = [const Color(0xFFFFD700), const Color(0xFFC0C0C0), const Color(0xFFCD7F32)];
+    final isTop3 = index < 3;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+        color: index % 2 == 0 ? Colors.transparent : Colors.white.withValues(alpha: 0.02),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 50,
+            child: isTop3
+                ? Icon(Icons.workspace_premium, color: colors[index], size: 20)
+                : Text('${index + 1}', style: const TextStyle(color: Colors.white70)),
+          ),
+          Expanded(
+            child: Row(
+              children: [
+                const CircleAvatar(radius: 12, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 14)),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('GeneralDominus', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    Text('Level ${42 - index}', style: const TextStyle(color: Colors.white54, fontSize: 10)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 150, child: Text('17,366', style: TextStyle(color: Colors.white70))),
+          const SizedBox(width: 100, child: Text('189,296', style: TextStyle(color: Color(0xFFFFD700)))),
+        ],
+      ),
+    );
+  }
+}
+
+class _SidebarSection extends StatelessWidget {
+  final String title;
+  final Widget child;
+
+  const _SidebarSection({required this.title, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title.toUpperCase(), style: const TextStyle(color: Color(0xFFAA8820), fontSize: 12, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        child,
+      ],
+    );
+  }
+}
+
+class _ProfileRankCard extends StatelessWidget {
+  final String label;
+  final String sublabel;
+
+  const _ProfileRankCard({required this.label, required this.sublabel});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 20, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 24)),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              Text(sublabel, style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniProfileCard extends StatelessWidget {
+  final String name;
+  final String stat;
+
+  const _MiniProfileCard({required this.name, required this.stat});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(10),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 16, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 18)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                Text(stat, style: const TextStyle(color: Colors.white54, fontSize: 10)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CountryCard extends StatelessWidget {
+  final Map<String, String> country;
+
+  const _CountryCard({required this.country});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () async {
+        final gameManager = context.read<GameManager>();
+        final success = await gameManager.apiService.setCountry(country['name']!.trim());
+        if (success) {
+          await gameManager.refreshState();
+          if (context.mounted) {
+            Navigator.of(context).pushReplacementNamed('/home');
+          }
+        }
+      },
+      child: Container(
+        width: 180,
+        margin: const EdgeInsets.symmetric(vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0F1620),
+          border: Border.all(color: const Color(0xFF3A4A5A), width: 1),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Column(
+          children: [
+            Stack(
+              children: [
+                // Portrait Placeholder
+                Container(
+                  height: 120,
+                  width: double.infinity,
+                  color: Colors.black26,
+                  child: const Icon(Icons.person, color: Colors.white24, size: 60),
+                ),
+                Positioned(
+                  top: 5,
+                  left: 5,
+                  child: Text(country['flag']!, style: const TextStyle(fontSize: 20)),
+                ),
+              ],
+            ),
+            Container(
+              padding: const EdgeInsets.all(8),
+              width: double.infinity,
+              color: Colors.black45,
+              child: Column(
+                children: [
+                  Text(
+                    country['name']!,
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.military_tech, color: Color(0xFFC9B96A), size: 14),
+                      const SizedBox(width: 4),
+                      Text(
+                        country['bonus']!,
+                        style: const TextStyle(color: Color(0xFFC9B96A), fontSize: 10),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
           ],
         ),
+      ),
+// ─────────────────────────────────────────────
+// RANKINGS SCREEN — New screen based on Image 5
+// ─────────────────────────────────────────────
+class RankingsScreen extends StatefulWidget {
+  const RankingsScreen({super.key});
+
+  @override
+  State<RankingsScreen> createState() => _RankingsScreenState();
+}
+
+class _RankingsScreenState extends State<RankingsScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          // Background
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0.5,
+              child: Image.asset('assets/images/world_map.jpg', fit: BoxFit.cover),
+            ),
+          ),
+          // Content
+          Column(
+            children: [
+              // Header
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(colors: [Colors.transparent, Colors.black87, Colors.transparent]),
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      'RANKING SYSTEM',
+                      style: TextStyle(color: Color(0xFFF4E19C), fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 2),
+                    ),
+                    const SizedBox(height: 10),
+                    Image.asset('assets/images/game_logo.png', width: 150),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Main Table Area
+                      Expanded(
+                        flex: 3,
+                        child: GameCard(
+                          padding: EdgeInsets.zero,
+                          child: Column(
+                            children: [
+                              TabBar(
+                                controller: _tabController,
+                                indicatorColor: const Color(0xFFFFD700),
+                                labelColor: const Color(0xFFFFD700),
+                                unselectedLabelColor: Colors.white54,
+                                tabs: const [
+                                  Tab(text: 'GLOBAL RANKINGS'),
+                                  Tab(text: 'COUNTRY RANKINGS'),
+                                ],
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: Row(
+                                  children: [
+                                    _RankSubTab(label: 'Total Power', isActive: true),
+                                    _RankSubTab(label: 'Territory'),
+                                    _RankSubTab(label: 'Wins'),
+                                    _RankSubTab(label: 'Alliance Score'),
+                                  ],
+                                ),
+                              ),
+                              const _RankTableHeader(),
+                              Expanded(
+                                child: ListView.builder(
+                                  itemCount: 10,
+                                  itemBuilder: (context, index) => _RankTableRow(index: index),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 30),
+                      // Sidebar
+                      Expanded(
+                        flex: 1,
+                        child: Column(
+                          children: [
+                            _SidebarSection(
+                              title: 'YOUR RANK',
+                              child: _ProfileRankCard(
+                                label: 'Rank: 42',
+                                sublabel: '273.23M',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Strongest General',
+                              child: _MiniProfileCard(
+                                name: 'GeneralDominus',
+                                stat: 'Power: 206,557',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Most Conquered Land',
+                              child: _MiniProfileCard(
+                                name: 'Kusnia',
+                                stat: 'Land Area: 230,634',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: TacticalButton(
+                  label: 'CLOSE',
+                  width: 200,
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankSubTab extends StatelessWidget {
+  final String label;
+  final bool isActive;
+
+  const _RankSubTab({required this.label, this.isActive = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: isActive ? const Color(0xFF5C4008) : Colors.transparent,
+        border: Border.all(color: const Color(0xFF5C4008)),
+        borderRadius: BorderRadius.circular(2),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: isActive ? const Color(0xFFFFD700) : Colors.white54, fontSize: 12),
+      ),
+    );
+  }
+}
+
+class _RankTableHeader extends StatelessWidget {
+  const _RankTableHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: Colors.black45,
+      child: const Row(
+        children: [
+          SizedBox(width: 50, child: Text('Rank', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          Expanded(child: Text('Player', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 150, child: Text('Territory Controlled', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 100, child: Text('Wins', style: TextStyle(color: Colors.white54, fontSize: 12))),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankTableRow extends StatelessWidget {
+  final int index;
+  const _RankTableRow({required this.index});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = [const Color(0xFFFFD700), const Color(0xFFC0C0C0), const Color(0xFFCD7F32)];
+    final isTop3 = index < 3;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+        color: index % 2 == 0 ? Colors.transparent : Colors.white.withValues(alpha: 0.02),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 50,
+            child: isTop3
+                ? Icon(Icons.workspace_premium, color: colors[index], size: 20)
+                : Text('${index + 1}', style: const TextStyle(color: Colors.white70)),
+          ),
+          Expanded(
+            child: Row(
+              children: [
+                const CircleAvatar(radius: 12, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 14)),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('GeneralDominus', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    Text('Level ${42 - index}', style: const TextStyle(color: Colors.white54, fontSize: 10)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 150, child: Text('17,366', style: TextStyle(color: Colors.white70))),
+          const SizedBox(width: 100, child: Text('189,296', style: TextStyle(color: Color(0xFFFFD700)))),
+        ],
+      ),
+    );
+  }
+}
+
+class _SidebarSection extends StatelessWidget {
+  final String title;
+  final Widget child;
+
+  const _SidebarSection({required this.title, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title.toUpperCase(), style: const TextStyle(color: Color(0xFFAA8820), fontSize: 12, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        child,
+      ],
+    );
+  }
+}
+
+class _ProfileRankCard extends StatelessWidget {
+  final String label;
+  final String sublabel;
+
+  const _ProfileRankCard({required this.label, required this.sublabel});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 20, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 24)),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              Text(sublabel, style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniProfileCard extends StatelessWidget {
+  final String name;
+  final String stat;
+
+  const _MiniProfileCard({required this.name, required this.stat});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(10),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 16, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 18)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                Text(stat, style: const TextStyle(color: Colors.white54, fontSize: 10)),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
 // ─────────────────────────────────────────────
-// SPLASH SCREEN — auto-navigates to LoginScreen
+// SPLASH SCREEN — Overhauled to match Image 1
 // ─────────────────────────────────────────────
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -476,43 +3316,20 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen>
-    with SingleTickerProviderStateMixin {
+class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
-  late Animation<double> _fadeIn;
-  late Animation<double> _pulseScale;
+  late Animation<double> _pulse;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2000),
+      duration: const Duration(seconds: 2),
+    )..repeat(reverse: true);
+    _pulse = Tween<double>(begin: 0.8, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
     );
-
-    _fadeIn = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(parent: _controller, curve: const Interval(0.0, 0.5, curve: Curves.easeIn)),
-    );
-
-    _pulseScale = Tween<double>(begin: 0.95, end: 1.05).animate(
-      CurvedAnimation(parent: _controller, curve: const Interval(0.5, 1.0, curve: Curves.easeInOut)),
-    );
-
-    _controller.forward();
-
-    // Auto-navigate to login after 3 seconds
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) {
-        Navigator.of(context).pushReplacement(
-          PageRouteBuilder(
-            pageBuilder: (_, _, _) => const LoginScreen(),
-            transitionsBuilder: (_, anim, _, child) =>
-                FadeTransition(opacity: anim, child: child),
-            transitionDuration: const Duration(milliseconds: 800),
-          ),
-        );
-      }
-    });
   }
 
   @override
@@ -521,66 +3338,425 @@ class _SplashScreenState extends State<SplashScreen>
     super.dispose();
   }
 
+  void _navigateToLogin() {
+    Navigator.of(context).pushReplacementNamed('/login');
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
-      body: GestureDetector(
-        onTap: () {
-          // Tap to skip splash
-          Navigator.of(context).pushReplacement(
-            PageRouteBuilder(
-              pageBuilder: (_, _, _) => const LoginScreen(),
-              transitionsBuilder: (_, anim, _, child) =>
-                  FadeTransition(opacity: anim, child: child),
-              transitionDuration: const Duration(milliseconds: 600),
-            ),
-          );
+      body: Focus(
+        autofocus: true,
+        onKeyEvent: (node, event) {
+          _navigateToLogin();
+          return KeyEventResult.handled;
         },
-        child: AnimatedBuilder(
-          animation: _controller,
-          builder: (_, child) => FadeTransition(
-            opacity: _fadeIn,
-            child: ScaleTransition(
-              scale: _pulseScale,
-              child: child,
-            ),
-          ),
-          child: Container(
-            width: double.infinity,
-            height: double.infinity,
-            decoration: const BoxDecoration(
-              image: DecorationImage(
-                image: AssetImage('assets/images/world_map.jpg'),
-                fit: BoxFit.cover,
-              ),
-            ),
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: Alignment.center,
-                  radius: 1.0,
-                  colors: [
-                    Colors.black.withValues(alpha: 0.1),
-                    Colors.black.withValues(alpha: 0.65),
-                  ],
+        child: GestureDetector(
+          onTap: _navigateToLogin,
+          child: Stack(
+            children: [
+              // Background
+              Positioned.fill(
+                child: Image.asset(
+                  'assets/images/world_map.jpg',
+                  fit: BoxFit.cover,
                 ),
               ),
-              child: const Align(
-                alignment: Alignment(0, 0.85),
-                child: Text(
-                  'TAP TO CONTINUE',
-                  style: TextStyle(
-                    color: Color(0xFFFFD700),
-                    fontSize: 14,
-                    letterSpacing: 4,
-                    fontWeight: FontWeight.w300,
+              // Overlay
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      colors: [Colors.transparent, Colors.black.withValues(alpha: 0.8)],
+                      radius: 1.2,
+                    ),
                   ),
                 ),
               ),
-            ),
+              // Logo and Title
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Image.asset('assets/images/game_logo.png', width: 450),
+                    const SizedBox(height: 20),
+                  ],
+                ),
+              ),
+              // Press Any Key
+              Positioned(
+                bottom: 80,
+                left: 0,
+                right: 0,
+                child: FadeTransition(
+                  opacity: _pulse,
+                  child: const Text(
+                    'PRESS ANY KEY TO CONQUER',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Color(0xFFFFD700),
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 4,
+                      shadows: [Shadow(color: Colors.black, blurRadius: 10)],
+                    ),
+                  ),
+                ),
+              ),
+              // Bottom Right Links
+              Positioned(
+                bottom: 40,
+                right: 40,
+                child: Row(
+                  children: [
+                    TextButton(
+                      onPressed: _navigateToLogin,
+                      child: const Text(
+                        'LOGIN / CREATE ACCOUNT',
+                        style: TextStyle(color: Colors.white60, fontSize: 12, letterSpacing: 1),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    const Icon(Icons.settings, color: Colors.white30, size: 20),
+                  ],
+                ),
+              ),
+              // Decorative Corners
+              const Positioned(
+                top: 20,
+                right: 20,
+                child: Icon(Icons.close, color: Color(0xFF8B0000), size: 30),
+              ),
+              Positioned(
+                bottom: 20,
+                left: 20,
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: const Color(0xFFAA8820), width: 1),
+                  ),
+                  child: const Icon(Icons.castle, color: Color(0xFFFFD700), size: 32),
+                ),
+              ),
+            ],
           ),
         ),
+      ),
+// ─────────────────────────────────────────────
+// RANKINGS SCREEN — New screen based on Image 5
+// ─────────────────────────────────────────────
+class RankingsScreen extends StatefulWidget {
+  const RankingsScreen({super.key});
+
+  @override
+  State<RankingsScreen> createState() => _RankingsScreenState();
+}
+
+class _RankingsScreenState extends State<RankingsScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          // Background
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0.5,
+              child: Image.asset('assets/images/world_map.jpg', fit: BoxFit.cover),
+            ),
+          ),
+          // Content
+          Column(
+            children: [
+              // Header
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(colors: [Colors.transparent, Colors.black87, Colors.transparent]),
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      'RANKING SYSTEM',
+                      style: TextStyle(color: Color(0xFFF4E19C), fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 2),
+                    ),
+                    const SizedBox(height: 10),
+                    Image.asset('assets/images/game_logo.png', width: 150),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Main Table Area
+                      Expanded(
+                        flex: 3,
+                        child: GameCard(
+                          padding: EdgeInsets.zero,
+                          child: Column(
+                            children: [
+                              TabBar(
+                                controller: _tabController,
+                                indicatorColor: const Color(0xFFFFD700),
+                                labelColor: const Color(0xFFFFD700),
+                                unselectedLabelColor: Colors.white54,
+                                tabs: const [
+                                  Tab(text: 'GLOBAL RANKINGS'),
+                                  Tab(text: 'COUNTRY RANKINGS'),
+                                ],
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: Row(
+                                  children: [
+                                    _RankSubTab(label: 'Total Power', isActive: true),
+                                    _RankSubTab(label: 'Territory'),
+                                    _RankSubTab(label: 'Wins'),
+                                    _RankSubTab(label: 'Alliance Score'),
+                                  ],
+                                ),
+                              ),
+                              const _RankTableHeader(),
+                              Expanded(
+                                child: ListView.builder(
+                                  itemCount: 10,
+                                  itemBuilder: (context, index) => _RankTableRow(index: index),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 30),
+                      // Sidebar
+                      Expanded(
+                        flex: 1,
+                        child: Column(
+                          children: [
+                            _SidebarSection(
+                              title: 'YOUR RANK',
+                              child: _ProfileRankCard(
+                                label: 'Rank: 42',
+                                sublabel: '273.23M',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Strongest General',
+                              child: _MiniProfileCard(
+                                name: 'GeneralDominus',
+                                stat: 'Power: 206,557',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Most Conquered Land',
+                              child: _MiniProfileCard(
+                                name: 'Kusnia',
+                                stat: 'Land Area: 230,634',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: TacticalButton(
+                  label: 'CLOSE',
+                  width: 200,
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankSubTab extends StatelessWidget {
+  final String label;
+  final bool isActive;
+
+  const _RankSubTab({required this.label, this.isActive = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: isActive ? const Color(0xFF5C4008) : Colors.transparent,
+        border: Border.all(color: const Color(0xFF5C4008)),
+        borderRadius: BorderRadius.circular(2),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: isActive ? const Color(0xFFFFD700) : Colors.white54, fontSize: 12),
+      ),
+    );
+  }
+}
+
+class _RankTableHeader extends StatelessWidget {
+  const _RankTableHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: Colors.black45,
+      child: const Row(
+        children: [
+          SizedBox(width: 50, child: Text('Rank', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          Expanded(child: Text('Player', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 150, child: Text('Territory Controlled', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 100, child: Text('Wins', style: TextStyle(color: Colors.white54, fontSize: 12))),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankTableRow extends StatelessWidget {
+  final int index;
+  const _RankTableRow({required this.index});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = [const Color(0xFFFFD700), const Color(0xFFC0C0C0), const Color(0xFFCD7F32)];
+    final isTop3 = index < 3;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+        color: index % 2 == 0 ? Colors.transparent : Colors.white.withValues(alpha: 0.02),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 50,
+            child: isTop3
+                ? Icon(Icons.workspace_premium, color: colors[index], size: 20)
+                : Text('${index + 1}', style: const TextStyle(color: Colors.white70)),
+          ),
+          Expanded(
+            child: Row(
+              children: [
+                const CircleAvatar(radius: 12, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 14)),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('GeneralDominus', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    Text('Level ${42 - index}', style: const TextStyle(color: Colors.white54, fontSize: 10)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 150, child: Text('17,366', style: TextStyle(color: Colors.white70))),
+          const SizedBox(width: 100, child: Text('189,296', style: TextStyle(color: Color(0xFFFFD700)))),
+        ],
+      ),
+    );
+  }
+}
+
+class _SidebarSection extends StatelessWidget {
+  final String title;
+  final Widget child;
+
+  const _SidebarSection({required this.title, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title.toUpperCase(), style: const TextStyle(color: Color(0xFFAA8820), fontSize: 12, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        child,
+      ],
+    );
+  }
+}
+
+class _ProfileRankCard extends StatelessWidget {
+  final String label;
+  final String sublabel;
+
+  const _ProfileRankCard({required this.label, required this.sublabel});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 20, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 24)),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              Text(sublabel, style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniProfileCard extends StatelessWidget {
+  final String name;
+  final String stat;
+
+  const _MiniProfileCard({required this.name, required this.stat});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(10),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 16, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 18)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                Text(stat, style: const TextStyle(color: Colors.white54, fontSize: 10)),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -763,6 +3939,322 @@ class _HomeScreenState extends State<HomeScreen>
           ),
         ),
       ),
+// ─────────────────────────────────────────────
+// RANKINGS SCREEN — New screen based on Image 5
+// ─────────────────────────────────────────────
+class RankingsScreen extends StatefulWidget {
+  const RankingsScreen({super.key});
+
+  @override
+  State<RankingsScreen> createState() => _RankingsScreenState();
+}
+
+class _RankingsScreenState extends State<RankingsScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          // Background
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0.5,
+              child: Image.asset('assets/images/world_map.jpg', fit: BoxFit.cover),
+            ),
+          ),
+          // Content
+          Column(
+            children: [
+              // Header
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(colors: [Colors.transparent, Colors.black87, Colors.transparent]),
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      'RANKING SYSTEM',
+                      style: TextStyle(color: Color(0xFFF4E19C), fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 2),
+                    ),
+                    const SizedBox(height: 10),
+                    Image.asset('assets/images/game_logo.png', width: 150),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Main Table Area
+                      Expanded(
+                        flex: 3,
+                        child: GameCard(
+                          padding: EdgeInsets.zero,
+                          child: Column(
+                            children: [
+                              TabBar(
+                                controller: _tabController,
+                                indicatorColor: const Color(0xFFFFD700),
+                                labelColor: const Color(0xFFFFD700),
+                                unselectedLabelColor: Colors.white54,
+                                tabs: const [
+                                  Tab(text: 'GLOBAL RANKINGS'),
+                                  Tab(text: 'COUNTRY RANKINGS'),
+                                ],
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: Row(
+                                  children: [
+                                    _RankSubTab(label: 'Total Power', isActive: true),
+                                    _RankSubTab(label: 'Territory'),
+                                    _RankSubTab(label: 'Wins'),
+                                    _RankSubTab(label: 'Alliance Score'),
+                                  ],
+                                ),
+                              ),
+                              const _RankTableHeader(),
+                              Expanded(
+                                child: ListView.builder(
+                                  itemCount: 10,
+                                  itemBuilder: (context, index) => _RankTableRow(index: index),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 30),
+                      // Sidebar
+                      Expanded(
+                        flex: 1,
+                        child: Column(
+                          children: [
+                            _SidebarSection(
+                              title: 'YOUR RANK',
+                              child: _ProfileRankCard(
+                                label: 'Rank: 42',
+                                sublabel: '273.23M',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Strongest General',
+                              child: _MiniProfileCard(
+                                name: 'GeneralDominus',
+                                stat: 'Power: 206,557',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Most Conquered Land',
+                              child: _MiniProfileCard(
+                                name: 'Kusnia',
+                                stat: 'Land Area: 230,634',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: TacticalButton(
+                  label: 'CLOSE',
+                  width: 200,
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankSubTab extends StatelessWidget {
+  final String label;
+  final bool isActive;
+
+  const _RankSubTab({required this.label, this.isActive = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: isActive ? const Color(0xFF5C4008) : Colors.transparent,
+        border: Border.all(color: const Color(0xFF5C4008)),
+        borderRadius: BorderRadius.circular(2),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: isActive ? const Color(0xFFFFD700) : Colors.white54, fontSize: 12),
+      ),
+    );
+  }
+}
+
+class _RankTableHeader extends StatelessWidget {
+  const _RankTableHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: Colors.black45,
+      child: const Row(
+        children: [
+          SizedBox(width: 50, child: Text('Rank', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          Expanded(child: Text('Player', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 150, child: Text('Territory Controlled', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 100, child: Text('Wins', style: TextStyle(color: Colors.white54, fontSize: 12))),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankTableRow extends StatelessWidget {
+  final int index;
+  const _RankTableRow({required this.index});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = [const Color(0xFFFFD700), const Color(0xFFC0C0C0), const Color(0xFFCD7F32)];
+    final isTop3 = index < 3;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+        color: index % 2 == 0 ? Colors.transparent : Colors.white.withValues(alpha: 0.02),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 50,
+            child: isTop3
+                ? Icon(Icons.workspace_premium, color: colors[index], size: 20)
+                : Text('${index + 1}', style: const TextStyle(color: Colors.white70)),
+          ),
+          Expanded(
+            child: Row(
+              children: [
+                const CircleAvatar(radius: 12, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 14)),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('GeneralDominus', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    Text('Level ${42 - index}', style: const TextStyle(color: Colors.white54, fontSize: 10)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 150, child: Text('17,366', style: TextStyle(color: Colors.white70))),
+          const SizedBox(width: 100, child: Text('189,296', style: TextStyle(color: Color(0xFFFFD700)))),
+        ],
+      ),
+    );
+  }
+}
+
+class _SidebarSection extends StatelessWidget {
+  final String title;
+  final Widget child;
+
+  const _SidebarSection({required this.title, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title.toUpperCase(), style: const TextStyle(color: Color(0xFFAA8820), fontSize: 12, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        child,
+      ],
+    );
+  }
+}
+
+class _ProfileRankCard extends StatelessWidget {
+  final String label;
+  final String sublabel;
+
+  const _ProfileRankCard({required this.label, required this.sublabel});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 20, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 24)),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              Text(sublabel, style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniProfileCard extends StatelessWidget {
+  final String name;
+  final String stat;
+
+  const _MiniProfileCard({required this.name, required this.stat});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(10),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 16, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 18)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                Text(stat, style: const TextStyle(color: Colors.white54, fontSize: 10)),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -832,6 +4324,322 @@ class _MenuButtonWidgetState extends State<_MenuButtonWidget> {
             ],
           ),
         ),
+      ),
+// ─────────────────────────────────────────────
+// RANKINGS SCREEN — New screen based on Image 5
+// ─────────────────────────────────────────────
+class RankingsScreen extends StatefulWidget {
+  const RankingsScreen({super.key});
+
+  @override
+  State<RankingsScreen> createState() => _RankingsScreenState();
+}
+
+class _RankingsScreenState extends State<RankingsScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          // Background
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0.5,
+              child: Image.asset('assets/images/world_map.jpg', fit: BoxFit.cover),
+            ),
+          ),
+          // Content
+          Column(
+            children: [
+              // Header
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(colors: [Colors.transparent, Colors.black87, Colors.transparent]),
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      'RANKING SYSTEM',
+                      style: TextStyle(color: Color(0xFFF4E19C), fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 2),
+                    ),
+                    const SizedBox(height: 10),
+                    Image.asset('assets/images/game_logo.png', width: 150),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Main Table Area
+                      Expanded(
+                        flex: 3,
+                        child: GameCard(
+                          padding: EdgeInsets.zero,
+                          child: Column(
+                            children: [
+                              TabBar(
+                                controller: _tabController,
+                                indicatorColor: const Color(0xFFFFD700),
+                                labelColor: const Color(0xFFFFD700),
+                                unselectedLabelColor: Colors.white54,
+                                tabs: const [
+                                  Tab(text: 'GLOBAL RANKINGS'),
+                                  Tab(text: 'COUNTRY RANKINGS'),
+                                ],
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: Row(
+                                  children: [
+                                    _RankSubTab(label: 'Total Power', isActive: true),
+                                    _RankSubTab(label: 'Territory'),
+                                    _RankSubTab(label: 'Wins'),
+                                    _RankSubTab(label: 'Alliance Score'),
+                                  ],
+                                ),
+                              ),
+                              const _RankTableHeader(),
+                              Expanded(
+                                child: ListView.builder(
+                                  itemCount: 10,
+                                  itemBuilder: (context, index) => _RankTableRow(index: index),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 30),
+                      // Sidebar
+                      Expanded(
+                        flex: 1,
+                        child: Column(
+                          children: [
+                            _SidebarSection(
+                              title: 'YOUR RANK',
+                              child: _ProfileRankCard(
+                                label: 'Rank: 42',
+                                sublabel: '273.23M',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Strongest General',
+                              child: _MiniProfileCard(
+                                name: 'GeneralDominus',
+                                stat: 'Power: 206,557',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Most Conquered Land',
+                              child: _MiniProfileCard(
+                                name: 'Kusnia',
+                                stat: 'Land Area: 230,634',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: TacticalButton(
+                  label: 'CLOSE',
+                  width: 200,
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankSubTab extends StatelessWidget {
+  final String label;
+  final bool isActive;
+
+  const _RankSubTab({required this.label, this.isActive = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: isActive ? const Color(0xFF5C4008) : Colors.transparent,
+        border: Border.all(color: const Color(0xFF5C4008)),
+        borderRadius: BorderRadius.circular(2),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: isActive ? const Color(0xFFFFD700) : Colors.white54, fontSize: 12),
+      ),
+    );
+  }
+}
+
+class _RankTableHeader extends StatelessWidget {
+  const _RankTableHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: Colors.black45,
+      child: const Row(
+        children: [
+          SizedBox(width: 50, child: Text('Rank', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          Expanded(child: Text('Player', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 150, child: Text('Territory Controlled', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 100, child: Text('Wins', style: TextStyle(color: Colors.white54, fontSize: 12))),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankTableRow extends StatelessWidget {
+  final int index;
+  const _RankTableRow({required this.index});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = [const Color(0xFFFFD700), const Color(0xFFC0C0C0), const Color(0xFFCD7F32)];
+    final isTop3 = index < 3;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+        color: index % 2 == 0 ? Colors.transparent : Colors.white.withValues(alpha: 0.02),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 50,
+            child: isTop3
+                ? Icon(Icons.workspace_premium, color: colors[index], size: 20)
+                : Text('${index + 1}', style: const TextStyle(color: Colors.white70)),
+          ),
+          Expanded(
+            child: Row(
+              children: [
+                const CircleAvatar(radius: 12, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 14)),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('GeneralDominus', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    Text('Level ${42 - index}', style: const TextStyle(color: Colors.white54, fontSize: 10)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 150, child: Text('17,366', style: TextStyle(color: Colors.white70))),
+          const SizedBox(width: 100, child: Text('189,296', style: TextStyle(color: Color(0xFFFFD700)))),
+        ],
+      ),
+    );
+  }
+}
+
+class _SidebarSection extends StatelessWidget {
+  final String title;
+  final Widget child;
+
+  const _SidebarSection({required this.title, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title.toUpperCase(), style: const TextStyle(color: Color(0xFFAA8820), fontSize: 12, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        child,
+      ],
+    );
+  }
+}
+
+class _ProfileRankCard extends StatelessWidget {
+  final String label;
+  final String sublabel;
+
+  const _ProfileRankCard({required this.label, required this.sublabel});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 20, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 24)),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              Text(sublabel, style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniProfileCard extends StatelessWidget {
+  final String name;
+  final String stat;
+
+  const _MiniProfileCard({required this.name, required this.stat});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(10),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 16, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 18)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                Text(stat, style: const TextStyle(color: Colors.white54, fontSize: 10)),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -989,6 +4797,322 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
           ),
         ],
       ),
+// ─────────────────────────────────────────────
+// RANKINGS SCREEN — New screen based on Image 5
+// ─────────────────────────────────────────────
+class RankingsScreen extends StatefulWidget {
+  const RankingsScreen({super.key});
+
+  @override
+  State<RankingsScreen> createState() => _RankingsScreenState();
+}
+
+class _RankingsScreenState extends State<RankingsScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          // Background
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0.5,
+              child: Image.asset('assets/images/world_map.jpg', fit: BoxFit.cover),
+            ),
+          ),
+          // Content
+          Column(
+            children: [
+              // Header
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(colors: [Colors.transparent, Colors.black87, Colors.transparent]),
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      'RANKING SYSTEM',
+                      style: TextStyle(color: Color(0xFFF4E19C), fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 2),
+                    ),
+                    const SizedBox(height: 10),
+                    Image.asset('assets/images/game_logo.png', width: 150),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Main Table Area
+                      Expanded(
+                        flex: 3,
+                        child: GameCard(
+                          padding: EdgeInsets.zero,
+                          child: Column(
+                            children: [
+                              TabBar(
+                                controller: _tabController,
+                                indicatorColor: const Color(0xFFFFD700),
+                                labelColor: const Color(0xFFFFD700),
+                                unselectedLabelColor: Colors.white54,
+                                tabs: const [
+                                  Tab(text: 'GLOBAL RANKINGS'),
+                                  Tab(text: 'COUNTRY RANKINGS'),
+                                ],
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: Row(
+                                  children: [
+                                    _RankSubTab(label: 'Total Power', isActive: true),
+                                    _RankSubTab(label: 'Territory'),
+                                    _RankSubTab(label: 'Wins'),
+                                    _RankSubTab(label: 'Alliance Score'),
+                                  ],
+                                ),
+                              ),
+                              const _RankTableHeader(),
+                              Expanded(
+                                child: ListView.builder(
+                                  itemCount: 10,
+                                  itemBuilder: (context, index) => _RankTableRow(index: index),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 30),
+                      // Sidebar
+                      Expanded(
+                        flex: 1,
+                        child: Column(
+                          children: [
+                            _SidebarSection(
+                              title: 'YOUR RANK',
+                              child: _ProfileRankCard(
+                                label: 'Rank: 42',
+                                sublabel: '273.23M',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Strongest General',
+                              child: _MiniProfileCard(
+                                name: 'GeneralDominus',
+                                stat: 'Power: 206,557',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Most Conquered Land',
+                              child: _MiniProfileCard(
+                                name: 'Kusnia',
+                                stat: 'Land Area: 230,634',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: TacticalButton(
+                  label: 'CLOSE',
+                  width: 200,
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankSubTab extends StatelessWidget {
+  final String label;
+  final bool isActive;
+
+  const _RankSubTab({required this.label, this.isActive = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: isActive ? const Color(0xFF5C4008) : Colors.transparent,
+        border: Border.all(color: const Color(0xFF5C4008)),
+        borderRadius: BorderRadius.circular(2),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: isActive ? const Color(0xFFFFD700) : Colors.white54, fontSize: 12),
+      ),
+    );
+  }
+}
+
+class _RankTableHeader extends StatelessWidget {
+  const _RankTableHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: Colors.black45,
+      child: const Row(
+        children: [
+          SizedBox(width: 50, child: Text('Rank', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          Expanded(child: Text('Player', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 150, child: Text('Territory Controlled', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 100, child: Text('Wins', style: TextStyle(color: Colors.white54, fontSize: 12))),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankTableRow extends StatelessWidget {
+  final int index;
+  const _RankTableRow({required this.index});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = [const Color(0xFFFFD700), const Color(0xFFC0C0C0), const Color(0xFFCD7F32)];
+    final isTop3 = index < 3;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+        color: index % 2 == 0 ? Colors.transparent : Colors.white.withValues(alpha: 0.02),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 50,
+            child: isTop3
+                ? Icon(Icons.workspace_premium, color: colors[index], size: 20)
+                : Text('${index + 1}', style: const TextStyle(color: Colors.white70)),
+          ),
+          Expanded(
+            child: Row(
+              children: [
+                const CircleAvatar(radius: 12, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 14)),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('GeneralDominus', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    Text('Level ${42 - index}', style: const TextStyle(color: Colors.white54, fontSize: 10)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 150, child: Text('17,366', style: TextStyle(color: Colors.white70))),
+          const SizedBox(width: 100, child: Text('189,296', style: TextStyle(color: Color(0xFFFFD700)))),
+        ],
+      ),
+    );
+  }
+}
+
+class _SidebarSection extends StatelessWidget {
+  final String title;
+  final Widget child;
+
+  const _SidebarSection({required this.title, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title.toUpperCase(), style: const TextStyle(color: Color(0xFFAA8820), fontSize: 12, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        child,
+      ],
+    );
+  }
+}
+
+class _ProfileRankCard extends StatelessWidget {
+  final String label;
+  final String sublabel;
+
+  const _ProfileRankCard({required this.label, required this.sublabel});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 20, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 24)),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              Text(sublabel, style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniProfileCard extends StatelessWidget {
+  final String name;
+  final String stat;
+
+  const _MiniProfileCard({required this.name, required this.stat});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(10),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 16, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 18)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                Text(stat, style: const TextStyle(color: Colors.white54, fontSize: 10)),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1027,6 +5151,322 @@ class _GameTopBar extends StatelessWidget {
           _ResourceChip(icon: Icons.shield_rounded, label: '300', color: const Color(0xFFEF9A9A)),
         ],
       ),
+// ─────────────────────────────────────────────
+// RANKINGS SCREEN — New screen based on Image 5
+// ─────────────────────────────────────────────
+class RankingsScreen extends StatefulWidget {
+  const RankingsScreen({super.key});
+
+  @override
+  State<RankingsScreen> createState() => _RankingsScreenState();
+}
+
+class _RankingsScreenState extends State<RankingsScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          // Background
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0.5,
+              child: Image.asset('assets/images/world_map.jpg', fit: BoxFit.cover),
+            ),
+          ),
+          // Content
+          Column(
+            children: [
+              // Header
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(colors: [Colors.transparent, Colors.black87, Colors.transparent]),
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      'RANKING SYSTEM',
+                      style: TextStyle(color: Color(0xFFF4E19C), fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 2),
+                    ),
+                    const SizedBox(height: 10),
+                    Image.asset('assets/images/game_logo.png', width: 150),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Main Table Area
+                      Expanded(
+                        flex: 3,
+                        child: GameCard(
+                          padding: EdgeInsets.zero,
+                          child: Column(
+                            children: [
+                              TabBar(
+                                controller: _tabController,
+                                indicatorColor: const Color(0xFFFFD700),
+                                labelColor: const Color(0xFFFFD700),
+                                unselectedLabelColor: Colors.white54,
+                                tabs: const [
+                                  Tab(text: 'GLOBAL RANKINGS'),
+                                  Tab(text: 'COUNTRY RANKINGS'),
+                                ],
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: Row(
+                                  children: [
+                                    _RankSubTab(label: 'Total Power', isActive: true),
+                                    _RankSubTab(label: 'Territory'),
+                                    _RankSubTab(label: 'Wins'),
+                                    _RankSubTab(label: 'Alliance Score'),
+                                  ],
+                                ),
+                              ),
+                              const _RankTableHeader(),
+                              Expanded(
+                                child: ListView.builder(
+                                  itemCount: 10,
+                                  itemBuilder: (context, index) => _RankTableRow(index: index),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 30),
+                      // Sidebar
+                      Expanded(
+                        flex: 1,
+                        child: Column(
+                          children: [
+                            _SidebarSection(
+                              title: 'YOUR RANK',
+                              child: _ProfileRankCard(
+                                label: 'Rank: 42',
+                                sublabel: '273.23M',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Strongest General',
+                              child: _MiniProfileCard(
+                                name: 'GeneralDominus',
+                                stat: 'Power: 206,557',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Most Conquered Land',
+                              child: _MiniProfileCard(
+                                name: 'Kusnia',
+                                stat: 'Land Area: 230,634',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: TacticalButton(
+                  label: 'CLOSE',
+                  width: 200,
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankSubTab extends StatelessWidget {
+  final String label;
+  final bool isActive;
+
+  const _RankSubTab({required this.label, this.isActive = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: isActive ? const Color(0xFF5C4008) : Colors.transparent,
+        border: Border.all(color: const Color(0xFF5C4008)),
+        borderRadius: BorderRadius.circular(2),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: isActive ? const Color(0xFFFFD700) : Colors.white54, fontSize: 12),
+      ),
+    );
+  }
+}
+
+class _RankTableHeader extends StatelessWidget {
+  const _RankTableHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: Colors.black45,
+      child: const Row(
+        children: [
+          SizedBox(width: 50, child: Text('Rank', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          Expanded(child: Text('Player', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 150, child: Text('Territory Controlled', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 100, child: Text('Wins', style: TextStyle(color: Colors.white54, fontSize: 12))),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankTableRow extends StatelessWidget {
+  final int index;
+  const _RankTableRow({required this.index});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = [const Color(0xFFFFD700), const Color(0xFFC0C0C0), const Color(0xFFCD7F32)];
+    final isTop3 = index < 3;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+        color: index % 2 == 0 ? Colors.transparent : Colors.white.withValues(alpha: 0.02),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 50,
+            child: isTop3
+                ? Icon(Icons.workspace_premium, color: colors[index], size: 20)
+                : Text('${index + 1}', style: const TextStyle(color: Colors.white70)),
+          ),
+          Expanded(
+            child: Row(
+              children: [
+                const CircleAvatar(radius: 12, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 14)),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('GeneralDominus', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    Text('Level ${42 - index}', style: const TextStyle(color: Colors.white54, fontSize: 10)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 150, child: Text('17,366', style: TextStyle(color: Colors.white70))),
+          const SizedBox(width: 100, child: Text('189,296', style: TextStyle(color: Color(0xFFFFD700)))),
+        ],
+      ),
+    );
+  }
+}
+
+class _SidebarSection extends StatelessWidget {
+  final String title;
+  final Widget child;
+
+  const _SidebarSection({required this.title, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title.toUpperCase(), style: const TextStyle(color: Color(0xFFAA8820), fontSize: 12, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        child,
+      ],
+    );
+  }
+}
+
+class _ProfileRankCard extends StatelessWidget {
+  final String label;
+  final String sublabel;
+
+  const _ProfileRankCard({required this.label, required this.sublabel});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 20, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 24)),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              Text(sublabel, style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniProfileCard extends StatelessWidget {
+  final String name;
+  final String stat;
+
+  const _MiniProfileCard({required this.name, required this.stat});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(10),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 16, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 18)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                Text(stat, style: const TextStyle(color: Colors.white54, fontSize: 10)),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1054,6 +5494,322 @@ class _ResourceChip extends StatelessWidget {
         const SizedBox(width: 4),
         Text(dynamicLabel, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 13)),
       ],
+// ─────────────────────────────────────────────
+// RANKINGS SCREEN — New screen based on Image 5
+// ─────────────────────────────────────────────
+class RankingsScreen extends StatefulWidget {
+  const RankingsScreen({super.key});
+
+  @override
+  State<RankingsScreen> createState() => _RankingsScreenState();
+}
+
+class _RankingsScreenState extends State<RankingsScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          // Background
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0.5,
+              child: Image.asset('assets/images/world_map.jpg', fit: BoxFit.cover),
+            ),
+          ),
+          // Content
+          Column(
+            children: [
+              // Header
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(colors: [Colors.transparent, Colors.black87, Colors.transparent]),
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      'RANKING SYSTEM',
+                      style: TextStyle(color: Color(0xFFF4E19C), fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 2),
+                    ),
+                    const SizedBox(height: 10),
+                    Image.asset('assets/images/game_logo.png', width: 150),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Main Table Area
+                      Expanded(
+                        flex: 3,
+                        child: GameCard(
+                          padding: EdgeInsets.zero,
+                          child: Column(
+                            children: [
+                              TabBar(
+                                controller: _tabController,
+                                indicatorColor: const Color(0xFFFFD700),
+                                labelColor: const Color(0xFFFFD700),
+                                unselectedLabelColor: Colors.white54,
+                                tabs: const [
+                                  Tab(text: 'GLOBAL RANKINGS'),
+                                  Tab(text: 'COUNTRY RANKINGS'),
+                                ],
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: Row(
+                                  children: [
+                                    _RankSubTab(label: 'Total Power', isActive: true),
+                                    _RankSubTab(label: 'Territory'),
+                                    _RankSubTab(label: 'Wins'),
+                                    _RankSubTab(label: 'Alliance Score'),
+                                  ],
+                                ),
+                              ),
+                              const _RankTableHeader(),
+                              Expanded(
+                                child: ListView.builder(
+                                  itemCount: 10,
+                                  itemBuilder: (context, index) => _RankTableRow(index: index),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 30),
+                      // Sidebar
+                      Expanded(
+                        flex: 1,
+                        child: Column(
+                          children: [
+                            _SidebarSection(
+                              title: 'YOUR RANK',
+                              child: _ProfileRankCard(
+                                label: 'Rank: 42',
+                                sublabel: '273.23M',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Strongest General',
+                              child: _MiniProfileCard(
+                                name: 'GeneralDominus',
+                                stat: 'Power: 206,557',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Most Conquered Land',
+                              child: _MiniProfileCard(
+                                name: 'Kusnia',
+                                stat: 'Land Area: 230,634',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: TacticalButton(
+                  label: 'CLOSE',
+                  width: 200,
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankSubTab extends StatelessWidget {
+  final String label;
+  final bool isActive;
+
+  const _RankSubTab({required this.label, this.isActive = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: isActive ? const Color(0xFF5C4008) : Colors.transparent,
+        border: Border.all(color: const Color(0xFF5C4008)),
+        borderRadius: BorderRadius.circular(2),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: isActive ? const Color(0xFFFFD700) : Colors.white54, fontSize: 12),
+      ),
+    );
+  }
+}
+
+class _RankTableHeader extends StatelessWidget {
+  const _RankTableHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: Colors.black45,
+      child: const Row(
+        children: [
+          SizedBox(width: 50, child: Text('Rank', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          Expanded(child: Text('Player', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 150, child: Text('Territory Controlled', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 100, child: Text('Wins', style: TextStyle(color: Colors.white54, fontSize: 12))),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankTableRow extends StatelessWidget {
+  final int index;
+  const _RankTableRow({required this.index});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = [const Color(0xFFFFD700), const Color(0xFFC0C0C0), const Color(0xFFCD7F32)];
+    final isTop3 = index < 3;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+        color: index % 2 == 0 ? Colors.transparent : Colors.white.withValues(alpha: 0.02),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 50,
+            child: isTop3
+                ? Icon(Icons.workspace_premium, color: colors[index], size: 20)
+                : Text('${index + 1}', style: const TextStyle(color: Colors.white70)),
+          ),
+          Expanded(
+            child: Row(
+              children: [
+                const CircleAvatar(radius: 12, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 14)),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('GeneralDominus', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    Text('Level ${42 - index}', style: const TextStyle(color: Colors.white54, fontSize: 10)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 150, child: Text('17,366', style: TextStyle(color: Colors.white70))),
+          const SizedBox(width: 100, child: Text('189,296', style: TextStyle(color: Color(0xFFFFD700)))),
+        ],
+      ),
+    );
+  }
+}
+
+class _SidebarSection extends StatelessWidget {
+  final String title;
+  final Widget child;
+
+  const _SidebarSection({required this.title, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title.toUpperCase(), style: const TextStyle(color: Color(0xFFAA8820), fontSize: 12, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        child,
+      ],
+    );
+  }
+}
+
+class _ProfileRankCard extends StatelessWidget {
+  final String label;
+  final String sublabel;
+
+  const _ProfileRankCard({required this.label, required this.sublabel});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 20, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 24)),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              Text(sublabel, style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniProfileCard extends StatelessWidget {
+  final String name;
+  final String stat;
+
+  const _MiniProfileCard({required this.name, required this.stat});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(10),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 16, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 18)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                Text(stat, style: const TextStyle(color: Colors.white54, fontSize: 10)),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1308,6 +6064,322 @@ class CommandCenterScreen extends StatelessWidget {
           ],
         ),
       ),
+// ─────────────────────────────────────────────
+// RANKINGS SCREEN — New screen based on Image 5
+// ─────────────────────────────────────────────
+class RankingsScreen extends StatefulWidget {
+  const RankingsScreen({super.key});
+
+  @override
+  State<RankingsScreen> createState() => _RankingsScreenState();
+}
+
+class _RankingsScreenState extends State<RankingsScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          // Background
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0.5,
+              child: Image.asset('assets/images/world_map.jpg', fit: BoxFit.cover),
+            ),
+          ),
+          // Content
+          Column(
+            children: [
+              // Header
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(colors: [Colors.transparent, Colors.black87, Colors.transparent]),
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      'RANKING SYSTEM',
+                      style: TextStyle(color: Color(0xFFF4E19C), fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 2),
+                    ),
+                    const SizedBox(height: 10),
+                    Image.asset('assets/images/game_logo.png', width: 150),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Main Table Area
+                      Expanded(
+                        flex: 3,
+                        child: GameCard(
+                          padding: EdgeInsets.zero,
+                          child: Column(
+                            children: [
+                              TabBar(
+                                controller: _tabController,
+                                indicatorColor: const Color(0xFFFFD700),
+                                labelColor: const Color(0xFFFFD700),
+                                unselectedLabelColor: Colors.white54,
+                                tabs: const [
+                                  Tab(text: 'GLOBAL RANKINGS'),
+                                  Tab(text: 'COUNTRY RANKINGS'),
+                                ],
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: Row(
+                                  children: [
+                                    _RankSubTab(label: 'Total Power', isActive: true),
+                                    _RankSubTab(label: 'Territory'),
+                                    _RankSubTab(label: 'Wins'),
+                                    _RankSubTab(label: 'Alliance Score'),
+                                  ],
+                                ),
+                              ),
+                              const _RankTableHeader(),
+                              Expanded(
+                                child: ListView.builder(
+                                  itemCount: 10,
+                                  itemBuilder: (context, index) => _RankTableRow(index: index),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 30),
+                      // Sidebar
+                      Expanded(
+                        flex: 1,
+                        child: Column(
+                          children: [
+                            _SidebarSection(
+                              title: 'YOUR RANK',
+                              child: _ProfileRankCard(
+                                label: 'Rank: 42',
+                                sublabel: '273.23M',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Strongest General',
+                              child: _MiniProfileCard(
+                                name: 'GeneralDominus',
+                                stat: 'Power: 206,557',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Most Conquered Land',
+                              child: _MiniProfileCard(
+                                name: 'Kusnia',
+                                stat: 'Land Area: 230,634',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: TacticalButton(
+                  label: 'CLOSE',
+                  width: 200,
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankSubTab extends StatelessWidget {
+  final String label;
+  final bool isActive;
+
+  const _RankSubTab({required this.label, this.isActive = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: isActive ? const Color(0xFF5C4008) : Colors.transparent,
+        border: Border.all(color: const Color(0xFF5C4008)),
+        borderRadius: BorderRadius.circular(2),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: isActive ? const Color(0xFFFFD700) : Colors.white54, fontSize: 12),
+      ),
+    );
+  }
+}
+
+class _RankTableHeader extends StatelessWidget {
+  const _RankTableHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: Colors.black45,
+      child: const Row(
+        children: [
+          SizedBox(width: 50, child: Text('Rank', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          Expanded(child: Text('Player', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 150, child: Text('Territory Controlled', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 100, child: Text('Wins', style: TextStyle(color: Colors.white54, fontSize: 12))),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankTableRow extends StatelessWidget {
+  final int index;
+  const _RankTableRow({required this.index});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = [const Color(0xFFFFD700), const Color(0xFFC0C0C0), const Color(0xFFCD7F32)];
+    final isTop3 = index < 3;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+        color: index % 2 == 0 ? Colors.transparent : Colors.white.withValues(alpha: 0.02),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 50,
+            child: isTop3
+                ? Icon(Icons.workspace_premium, color: colors[index], size: 20)
+                : Text('${index + 1}', style: const TextStyle(color: Colors.white70)),
+          ),
+          Expanded(
+            child: Row(
+              children: [
+                const CircleAvatar(radius: 12, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 14)),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('GeneralDominus', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    Text('Level ${42 - index}', style: const TextStyle(color: Colors.white54, fontSize: 10)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 150, child: Text('17,366', style: TextStyle(color: Colors.white70))),
+          const SizedBox(width: 100, child: Text('189,296', style: TextStyle(color: Color(0xFFFFD700)))),
+        ],
+      ),
+    );
+  }
+}
+
+class _SidebarSection extends StatelessWidget {
+  final String title;
+  final Widget child;
+
+  const _SidebarSection({required this.title, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title.toUpperCase(), style: const TextStyle(color: Color(0xFFAA8820), fontSize: 12, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        child,
+      ],
+    );
+  }
+}
+
+class _ProfileRankCard extends StatelessWidget {
+  final String label;
+  final String sublabel;
+
+  const _ProfileRankCard({required this.label, required this.sublabel});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 20, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 24)),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              Text(sublabel, style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniProfileCard extends StatelessWidget {
+  final String name;
+  final String stat;
+
+  const _MiniProfileCard({required this.name, required this.stat});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(10),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 16, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 18)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                Text(stat, style: const TextStyle(color: Colors.white54, fontSize: 10)),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1341,6 +6413,322 @@ class _DashboardCard extends StatelessWidget {
           ],
         ),
       ),
+// ─────────────────────────────────────────────
+// RANKINGS SCREEN — New screen based on Image 5
+// ─────────────────────────────────────────────
+class RankingsScreen extends StatefulWidget {
+  const RankingsScreen({super.key});
+
+  @override
+  State<RankingsScreen> createState() => _RankingsScreenState();
+}
+
+class _RankingsScreenState extends State<RankingsScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          // Background
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0.5,
+              child: Image.asset('assets/images/world_map.jpg', fit: BoxFit.cover),
+            ),
+          ),
+          // Content
+          Column(
+            children: [
+              // Header
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(colors: [Colors.transparent, Colors.black87, Colors.transparent]),
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      'RANKING SYSTEM',
+                      style: TextStyle(color: Color(0xFFF4E19C), fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 2),
+                    ),
+                    const SizedBox(height: 10),
+                    Image.asset('assets/images/game_logo.png', width: 150),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Main Table Area
+                      Expanded(
+                        flex: 3,
+                        child: GameCard(
+                          padding: EdgeInsets.zero,
+                          child: Column(
+                            children: [
+                              TabBar(
+                                controller: _tabController,
+                                indicatorColor: const Color(0xFFFFD700),
+                                labelColor: const Color(0xFFFFD700),
+                                unselectedLabelColor: Colors.white54,
+                                tabs: const [
+                                  Tab(text: 'GLOBAL RANKINGS'),
+                                  Tab(text: 'COUNTRY RANKINGS'),
+                                ],
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: Row(
+                                  children: [
+                                    _RankSubTab(label: 'Total Power', isActive: true),
+                                    _RankSubTab(label: 'Territory'),
+                                    _RankSubTab(label: 'Wins'),
+                                    _RankSubTab(label: 'Alliance Score'),
+                                  ],
+                                ),
+                              ),
+                              const _RankTableHeader(),
+                              Expanded(
+                                child: ListView.builder(
+                                  itemCount: 10,
+                                  itemBuilder: (context, index) => _RankTableRow(index: index),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 30),
+                      // Sidebar
+                      Expanded(
+                        flex: 1,
+                        child: Column(
+                          children: [
+                            _SidebarSection(
+                              title: 'YOUR RANK',
+                              child: _ProfileRankCard(
+                                label: 'Rank: 42',
+                                sublabel: '273.23M',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Strongest General',
+                              child: _MiniProfileCard(
+                                name: 'GeneralDominus',
+                                stat: 'Power: 206,557',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Most Conquered Land',
+                              child: _MiniProfileCard(
+                                name: 'Kusnia',
+                                stat: 'Land Area: 230,634',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: TacticalButton(
+                  label: 'CLOSE',
+                  width: 200,
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankSubTab extends StatelessWidget {
+  final String label;
+  final bool isActive;
+
+  const _RankSubTab({required this.label, this.isActive = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: isActive ? const Color(0xFF5C4008) : Colors.transparent,
+        border: Border.all(color: const Color(0xFF5C4008)),
+        borderRadius: BorderRadius.circular(2),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: isActive ? const Color(0xFFFFD700) : Colors.white54, fontSize: 12),
+      ),
+    );
+  }
+}
+
+class _RankTableHeader extends StatelessWidget {
+  const _RankTableHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: Colors.black45,
+      child: const Row(
+        children: [
+          SizedBox(width: 50, child: Text('Rank', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          Expanded(child: Text('Player', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 150, child: Text('Territory Controlled', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 100, child: Text('Wins', style: TextStyle(color: Colors.white54, fontSize: 12))),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankTableRow extends StatelessWidget {
+  final int index;
+  const _RankTableRow({required this.index});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = [const Color(0xFFFFD700), const Color(0xFFC0C0C0), const Color(0xFFCD7F32)];
+    final isTop3 = index < 3;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+        color: index % 2 == 0 ? Colors.transparent : Colors.white.withValues(alpha: 0.02),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 50,
+            child: isTop3
+                ? Icon(Icons.workspace_premium, color: colors[index], size: 20)
+                : Text('${index + 1}', style: const TextStyle(color: Colors.white70)),
+          ),
+          Expanded(
+            child: Row(
+              children: [
+                const CircleAvatar(radius: 12, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 14)),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('GeneralDominus', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    Text('Level ${42 - index}', style: const TextStyle(color: Colors.white54, fontSize: 10)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 150, child: Text('17,366', style: TextStyle(color: Colors.white70))),
+          const SizedBox(width: 100, child: Text('189,296', style: TextStyle(color: Color(0xFFFFD700)))),
+        ],
+      ),
+    );
+  }
+}
+
+class _SidebarSection extends StatelessWidget {
+  final String title;
+  final Widget child;
+
+  const _SidebarSection({required this.title, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title.toUpperCase(), style: const TextStyle(color: Color(0xFFAA8820), fontSize: 12, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        child,
+      ],
+    );
+  }
+}
+
+class _ProfileRankCard extends StatelessWidget {
+  final String label;
+  final String sublabel;
+
+  const _ProfileRankCard({required this.label, required this.sublabel});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 20, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 24)),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              Text(sublabel, style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniProfileCard extends StatelessWidget {
+  final String name;
+  final String stat;
+
+  const _MiniProfileCard({required this.name, required this.stat});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(10),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 16, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 18)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                Text(stat, style: const TextStyle(color: Colors.white54, fontSize: 10)),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1365,6 +6753,322 @@ class _ActionButton extends StatelessWidget {
         onPressed: onPressed,
         child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
       ),
+// ─────────────────────────────────────────────
+// RANKINGS SCREEN — New screen based on Image 5
+// ─────────────────────────────────────────────
+class RankingsScreen extends StatefulWidget {
+  const RankingsScreen({super.key});
+
+  @override
+  State<RankingsScreen> createState() => _RankingsScreenState();
+}
+
+class _RankingsScreenState extends State<RankingsScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          // Background
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0.5,
+              child: Image.asset('assets/images/world_map.jpg', fit: BoxFit.cover),
+            ),
+          ),
+          // Content
+          Column(
+            children: [
+              // Header
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(colors: [Colors.transparent, Colors.black87, Colors.transparent]),
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      'RANKING SYSTEM',
+                      style: TextStyle(color: Color(0xFFF4E19C), fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 2),
+                    ),
+                    const SizedBox(height: 10),
+                    Image.asset('assets/images/game_logo.png', width: 150),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Main Table Area
+                      Expanded(
+                        flex: 3,
+                        child: GameCard(
+                          padding: EdgeInsets.zero,
+                          child: Column(
+                            children: [
+                              TabBar(
+                                controller: _tabController,
+                                indicatorColor: const Color(0xFFFFD700),
+                                labelColor: const Color(0xFFFFD700),
+                                unselectedLabelColor: Colors.white54,
+                                tabs: const [
+                                  Tab(text: 'GLOBAL RANKINGS'),
+                                  Tab(text: 'COUNTRY RANKINGS'),
+                                ],
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: Row(
+                                  children: [
+                                    _RankSubTab(label: 'Total Power', isActive: true),
+                                    _RankSubTab(label: 'Territory'),
+                                    _RankSubTab(label: 'Wins'),
+                                    _RankSubTab(label: 'Alliance Score'),
+                                  ],
+                                ),
+                              ),
+                              const _RankTableHeader(),
+                              Expanded(
+                                child: ListView.builder(
+                                  itemCount: 10,
+                                  itemBuilder: (context, index) => _RankTableRow(index: index),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 30),
+                      // Sidebar
+                      Expanded(
+                        flex: 1,
+                        child: Column(
+                          children: [
+                            _SidebarSection(
+                              title: 'YOUR RANK',
+                              child: _ProfileRankCard(
+                                label: 'Rank: 42',
+                                sublabel: '273.23M',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Strongest General',
+                              child: _MiniProfileCard(
+                                name: 'GeneralDominus',
+                                stat: 'Power: 206,557',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Most Conquered Land',
+                              child: _MiniProfileCard(
+                                name: 'Kusnia',
+                                stat: 'Land Area: 230,634',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: TacticalButton(
+                  label: 'CLOSE',
+                  width: 200,
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankSubTab extends StatelessWidget {
+  final String label;
+  final bool isActive;
+
+  const _RankSubTab({required this.label, this.isActive = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: isActive ? const Color(0xFF5C4008) : Colors.transparent,
+        border: Border.all(color: const Color(0xFF5C4008)),
+        borderRadius: BorderRadius.circular(2),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: isActive ? const Color(0xFFFFD700) : Colors.white54, fontSize: 12),
+      ),
+    );
+  }
+}
+
+class _RankTableHeader extends StatelessWidget {
+  const _RankTableHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: Colors.black45,
+      child: const Row(
+        children: [
+          SizedBox(width: 50, child: Text('Rank', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          Expanded(child: Text('Player', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 150, child: Text('Territory Controlled', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 100, child: Text('Wins', style: TextStyle(color: Colors.white54, fontSize: 12))),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankTableRow extends StatelessWidget {
+  final int index;
+  const _RankTableRow({required this.index});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = [const Color(0xFFFFD700), const Color(0xFFC0C0C0), const Color(0xFFCD7F32)];
+    final isTop3 = index < 3;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+        color: index % 2 == 0 ? Colors.transparent : Colors.white.withValues(alpha: 0.02),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 50,
+            child: isTop3
+                ? Icon(Icons.workspace_premium, color: colors[index], size: 20)
+                : Text('${index + 1}', style: const TextStyle(color: Colors.white70)),
+          ),
+          Expanded(
+            child: Row(
+              children: [
+                const CircleAvatar(radius: 12, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 14)),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('GeneralDominus', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    Text('Level ${42 - index}', style: const TextStyle(color: Colors.white54, fontSize: 10)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 150, child: Text('17,366', style: TextStyle(color: Colors.white70))),
+          const SizedBox(width: 100, child: Text('189,296', style: TextStyle(color: Color(0xFFFFD700)))),
+        ],
+      ),
+    );
+  }
+}
+
+class _SidebarSection extends StatelessWidget {
+  final String title;
+  final Widget child;
+
+  const _SidebarSection({required this.title, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title.toUpperCase(), style: const TextStyle(color: Color(0xFFAA8820), fontSize: 12, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        child,
+      ],
+    );
+  }
+}
+
+class _ProfileRankCard extends StatelessWidget {
+  final String label;
+  final String sublabel;
+
+  const _ProfileRankCard({required this.label, required this.sublabel});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 20, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 24)),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              Text(sublabel, style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniProfileCard extends StatelessWidget {
+  final String name;
+  final String stat;
+
+  const _MiniProfileCard({required this.name, required this.stat});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(10),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 16, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 18)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                Text(stat, style: const TextStyle(color: Colors.white54, fontSize: 10)),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1383,6 +7087,322 @@ class _DeploymentStat extends StatelessWidget {
         Text(label, style: const TextStyle(color: Color(0xFFB0B7C5), fontSize: 14)),
         Text(value, style: const TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.bold, fontSize: 14)),
       ],
+// ─────────────────────────────────────────────
+// RANKINGS SCREEN — New screen based on Image 5
+// ─────────────────────────────────────────────
+class RankingsScreen extends StatefulWidget {
+  const RankingsScreen({super.key});
+
+  @override
+  State<RankingsScreen> createState() => _RankingsScreenState();
+}
+
+class _RankingsScreenState extends State<RankingsScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          // Background
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0.5,
+              child: Image.asset('assets/images/world_map.jpg', fit: BoxFit.cover),
+            ),
+          ),
+          // Content
+          Column(
+            children: [
+              // Header
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(colors: [Colors.transparent, Colors.black87, Colors.transparent]),
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      'RANKING SYSTEM',
+                      style: TextStyle(color: Color(0xFFF4E19C), fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 2),
+                    ),
+                    const SizedBox(height: 10),
+                    Image.asset('assets/images/game_logo.png', width: 150),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Main Table Area
+                      Expanded(
+                        flex: 3,
+                        child: GameCard(
+                          padding: EdgeInsets.zero,
+                          child: Column(
+                            children: [
+                              TabBar(
+                                controller: _tabController,
+                                indicatorColor: const Color(0xFFFFD700),
+                                labelColor: const Color(0xFFFFD700),
+                                unselectedLabelColor: Colors.white54,
+                                tabs: const [
+                                  Tab(text: 'GLOBAL RANKINGS'),
+                                  Tab(text: 'COUNTRY RANKINGS'),
+                                ],
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: Row(
+                                  children: [
+                                    _RankSubTab(label: 'Total Power', isActive: true),
+                                    _RankSubTab(label: 'Territory'),
+                                    _RankSubTab(label: 'Wins'),
+                                    _RankSubTab(label: 'Alliance Score'),
+                                  ],
+                                ),
+                              ),
+                              const _RankTableHeader(),
+                              Expanded(
+                                child: ListView.builder(
+                                  itemCount: 10,
+                                  itemBuilder: (context, index) => _RankTableRow(index: index),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 30),
+                      // Sidebar
+                      Expanded(
+                        flex: 1,
+                        child: Column(
+                          children: [
+                            _SidebarSection(
+                              title: 'YOUR RANK',
+                              child: _ProfileRankCard(
+                                label: 'Rank: 42',
+                                sublabel: '273.23M',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Strongest General',
+                              child: _MiniProfileCard(
+                                name: 'GeneralDominus',
+                                stat: 'Power: 206,557',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Most Conquered Land',
+                              child: _MiniProfileCard(
+                                name: 'Kusnia',
+                                stat: 'Land Area: 230,634',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: TacticalButton(
+                  label: 'CLOSE',
+                  width: 200,
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankSubTab extends StatelessWidget {
+  final String label;
+  final bool isActive;
+
+  const _RankSubTab({required this.label, this.isActive = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: isActive ? const Color(0xFF5C4008) : Colors.transparent,
+        border: Border.all(color: const Color(0xFF5C4008)),
+        borderRadius: BorderRadius.circular(2),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: isActive ? const Color(0xFFFFD700) : Colors.white54, fontSize: 12),
+      ),
+    );
+  }
+}
+
+class _RankTableHeader extends StatelessWidget {
+  const _RankTableHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: Colors.black45,
+      child: const Row(
+        children: [
+          SizedBox(width: 50, child: Text('Rank', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          Expanded(child: Text('Player', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 150, child: Text('Territory Controlled', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 100, child: Text('Wins', style: TextStyle(color: Colors.white54, fontSize: 12))),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankTableRow extends StatelessWidget {
+  final int index;
+  const _RankTableRow({required this.index});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = [const Color(0xFFFFD700), const Color(0xFFC0C0C0), const Color(0xFFCD7F32)];
+    final isTop3 = index < 3;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+        color: index % 2 == 0 ? Colors.transparent : Colors.white.withValues(alpha: 0.02),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 50,
+            child: isTop3
+                ? Icon(Icons.workspace_premium, color: colors[index], size: 20)
+                : Text('${index + 1}', style: const TextStyle(color: Colors.white70)),
+          ),
+          Expanded(
+            child: Row(
+              children: [
+                const CircleAvatar(radius: 12, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 14)),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('GeneralDominus', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    Text('Level ${42 - index}', style: const TextStyle(color: Colors.white54, fontSize: 10)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 150, child: Text('17,366', style: TextStyle(color: Colors.white70))),
+          const SizedBox(width: 100, child: Text('189,296', style: TextStyle(color: Color(0xFFFFD700)))),
+        ],
+      ),
+    );
+  }
+}
+
+class _SidebarSection extends StatelessWidget {
+  final String title;
+  final Widget child;
+
+  const _SidebarSection({required this.title, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title.toUpperCase(), style: const TextStyle(color: Color(0xFFAA8820), fontSize: 12, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        child,
+      ],
+    );
+  }
+}
+
+class _ProfileRankCard extends StatelessWidget {
+  final String label;
+  final String sublabel;
+
+  const _ProfileRankCard({required this.label, required this.sublabel});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 20, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 24)),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              Text(sublabel, style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniProfileCard extends StatelessWidget {
+  final String name;
+  final String stat;
+
+  const _MiniProfileCard({required this.name, required this.stat});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(10),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 16, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 18)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                Text(stat, style: const TextStyle(color: Colors.white54, fontSize: 10)),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1529,6 +7549,322 @@ class DeployArmyScreen extends StatelessWidget {
           ],
         ),
       ),
+// ─────────────────────────────────────────────
+// RANKINGS SCREEN — New screen based on Image 5
+// ─────────────────────────────────────────────
+class RankingsScreen extends StatefulWidget {
+  const RankingsScreen({super.key});
+
+  @override
+  State<RankingsScreen> createState() => _RankingsScreenState();
+}
+
+class _RankingsScreenState extends State<RankingsScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          // Background
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0.5,
+              child: Image.asset('assets/images/world_map.jpg', fit: BoxFit.cover),
+            ),
+          ),
+          // Content
+          Column(
+            children: [
+              // Header
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(colors: [Colors.transparent, Colors.black87, Colors.transparent]),
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      'RANKING SYSTEM',
+                      style: TextStyle(color: Color(0xFFF4E19C), fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 2),
+                    ),
+                    const SizedBox(height: 10),
+                    Image.asset('assets/images/game_logo.png', width: 150),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Main Table Area
+                      Expanded(
+                        flex: 3,
+                        child: GameCard(
+                          padding: EdgeInsets.zero,
+                          child: Column(
+                            children: [
+                              TabBar(
+                                controller: _tabController,
+                                indicatorColor: const Color(0xFFFFD700),
+                                labelColor: const Color(0xFFFFD700),
+                                unselectedLabelColor: Colors.white54,
+                                tabs: const [
+                                  Tab(text: 'GLOBAL RANKINGS'),
+                                  Tab(text: 'COUNTRY RANKINGS'),
+                                ],
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: Row(
+                                  children: [
+                                    _RankSubTab(label: 'Total Power', isActive: true),
+                                    _RankSubTab(label: 'Territory'),
+                                    _RankSubTab(label: 'Wins'),
+                                    _RankSubTab(label: 'Alliance Score'),
+                                  ],
+                                ),
+                              ),
+                              const _RankTableHeader(),
+                              Expanded(
+                                child: ListView.builder(
+                                  itemCount: 10,
+                                  itemBuilder: (context, index) => _RankTableRow(index: index),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 30),
+                      // Sidebar
+                      Expanded(
+                        flex: 1,
+                        child: Column(
+                          children: [
+                            _SidebarSection(
+                              title: 'YOUR RANK',
+                              child: _ProfileRankCard(
+                                label: 'Rank: 42',
+                                sublabel: '273.23M',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Strongest General',
+                              child: _MiniProfileCard(
+                                name: 'GeneralDominus',
+                                stat: 'Power: 206,557',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Most Conquered Land',
+                              child: _MiniProfileCard(
+                                name: 'Kusnia',
+                                stat: 'Land Area: 230,634',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: TacticalButton(
+                  label: 'CLOSE',
+                  width: 200,
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankSubTab extends StatelessWidget {
+  final String label;
+  final bool isActive;
+
+  const _RankSubTab({required this.label, this.isActive = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: isActive ? const Color(0xFF5C4008) : Colors.transparent,
+        border: Border.all(color: const Color(0xFF5C4008)),
+        borderRadius: BorderRadius.circular(2),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: isActive ? const Color(0xFFFFD700) : Colors.white54, fontSize: 12),
+      ),
+    );
+  }
+}
+
+class _RankTableHeader extends StatelessWidget {
+  const _RankTableHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: Colors.black45,
+      child: const Row(
+        children: [
+          SizedBox(width: 50, child: Text('Rank', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          Expanded(child: Text('Player', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 150, child: Text('Territory Controlled', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 100, child: Text('Wins', style: TextStyle(color: Colors.white54, fontSize: 12))),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankTableRow extends StatelessWidget {
+  final int index;
+  const _RankTableRow({required this.index});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = [const Color(0xFFFFD700), const Color(0xFFC0C0C0), const Color(0xFFCD7F32)];
+    final isTop3 = index < 3;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+        color: index % 2 == 0 ? Colors.transparent : Colors.white.withValues(alpha: 0.02),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 50,
+            child: isTop3
+                ? Icon(Icons.workspace_premium, color: colors[index], size: 20)
+                : Text('${index + 1}', style: const TextStyle(color: Colors.white70)),
+          ),
+          Expanded(
+            child: Row(
+              children: [
+                const CircleAvatar(radius: 12, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 14)),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('GeneralDominus', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    Text('Level ${42 - index}', style: const TextStyle(color: Colors.white54, fontSize: 10)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 150, child: Text('17,366', style: TextStyle(color: Colors.white70))),
+          const SizedBox(width: 100, child: Text('189,296', style: TextStyle(color: Color(0xFFFFD700)))),
+        ],
+      ),
+    );
+  }
+}
+
+class _SidebarSection extends StatelessWidget {
+  final String title;
+  final Widget child;
+
+  const _SidebarSection({required this.title, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title.toUpperCase(), style: const TextStyle(color: Color(0xFFAA8820), fontSize: 12, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        child,
+      ],
+    );
+  }
+}
+
+class _ProfileRankCard extends StatelessWidget {
+  final String label;
+  final String sublabel;
+
+  const _ProfileRankCard({required this.label, required this.sublabel});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 20, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 24)),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              Text(sublabel, style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniProfileCard extends StatelessWidget {
+  final String name;
+  final String stat;
+
+  const _MiniProfileCard({required this.name, required this.stat});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(10),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 16, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 18)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                Text(stat, style: const TextStyle(color: Colors.white54, fontSize: 10)),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1659,6 +7995,322 @@ class WorldMapScreen extends StatelessWidget {
           ],
         ),
       ),
+// ─────────────────────────────────────────────
+// RANKINGS SCREEN — New screen based on Image 5
+// ─────────────────────────────────────────────
+class RankingsScreen extends StatefulWidget {
+  const RankingsScreen({super.key});
+
+  @override
+  State<RankingsScreen> createState() => _RankingsScreenState();
+}
+
+class _RankingsScreenState extends State<RankingsScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          // Background
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0.5,
+              child: Image.asset('assets/images/world_map.jpg', fit: BoxFit.cover),
+            ),
+          ),
+          // Content
+          Column(
+            children: [
+              // Header
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(colors: [Colors.transparent, Colors.black87, Colors.transparent]),
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      'RANKING SYSTEM',
+                      style: TextStyle(color: Color(0xFFF4E19C), fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 2),
+                    ),
+                    const SizedBox(height: 10),
+                    Image.asset('assets/images/game_logo.png', width: 150),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Main Table Area
+                      Expanded(
+                        flex: 3,
+                        child: GameCard(
+                          padding: EdgeInsets.zero,
+                          child: Column(
+                            children: [
+                              TabBar(
+                                controller: _tabController,
+                                indicatorColor: const Color(0xFFFFD700),
+                                labelColor: const Color(0xFFFFD700),
+                                unselectedLabelColor: Colors.white54,
+                                tabs: const [
+                                  Tab(text: 'GLOBAL RANKINGS'),
+                                  Tab(text: 'COUNTRY RANKINGS'),
+                                ],
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: Row(
+                                  children: [
+                                    _RankSubTab(label: 'Total Power', isActive: true),
+                                    _RankSubTab(label: 'Territory'),
+                                    _RankSubTab(label: 'Wins'),
+                                    _RankSubTab(label: 'Alliance Score'),
+                                  ],
+                                ),
+                              ),
+                              const _RankTableHeader(),
+                              Expanded(
+                                child: ListView.builder(
+                                  itemCount: 10,
+                                  itemBuilder: (context, index) => _RankTableRow(index: index),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 30),
+                      // Sidebar
+                      Expanded(
+                        flex: 1,
+                        child: Column(
+                          children: [
+                            _SidebarSection(
+                              title: 'YOUR RANK',
+                              child: _ProfileRankCard(
+                                label: 'Rank: 42',
+                                sublabel: '273.23M',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Strongest General',
+                              child: _MiniProfileCard(
+                                name: 'GeneralDominus',
+                                stat: 'Power: 206,557',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Most Conquered Land',
+                              child: _MiniProfileCard(
+                                name: 'Kusnia',
+                                stat: 'Land Area: 230,634',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: TacticalButton(
+                  label: 'CLOSE',
+                  width: 200,
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankSubTab extends StatelessWidget {
+  final String label;
+  final bool isActive;
+
+  const _RankSubTab({required this.label, this.isActive = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: isActive ? const Color(0xFF5C4008) : Colors.transparent,
+        border: Border.all(color: const Color(0xFF5C4008)),
+        borderRadius: BorderRadius.circular(2),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: isActive ? const Color(0xFFFFD700) : Colors.white54, fontSize: 12),
+      ),
+    );
+  }
+}
+
+class _RankTableHeader extends StatelessWidget {
+  const _RankTableHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: Colors.black45,
+      child: const Row(
+        children: [
+          SizedBox(width: 50, child: Text('Rank', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          Expanded(child: Text('Player', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 150, child: Text('Territory Controlled', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 100, child: Text('Wins', style: TextStyle(color: Colors.white54, fontSize: 12))),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankTableRow extends StatelessWidget {
+  final int index;
+  const _RankTableRow({required this.index});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = [const Color(0xFFFFD700), const Color(0xFFC0C0C0), const Color(0xFFCD7F32)];
+    final isTop3 = index < 3;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+        color: index % 2 == 0 ? Colors.transparent : Colors.white.withValues(alpha: 0.02),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 50,
+            child: isTop3
+                ? Icon(Icons.workspace_premium, color: colors[index], size: 20)
+                : Text('${index + 1}', style: const TextStyle(color: Colors.white70)),
+          ),
+          Expanded(
+            child: Row(
+              children: [
+                const CircleAvatar(radius: 12, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 14)),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('GeneralDominus', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    Text('Level ${42 - index}', style: const TextStyle(color: Colors.white54, fontSize: 10)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 150, child: Text('17,366', style: TextStyle(color: Colors.white70))),
+          const SizedBox(width: 100, child: Text('189,296', style: TextStyle(color: Color(0xFFFFD700)))),
+        ],
+      ),
+    );
+  }
+}
+
+class _SidebarSection extends StatelessWidget {
+  final String title;
+  final Widget child;
+
+  const _SidebarSection({required this.title, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title.toUpperCase(), style: const TextStyle(color: Color(0xFFAA8820), fontSize: 12, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        child,
+      ],
+    );
+  }
+}
+
+class _ProfileRankCard extends StatelessWidget {
+  final String label;
+  final String sublabel;
+
+  const _ProfileRankCard({required this.label, required this.sublabel});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 20, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 24)),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              Text(sublabel, style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniProfileCard extends StatelessWidget {
+  final String name;
+  final String stat;
+
+  const _MiniProfileCard({required this.name, required this.stat});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(10),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 16, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 18)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                Text(stat, style: const TextStyle(color: Colors.white54, fontSize: 10)),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1685,6 +8337,322 @@ class _MapIndicator extends StatelessWidget {
           Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           const SizedBox(height: 6),
           Text(status, style: TextStyle(color: color, fontWeight: FontWeight.bold)),
+        ],
+      ),
+// ─────────────────────────────────────────────
+// RANKINGS SCREEN — New screen based on Image 5
+// ─────────────────────────────────────────────
+class RankingsScreen extends StatefulWidget {
+  const RankingsScreen({super.key});
+
+  @override
+  State<RankingsScreen> createState() => _RankingsScreenState();
+}
+
+class _RankingsScreenState extends State<RankingsScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          // Background
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0.5,
+              child: Image.asset('assets/images/world_map.jpg', fit: BoxFit.cover),
+            ),
+          ),
+          // Content
+          Column(
+            children: [
+              // Header
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(colors: [Colors.transparent, Colors.black87, Colors.transparent]),
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      'RANKING SYSTEM',
+                      style: TextStyle(color: Color(0xFFF4E19C), fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 2),
+                    ),
+                    const SizedBox(height: 10),
+                    Image.asset('assets/images/game_logo.png', width: 150),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Main Table Area
+                      Expanded(
+                        flex: 3,
+                        child: GameCard(
+                          padding: EdgeInsets.zero,
+                          child: Column(
+                            children: [
+                              TabBar(
+                                controller: _tabController,
+                                indicatorColor: const Color(0xFFFFD700),
+                                labelColor: const Color(0xFFFFD700),
+                                unselectedLabelColor: Colors.white54,
+                                tabs: const [
+                                  Tab(text: 'GLOBAL RANKINGS'),
+                                  Tab(text: 'COUNTRY RANKINGS'),
+                                ],
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: Row(
+                                  children: [
+                                    _RankSubTab(label: 'Total Power', isActive: true),
+                                    _RankSubTab(label: 'Territory'),
+                                    _RankSubTab(label: 'Wins'),
+                                    _RankSubTab(label: 'Alliance Score'),
+                                  ],
+                                ),
+                              ),
+                              const _RankTableHeader(),
+                              Expanded(
+                                child: ListView.builder(
+                                  itemCount: 10,
+                                  itemBuilder: (context, index) => _RankTableRow(index: index),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 30),
+                      // Sidebar
+                      Expanded(
+                        flex: 1,
+                        child: Column(
+                          children: [
+                            _SidebarSection(
+                              title: 'YOUR RANK',
+                              child: _ProfileRankCard(
+                                label: 'Rank: 42',
+                                sublabel: '273.23M',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Strongest General',
+                              child: _MiniProfileCard(
+                                name: 'GeneralDominus',
+                                stat: 'Power: 206,557',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Most Conquered Land',
+                              child: _MiniProfileCard(
+                                name: 'Kusnia',
+                                stat: 'Land Area: 230,634',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: TacticalButton(
+                  label: 'CLOSE',
+                  width: 200,
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankSubTab extends StatelessWidget {
+  final String label;
+  final bool isActive;
+
+  const _RankSubTab({required this.label, this.isActive = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: isActive ? const Color(0xFF5C4008) : Colors.transparent,
+        border: Border.all(color: const Color(0xFF5C4008)),
+        borderRadius: BorderRadius.circular(2),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: isActive ? const Color(0xFFFFD700) : Colors.white54, fontSize: 12),
+      ),
+    );
+  }
+}
+
+class _RankTableHeader extends StatelessWidget {
+  const _RankTableHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: Colors.black45,
+      child: const Row(
+        children: [
+          SizedBox(width: 50, child: Text('Rank', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          Expanded(child: Text('Player', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 150, child: Text('Territory Controlled', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 100, child: Text('Wins', style: TextStyle(color: Colors.white54, fontSize: 12))),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankTableRow extends StatelessWidget {
+  final int index;
+  const _RankTableRow({required this.index});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = [const Color(0xFFFFD700), const Color(0xFFC0C0C0), const Color(0xFFCD7F32)];
+    final isTop3 = index < 3;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+        color: index % 2 == 0 ? Colors.transparent : Colors.white.withValues(alpha: 0.02),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 50,
+            child: isTop3
+                ? Icon(Icons.workspace_premium, color: colors[index], size: 20)
+                : Text('${index + 1}', style: const TextStyle(color: Colors.white70)),
+          ),
+          Expanded(
+            child: Row(
+              children: [
+                const CircleAvatar(radius: 12, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 14)),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('GeneralDominus', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    Text('Level ${42 - index}', style: const TextStyle(color: Colors.white54, fontSize: 10)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 150, child: Text('17,366', style: TextStyle(color: Colors.white70))),
+          const SizedBox(width: 100, child: Text('189,296', style: TextStyle(color: Color(0xFFFFD700)))),
+        ],
+      ),
+    );
+  }
+}
+
+class _SidebarSection extends StatelessWidget {
+  final String title;
+  final Widget child;
+
+  const _SidebarSection({required this.title, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title.toUpperCase(), style: const TextStyle(color: Color(0xFFAA8820), fontSize: 12, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        child,
+      ],
+    );
+  }
+}
+
+class _ProfileRankCard extends StatelessWidget {
+  final String label;
+  final String sublabel;
+
+  const _ProfileRankCard({required this.label, required this.sublabel});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 20, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 24)),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              Text(sublabel, style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniProfileCard extends StatelessWidget {
+  final String name;
+  final String stat;
+
+  const _MiniProfileCard({required this.name, required this.stat});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(10),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 16, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 18)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                Text(stat, style: const TextStyle(color: Colors.white54, fontSize: 10)),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -1724,6 +8692,322 @@ class _MapRegionBadge extends StatelessWidget {
             ),
           ],
         ),
+      ),
+// ─────────────────────────────────────────────
+// RANKINGS SCREEN — New screen based on Image 5
+// ─────────────────────────────────────────────
+class RankingsScreen extends StatefulWidget {
+  const RankingsScreen({super.key});
+
+  @override
+  State<RankingsScreen> createState() => _RankingsScreenState();
+}
+
+class _RankingsScreenState extends State<RankingsScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          // Background
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0.5,
+              child: Image.asset('assets/images/world_map.jpg', fit: BoxFit.cover),
+            ),
+          ),
+          // Content
+          Column(
+            children: [
+              // Header
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(colors: [Colors.transparent, Colors.black87, Colors.transparent]),
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      'RANKING SYSTEM',
+                      style: TextStyle(color: Color(0xFFF4E19C), fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 2),
+                    ),
+                    const SizedBox(height: 10),
+                    Image.asset('assets/images/game_logo.png', width: 150),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Main Table Area
+                      Expanded(
+                        flex: 3,
+                        child: GameCard(
+                          padding: EdgeInsets.zero,
+                          child: Column(
+                            children: [
+                              TabBar(
+                                controller: _tabController,
+                                indicatorColor: const Color(0xFFFFD700),
+                                labelColor: const Color(0xFFFFD700),
+                                unselectedLabelColor: Colors.white54,
+                                tabs: const [
+                                  Tab(text: 'GLOBAL RANKINGS'),
+                                  Tab(text: 'COUNTRY RANKINGS'),
+                                ],
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: Row(
+                                  children: [
+                                    _RankSubTab(label: 'Total Power', isActive: true),
+                                    _RankSubTab(label: 'Territory'),
+                                    _RankSubTab(label: 'Wins'),
+                                    _RankSubTab(label: 'Alliance Score'),
+                                  ],
+                                ),
+                              ),
+                              const _RankTableHeader(),
+                              Expanded(
+                                child: ListView.builder(
+                                  itemCount: 10,
+                                  itemBuilder: (context, index) => _RankTableRow(index: index),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 30),
+                      // Sidebar
+                      Expanded(
+                        flex: 1,
+                        child: Column(
+                          children: [
+                            _SidebarSection(
+                              title: 'YOUR RANK',
+                              child: _ProfileRankCard(
+                                label: 'Rank: 42',
+                                sublabel: '273.23M',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Strongest General',
+                              child: _MiniProfileCard(
+                                name: 'GeneralDominus',
+                                stat: 'Power: 206,557',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Most Conquered Land',
+                              child: _MiniProfileCard(
+                                name: 'Kusnia',
+                                stat: 'Land Area: 230,634',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: TacticalButton(
+                  label: 'CLOSE',
+                  width: 200,
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankSubTab extends StatelessWidget {
+  final String label;
+  final bool isActive;
+
+  const _RankSubTab({required this.label, this.isActive = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: isActive ? const Color(0xFF5C4008) : Colors.transparent,
+        border: Border.all(color: const Color(0xFF5C4008)),
+        borderRadius: BorderRadius.circular(2),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: isActive ? const Color(0xFFFFD700) : Colors.white54, fontSize: 12),
+      ),
+    );
+  }
+}
+
+class _RankTableHeader extends StatelessWidget {
+  const _RankTableHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: Colors.black45,
+      child: const Row(
+        children: [
+          SizedBox(width: 50, child: Text('Rank', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          Expanded(child: Text('Player', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 150, child: Text('Territory Controlled', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 100, child: Text('Wins', style: TextStyle(color: Colors.white54, fontSize: 12))),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankTableRow extends StatelessWidget {
+  final int index;
+  const _RankTableRow({required this.index});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = [const Color(0xFFFFD700), const Color(0xFFC0C0C0), const Color(0xFFCD7F32)];
+    final isTop3 = index < 3;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+        color: index % 2 == 0 ? Colors.transparent : Colors.white.withValues(alpha: 0.02),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 50,
+            child: isTop3
+                ? Icon(Icons.workspace_premium, color: colors[index], size: 20)
+                : Text('${index + 1}', style: const TextStyle(color: Colors.white70)),
+          ),
+          Expanded(
+            child: Row(
+              children: [
+                const CircleAvatar(radius: 12, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 14)),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('GeneralDominus', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    Text('Level ${42 - index}', style: const TextStyle(color: Colors.white54, fontSize: 10)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 150, child: Text('17,366', style: TextStyle(color: Colors.white70))),
+          const SizedBox(width: 100, child: Text('189,296', style: TextStyle(color: Color(0xFFFFD700)))),
+        ],
+      ),
+    );
+  }
+}
+
+class _SidebarSection extends StatelessWidget {
+  final String title;
+  final Widget child;
+
+  const _SidebarSection({required this.title, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title.toUpperCase(), style: const TextStyle(color: Color(0xFFAA8820), fontSize: 12, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        child,
+      ],
+    );
+  }
+}
+
+class _ProfileRankCard extends StatelessWidget {
+  final String label;
+  final String sublabel;
+
+  const _ProfileRankCard({required this.label, required this.sublabel});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 20, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 24)),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              Text(sublabel, style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniProfileCard extends StatelessWidget {
+  final String name;
+  final String stat;
+
+  const _MiniProfileCard({required this.name, required this.stat});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(10),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 16, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 18)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                Text(stat, style: const TextStyle(color: Colors.white54, fontSize: 10)),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1826,6 +9110,322 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
       ),
+// ─────────────────────────────────────────────
+// RANKINGS SCREEN — New screen based on Image 5
+// ─────────────────────────────────────────────
+class RankingsScreen extends StatefulWidget {
+  const RankingsScreen({super.key});
+
+  @override
+  State<RankingsScreen> createState() => _RankingsScreenState();
+}
+
+class _RankingsScreenState extends State<RankingsScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          // Background
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0.5,
+              child: Image.asset('assets/images/world_map.jpg', fit: BoxFit.cover),
+            ),
+          ),
+          // Content
+          Column(
+            children: [
+              // Header
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(colors: [Colors.transparent, Colors.black87, Colors.transparent]),
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      'RANKING SYSTEM',
+                      style: TextStyle(color: Color(0xFFF4E19C), fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 2),
+                    ),
+                    const SizedBox(height: 10),
+                    Image.asset('assets/images/game_logo.png', width: 150),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Main Table Area
+                      Expanded(
+                        flex: 3,
+                        child: GameCard(
+                          padding: EdgeInsets.zero,
+                          child: Column(
+                            children: [
+                              TabBar(
+                                controller: _tabController,
+                                indicatorColor: const Color(0xFFFFD700),
+                                labelColor: const Color(0xFFFFD700),
+                                unselectedLabelColor: Colors.white54,
+                                tabs: const [
+                                  Tab(text: 'GLOBAL RANKINGS'),
+                                  Tab(text: 'COUNTRY RANKINGS'),
+                                ],
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: Row(
+                                  children: [
+                                    _RankSubTab(label: 'Total Power', isActive: true),
+                                    _RankSubTab(label: 'Territory'),
+                                    _RankSubTab(label: 'Wins'),
+                                    _RankSubTab(label: 'Alliance Score'),
+                                  ],
+                                ),
+                              ),
+                              const _RankTableHeader(),
+                              Expanded(
+                                child: ListView.builder(
+                                  itemCount: 10,
+                                  itemBuilder: (context, index) => _RankTableRow(index: index),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 30),
+                      // Sidebar
+                      Expanded(
+                        flex: 1,
+                        child: Column(
+                          children: [
+                            _SidebarSection(
+                              title: 'YOUR RANK',
+                              child: _ProfileRankCard(
+                                label: 'Rank: 42',
+                                sublabel: '273.23M',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Strongest General',
+                              child: _MiniProfileCard(
+                                name: 'GeneralDominus',
+                                stat: 'Power: 206,557',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Most Conquered Land',
+                              child: _MiniProfileCard(
+                                name: 'Kusnia',
+                                stat: 'Land Area: 230,634',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: TacticalButton(
+                  label: 'CLOSE',
+                  width: 200,
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankSubTab extends StatelessWidget {
+  final String label;
+  final bool isActive;
+
+  const _RankSubTab({required this.label, this.isActive = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: isActive ? const Color(0xFF5C4008) : Colors.transparent,
+        border: Border.all(color: const Color(0xFF5C4008)),
+        borderRadius: BorderRadius.circular(2),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: isActive ? const Color(0xFFFFD700) : Colors.white54, fontSize: 12),
+      ),
+    );
+  }
+}
+
+class _RankTableHeader extends StatelessWidget {
+  const _RankTableHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: Colors.black45,
+      child: const Row(
+        children: [
+          SizedBox(width: 50, child: Text('Rank', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          Expanded(child: Text('Player', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 150, child: Text('Territory Controlled', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 100, child: Text('Wins', style: TextStyle(color: Colors.white54, fontSize: 12))),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankTableRow extends StatelessWidget {
+  final int index;
+  const _RankTableRow({required this.index});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = [const Color(0xFFFFD700), const Color(0xFFC0C0C0), const Color(0xFFCD7F32)];
+    final isTop3 = index < 3;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+        color: index % 2 == 0 ? Colors.transparent : Colors.white.withValues(alpha: 0.02),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 50,
+            child: isTop3
+                ? Icon(Icons.workspace_premium, color: colors[index], size: 20)
+                : Text('${index + 1}', style: const TextStyle(color: Colors.white70)),
+          ),
+          Expanded(
+            child: Row(
+              children: [
+                const CircleAvatar(radius: 12, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 14)),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('GeneralDominus', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    Text('Level ${42 - index}', style: const TextStyle(color: Colors.white54, fontSize: 10)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 150, child: Text('17,366', style: TextStyle(color: Colors.white70))),
+          const SizedBox(width: 100, child: Text('189,296', style: TextStyle(color: Color(0xFFFFD700)))),
+        ],
+      ),
+    );
+  }
+}
+
+class _SidebarSection extends StatelessWidget {
+  final String title;
+  final Widget child;
+
+  const _SidebarSection({required this.title, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title.toUpperCase(), style: const TextStyle(color: Color(0xFFAA8820), fontSize: 12, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        child,
+      ],
+    );
+  }
+}
+
+class _ProfileRankCard extends StatelessWidget {
+  final String label;
+  final String sublabel;
+
+  const _ProfileRankCard({required this.label, required this.sublabel});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 20, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 24)),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              Text(sublabel, style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniProfileCard extends StatelessWidget {
+  final String name;
+  final String stat;
+
+  const _MiniProfileCard({required this.name, required this.stat});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(10),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 16, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 18)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                Text(stat, style: const TextStyle(color: Colors.white54, fontSize: 10)),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1860,6 +9460,322 @@ class _SettingsSection extends StatelessWidget {
           child: Column(children: children),
         ),
       ],
+// ─────────────────────────────────────────────
+// RANKINGS SCREEN — New screen based on Image 5
+// ─────────────────────────────────────────────
+class RankingsScreen extends StatefulWidget {
+  const RankingsScreen({super.key});
+
+  @override
+  State<RankingsScreen> createState() => _RankingsScreenState();
+}
+
+class _RankingsScreenState extends State<RankingsScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          // Background
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0.5,
+              child: Image.asset('assets/images/world_map.jpg', fit: BoxFit.cover),
+            ),
+          ),
+          // Content
+          Column(
+            children: [
+              // Header
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(colors: [Colors.transparent, Colors.black87, Colors.transparent]),
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      'RANKING SYSTEM',
+                      style: TextStyle(color: Color(0xFFF4E19C), fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 2),
+                    ),
+                    const SizedBox(height: 10),
+                    Image.asset('assets/images/game_logo.png', width: 150),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Main Table Area
+                      Expanded(
+                        flex: 3,
+                        child: GameCard(
+                          padding: EdgeInsets.zero,
+                          child: Column(
+                            children: [
+                              TabBar(
+                                controller: _tabController,
+                                indicatorColor: const Color(0xFFFFD700),
+                                labelColor: const Color(0xFFFFD700),
+                                unselectedLabelColor: Colors.white54,
+                                tabs: const [
+                                  Tab(text: 'GLOBAL RANKINGS'),
+                                  Tab(text: 'COUNTRY RANKINGS'),
+                                ],
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: Row(
+                                  children: [
+                                    _RankSubTab(label: 'Total Power', isActive: true),
+                                    _RankSubTab(label: 'Territory'),
+                                    _RankSubTab(label: 'Wins'),
+                                    _RankSubTab(label: 'Alliance Score'),
+                                  ],
+                                ),
+                              ),
+                              const _RankTableHeader(),
+                              Expanded(
+                                child: ListView.builder(
+                                  itemCount: 10,
+                                  itemBuilder: (context, index) => _RankTableRow(index: index),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 30),
+                      // Sidebar
+                      Expanded(
+                        flex: 1,
+                        child: Column(
+                          children: [
+                            _SidebarSection(
+                              title: 'YOUR RANK',
+                              child: _ProfileRankCard(
+                                label: 'Rank: 42',
+                                sublabel: '273.23M',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Strongest General',
+                              child: _MiniProfileCard(
+                                name: 'GeneralDominus',
+                                stat: 'Power: 206,557',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Most Conquered Land',
+                              child: _MiniProfileCard(
+                                name: 'Kusnia',
+                                stat: 'Land Area: 230,634',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: TacticalButton(
+                  label: 'CLOSE',
+                  width: 200,
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankSubTab extends StatelessWidget {
+  final String label;
+  final bool isActive;
+
+  const _RankSubTab({required this.label, this.isActive = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: isActive ? const Color(0xFF5C4008) : Colors.transparent,
+        border: Border.all(color: const Color(0xFF5C4008)),
+        borderRadius: BorderRadius.circular(2),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: isActive ? const Color(0xFFFFD700) : Colors.white54, fontSize: 12),
+      ),
+    );
+  }
+}
+
+class _RankTableHeader extends StatelessWidget {
+  const _RankTableHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: Colors.black45,
+      child: const Row(
+        children: [
+          SizedBox(width: 50, child: Text('Rank', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          Expanded(child: Text('Player', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 150, child: Text('Territory Controlled', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 100, child: Text('Wins', style: TextStyle(color: Colors.white54, fontSize: 12))),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankTableRow extends StatelessWidget {
+  final int index;
+  const _RankTableRow({required this.index});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = [const Color(0xFFFFD700), const Color(0xFFC0C0C0), const Color(0xFFCD7F32)];
+    final isTop3 = index < 3;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+        color: index % 2 == 0 ? Colors.transparent : Colors.white.withValues(alpha: 0.02),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 50,
+            child: isTop3
+                ? Icon(Icons.workspace_premium, color: colors[index], size: 20)
+                : Text('${index + 1}', style: const TextStyle(color: Colors.white70)),
+          ),
+          Expanded(
+            child: Row(
+              children: [
+                const CircleAvatar(radius: 12, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 14)),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('GeneralDominus', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    Text('Level ${42 - index}', style: const TextStyle(color: Colors.white54, fontSize: 10)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 150, child: Text('17,366', style: TextStyle(color: Colors.white70))),
+          const SizedBox(width: 100, child: Text('189,296', style: TextStyle(color: Color(0xFFFFD700)))),
+        ],
+      ),
+    );
+  }
+}
+
+class _SidebarSection extends StatelessWidget {
+  final String title;
+  final Widget child;
+
+  const _SidebarSection({required this.title, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title.toUpperCase(), style: const TextStyle(color: Color(0xFFAA8820), fontSize: 12, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        child,
+      ],
+    );
+  }
+}
+
+class _ProfileRankCard extends StatelessWidget {
+  final String label;
+  final String sublabel;
+
+  const _ProfileRankCard({required this.label, required this.sublabel});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 20, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 24)),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              Text(sublabel, style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniProfileCard extends StatelessWidget {
+  final String name;
+  final String stat;
+
+  const _MiniProfileCard({required this.name, required this.stat});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(10),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 16, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 18)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                Text(stat, style: const TextStyle(color: Colors.white54, fontSize: 10)),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1900,6 +9816,322 @@ class _SliderSetting extends StatelessWidget {
           ),
           Text('${(value * 100).round()}%',
               style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12)),
+        ],
+      ),
+// ─────────────────────────────────────────────
+// RANKINGS SCREEN — New screen based on Image 5
+// ─────────────────────────────────────────────
+class RankingsScreen extends StatefulWidget {
+  const RankingsScreen({super.key});
+
+  @override
+  State<RankingsScreen> createState() => _RankingsScreenState();
+}
+
+class _RankingsScreenState extends State<RankingsScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          // Background
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0.5,
+              child: Image.asset('assets/images/world_map.jpg', fit: BoxFit.cover),
+            ),
+          ),
+          // Content
+          Column(
+            children: [
+              // Header
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(colors: [Colors.transparent, Colors.black87, Colors.transparent]),
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      'RANKING SYSTEM',
+                      style: TextStyle(color: Color(0xFFF4E19C), fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 2),
+                    ),
+                    const SizedBox(height: 10),
+                    Image.asset('assets/images/game_logo.png', width: 150),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Main Table Area
+                      Expanded(
+                        flex: 3,
+                        child: GameCard(
+                          padding: EdgeInsets.zero,
+                          child: Column(
+                            children: [
+                              TabBar(
+                                controller: _tabController,
+                                indicatorColor: const Color(0xFFFFD700),
+                                labelColor: const Color(0xFFFFD700),
+                                unselectedLabelColor: Colors.white54,
+                                tabs: const [
+                                  Tab(text: 'GLOBAL RANKINGS'),
+                                  Tab(text: 'COUNTRY RANKINGS'),
+                                ],
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: Row(
+                                  children: [
+                                    _RankSubTab(label: 'Total Power', isActive: true),
+                                    _RankSubTab(label: 'Territory'),
+                                    _RankSubTab(label: 'Wins'),
+                                    _RankSubTab(label: 'Alliance Score'),
+                                  ],
+                                ),
+                              ),
+                              const _RankTableHeader(),
+                              Expanded(
+                                child: ListView.builder(
+                                  itemCount: 10,
+                                  itemBuilder: (context, index) => _RankTableRow(index: index),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 30),
+                      // Sidebar
+                      Expanded(
+                        flex: 1,
+                        child: Column(
+                          children: [
+                            _SidebarSection(
+                              title: 'YOUR RANK',
+                              child: _ProfileRankCard(
+                                label: 'Rank: 42',
+                                sublabel: '273.23M',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Strongest General',
+                              child: _MiniProfileCard(
+                                name: 'GeneralDominus',
+                                stat: 'Power: 206,557',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SidebarSection(
+                              title: 'Most Conquered Land',
+                              child: _MiniProfileCard(
+                                name: 'Kusnia',
+                                stat: 'Land Area: 230,634',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: TacticalButton(
+                  label: 'CLOSE',
+                  width: 200,
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankSubTab extends StatelessWidget {
+  final String label;
+  final bool isActive;
+
+  const _RankSubTab({required this.label, this.isActive = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: isActive ? const Color(0xFF5C4008) : Colors.transparent,
+        border: Border.all(color: const Color(0xFF5C4008)),
+        borderRadius: BorderRadius.circular(2),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: isActive ? const Color(0xFFFFD700) : Colors.white54, fontSize: 12),
+      ),
+    );
+  }
+}
+
+class _RankTableHeader extends StatelessWidget {
+  const _RankTableHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: Colors.black45,
+      child: const Row(
+        children: [
+          SizedBox(width: 50, child: Text('Rank', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          Expanded(child: Text('Player', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 150, child: Text('Territory Controlled', style: TextStyle(color: Colors.white54, fontSize: 12))),
+          SizedBox(width: 100, child: Text('Wins', style: TextStyle(color: Colors.white54, fontSize: 12))),
+        ],
+      ),
+    );
+  }
+}
+
+class _RankTableRow extends StatelessWidget {
+  final int index;
+  const _RankTableRow({required this.index});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = [const Color(0xFFFFD700), const Color(0xFFC0C0C0), const Color(0xFFCD7F32)];
+    final isTop3 = index < 3;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+        color: index % 2 == 0 ? Colors.transparent : Colors.white.withValues(alpha: 0.02),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 50,
+            child: isTop3
+                ? Icon(Icons.workspace_premium, color: colors[index], size: 20)
+                : Text('${index + 1}', style: const TextStyle(color: Colors.white70)),
+          ),
+          Expanded(
+            child: Row(
+              children: [
+                const CircleAvatar(radius: 12, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 14)),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('GeneralDominus', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    Text('Level ${42 - index}', style: const TextStyle(color: Colors.white54, fontSize: 10)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 150, child: Text('17,366', style: TextStyle(color: Colors.white70))),
+          const SizedBox(width: 100, child: Text('189,296', style: TextStyle(color: Color(0xFFFFD700)))),
+        ],
+      ),
+    );
+  }
+}
+
+class _SidebarSection extends StatelessWidget {
+  final String title;
+  final Widget child;
+
+  const _SidebarSection({required this.title, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title.toUpperCase(), style: const TextStyle(color: Color(0xFFAA8820), fontSize: 12, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        child,
+      ],
+    );
+  }
+}
+
+class _ProfileRankCard extends StatelessWidget {
+  final String label;
+  final String sublabel;
+
+  const _ProfileRankCard({required this.label, required this.sublabel});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 20, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 24)),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              Text(sublabel, style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniProfileCard extends StatelessWidget {
+  final String name;
+  final String stat;
+
+  const _MiniProfileCard({required this.name, required this.stat});
+
+  @override
+  Widget build(BuildContext context) {
+    return GameCard(
+      padding: const EdgeInsets.all(10),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 16, backgroundColor: Colors.white10, child: Icon(Icons.person, size: 18)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                Text(stat, style: const TextStyle(color: Colors.white54, fontSize: 10)),
+              ],
+            ),
+          ),
         ],
       ),
     );
