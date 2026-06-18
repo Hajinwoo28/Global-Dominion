@@ -400,11 +400,51 @@ class _MenuButtonWidgetState extends State<_MenuButtonWidget> {
 // ─────────────────────────────────────────────
 // GAME SCREEN (placeholder — build your game here)
 // ─────────────────────────────────────────────
-class GameScreen extends StatelessWidget {
+class GameScreen extends StatefulWidget {
   const GameScreen({super.key});
 
   @override
+  State<GameScreen> createState() => _GameScreenState();
+}
+
+class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateMixin {
+  late AnimationController _progressController;
+  String _status = 'Initializing command center...';
+
+  @override
+  void initState() {
+    super.initState();
+    _progressController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 6),
+    )..addListener(() {
+        setState(() {
+          final progress = _progressController.value;
+          if (progress < 0.25) {
+            _status = 'Booting satellite network...';
+          } else if (progress < 0.55) {
+            _status = 'Deploying reconnaissance teams...';
+          } else if (progress < 0.85) {
+            _status = 'Activating command protocols...';
+          } else {
+            _status = 'Ready for global engagement.';
+          }
+        });
+      });
+    _progressController.forward();
+  }
+
+  @override
+  void dispose() {
+    _progressController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final progress = _progressController.value;
+    final isReady = progress >= 1.0;
+
     return Scaffold(
       backgroundColor: const Color(0xFF0D1117),
       body: Stack(
@@ -424,14 +464,14 @@ class GameScreen extends StatelessWidget {
             child: Column(
               children: [
                 _GameTopBar(),
-                const Expanded(
+                Expanded(
                   child: Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.public_rounded, size: 80, color: Color(0xFF4A7040)),
-                        SizedBox(height: 24),
-                        Text(
+                        const Icon(Icons.public_rounded, size: 80, color: Color(0xFF4A7040)),
+                        const SizedBox(height: 24),
+                        const Text(
                           'YOUR EMPIRE AWAITS',
                           style: TextStyle(
                             fontSize: 28,
@@ -440,11 +480,66 @@ class GameScreen extends StatelessWidget {
                             letterSpacing: 3,
                           ),
                         ),
-                        SizedBox(height: 12),
+                        const SizedBox(height: 16),
                         Text(
-                          'Game world is loading...',
-                          style: TextStyle(color: Colors.white38, fontSize: 14, letterSpacing: 1),
+                          _status,
+                          style: const TextStyle(color: Colors.white70, fontSize: 16, letterSpacing: 1.2),
                         ),
+                        const SizedBox(height: 22),
+                        Container(
+                          width: 280,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF14221A),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFF314130)),
+                          ),
+                          child: Stack(
+                            children: [
+                              Positioned.fill(
+                                child: FractionallySizedBox(
+                                  widthFactor: progress,
+                                  alignment: Alignment.centerLeft,
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFFD700),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        Text(
+                          '${(progress * 100).round()}% complete',
+                          style: const TextStyle(color: Colors.white54, fontSize: 13),
+                        ),
+                        const SizedBox(height: 32),
+                        if (isReady)
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFFFD700),
+                              foregroundColor: const Color(0xFF0B0B0B),
+                              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(30),
+                              ),
+                            ),
+                            onPressed: () {
+                              Navigator.of(context).pushReplacement(
+                                PageRouteBuilder(
+                                  pageBuilder: (_, __, ___) => const HomeScreen(),
+                                  transitionsBuilder: (_, anim, __, child) => FadeTransition(opacity: anim, child: child),
+                                ),
+                              );
+                            },
+                            child: const Text(
+                              'ENTER COMMAND CENTER',
+                              style: TextStyle(letterSpacing: 2, fontWeight: FontWeight.bold),
+                            ),
+                          ),
                       ],
                     ),
                   ),
