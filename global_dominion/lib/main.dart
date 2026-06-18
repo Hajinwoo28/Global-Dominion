@@ -616,69 +616,318 @@ class CommandCenterScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF07090F),
+      backgroundColor: const Color(0xFF05070E),
       body: SafeArea(
         child: Column(
           children: [
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 18),
               decoration: const BoxDecoration(
-                border: Border(bottom: BorderSide(color: Color(0xFF1F2A38), width: 1)),
-                color: Color(0xFF080C12),
+                color: Color(0xFF090D13),
+                border: Border(bottom: BorderSide(color: Color(0xFF1E293C), width: 1.5)),
               ),
               child: Row(
                 children: [
                   IconButton(
                     onPressed: () => Navigator.pop(context),
                     icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFFFFD700), size: 18),
+                    tooltip: 'Back to Menu',
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 12),
                   const Text(
                     'COMMAND CENTER',
                     style: TextStyle(
                       color: Color(0xFFFFD700),
                       fontWeight: FontWeight.bold,
                       letterSpacing: 2,
-                      fontSize: 16,
+                      fontSize: 18,
                     ),
                   ),
                   const Spacer(),
                   _ResourceChip(icon: Icons.grain_rounded, label: '1,200', color: const Color(0xFFFFD700)),
-                  const SizedBox(width: 14),
+                  const SizedBox(width: 18),
                   _ResourceChip(icon: Icons.people_rounded, label: '850', color: const Color(0xFF4FC3F7)),
-                  const SizedBox(width: 14),
+                  const SizedBox(width: 18),
                   _ResourceChip(icon: Icons.shield_rounded, label: '300', color: const Color(0xFFEF9A9A)),
                 ],
               ),
             ),
             Expanded(
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: const [
-                    Icon(Icons.public_rounded, size: 88, color: Color(0xFF70A653)),
-                    SizedBox(height: 24),
-                    Text(
-                      'COMMAND CENTER READY',
-                      style: TextStyle(
-                        color: Color(0xFFF4E19C),
-                        fontWeight: FontWeight.bold,
-                        fontSize: 28,
-                        letterSpacing: 3,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 24),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'OMEGA DIVISION',
+                            style: TextStyle(
+                              color: Color(0xFFC9B96A),
+                              letterSpacing: 2.4,
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          const Text(
+                            'Global Strategy Dashboard',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 34,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.1,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'Monitor territory control, manage elite units, and deploy battle plans from the command center. Your nation’s strategic priority board is live.',
+                            style: TextStyle(color: Color(0xFFB0B7C5), fontSize: 16, height: 1.85),
+                          ),
+                          const SizedBox(height: 30),
+                          Row(
+                            children: [
+                              _DashboardCard(
+                                title: 'Territories',
+                                value: '16 / 24',
+                                accent: Color(0xFFFFD700),
+                                subtitle: 'Controlled regions',
+                              ),
+                              const SizedBox(width: 18),
+                              _DashboardCard(
+                                title: 'Allies',
+                                value: '4',
+                                accent: Color(0xFF4FC3F7),
+                                subtitle: 'Active pacts',
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 24),
+                          const Text(
+                            'Mission Briefing',
+                            style: TextStyle(
+                              color: Color(0xFFF4E19C),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.5,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.all(18),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0F1620),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: const Color(0xFF1E2A3A)),
+                            ),
+                            child: const Text(
+                              'Enemy forces are concentrated on the eastern front. Deploy recon sweeps and prepare armored units for the next wave. Maintain supply lines and secure key ports before dusk.',
+                              style: TextStyle(color: Color(0xFFCAD3E0), fontSize: 15, height: 1.75),
+                            ),
+                          ),
+                          const SizedBox(height: 26),
+                          Row(
+                            children: [
+                              _ActionButton(label: 'Deploy Army', color: const Color(0xFFFFD700)),
+                              const SizedBox(width: 16),
+                              _ActionButton(label: 'Open World Map', color: const Color(0xFF4FC3F7)),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
-                    SizedBox(height: 16),
-                    Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 44),
-                      child: Text(
-                        'Your global strategy overview is live. Select a nation, manage forces, and deploy your first campaign.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.white70, fontSize: 16, height: 1.8),
+                    const SizedBox(width: 24),
+                    Expanded(
+                      flex: 2,
+                      child: Column(
+                        children: [
+                          Expanded(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(28),
+                                gradient: const LinearGradient(
+                                  colors: [Color(0xFF101C29), Color(0xFF071018)],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                border: Border.all(color: const Color(0xFF1F2B38)),
+                              ),
+                              child: Stack(
+                                children: [
+                                  Positioned.fill(
+                                    child: Opacity(
+                                      opacity: 0.12,
+                                      child: Container(
+                                        decoration: const BoxDecoration(
+                                          image: DecorationImage(
+                                            image: AssetImage('assets/images/world_map.jpg'),
+                                            fit: BoxFit.cover,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.all(20),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'Active Battle Zones',
+                                          style: TextStyle(
+                                            color: Color(0xFFF4E19C),
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                            letterSpacing: 1.2,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        Expanded(
+                                          child: Row(
+                                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                                            children: [
+                                              _MapRegionBadge(label: 'Northern Front', status: 'Engaged'),
+                                              const SizedBox(width: 12),
+                                              _MapRegionBadge(label: 'Coastal Port', status: 'Reinforce'),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 22),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(18),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0F1620),
+                              borderRadius: BorderRadius.circular(24),
+                              border: Border.all(color: const Color(0xFF1E2A3A)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: const [
+                                Text(
+                                  'Intel Feed',
+                                  style: TextStyle(
+                                    color: Color(0xFFF4E19C),
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 1.4,
+                                  ),
+                                ),
+                                SizedBox(height: 14),
+                                Text('Air surveillance detected increased movement near the western border.', style: TextStyle(color: Color(0xFFB0B7C5), height: 1.7)),
+                                SizedBox(height: 12),
+                                Text('Naval convoys are ready for port deployment within 12 hours.', style: TextStyle(color: Color(0xFFB0B7C5), height: 1.7)),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DashboardCard extends StatelessWidget {
+  final String title;
+  final String value;
+  final Color accent;
+  final String subtitle;
+
+  const _DashboardCard({required this.title, required this.value, required this.accent, required this.subtitle});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          color: const Color(0xFF0F1620),
+          border: Border.all(color: const Color(0xFF1E2A3A)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: const TextStyle(color: Color(0xFF92A1C2), fontSize: 12, letterSpacing: 1.5)),
+            const SizedBox(height: 10),
+            Text(value, style: TextStyle(color: accent, fontSize: 28, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Text(subtitle, style: const TextStyle(color: Color(0xFFB0B7C5), fontSize: 13, height: 1.6)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ActionButton extends StatelessWidget {
+  final String label;
+  final Color color;
+
+  const _ActionButton({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: color,
+          foregroundColor: const Color(0xFF061010),
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        ),
+        onPressed: () {},
+        child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+      ),
+    );
+  }
+}
+
+class _MapRegionBadge extends StatelessWidget {
+  final String label;
+  final String status;
+
+  const _MapRegionBadge({required this.label, required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF111827),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFF1E2A3A)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+            const SizedBox(height: 10),
+            Text(status, style: const TextStyle(color: Color(0xFFF4E19C), fontWeight: FontWeight.w700)),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E293B),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Text('ENGAGED', style: TextStyle(color: Color(0xFFD4B86F), fontSize: 12, letterSpacing: 1.2)),
             ),
           ],
         ),
