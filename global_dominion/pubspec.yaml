@@ -50,7 +50,6 @@ flutter:
 
   assets:
     - assets/images/
-    - assets/images/game_logo.png
 
 # --- ADDED: MSIX Installer Configurations ---
 # You can customize these fields for your installer setup

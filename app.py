@@ -5,8 +5,10 @@ from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, session, redirect, url_for, render_template_string
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app, supports_credentials=True)
 app.permanent_session_lifetime = timedelta(days=30)
 app.secret_key = os.environ.get("SECRET_KEY", "gd_imperial_secret_key_9921")
 
@@ -1823,18 +1825,31 @@ def home():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        username = request.form.get('username')
-        email = request.form.get('email')
-        password = request.form.get('password')
-        confirm_password = request.form.get('confirm_password')
+        if request.is_json:
+            data = request.get_json()
+            username = data.get('username')
+            email = data.get('email')
+            password = data.get('password')
+            confirm_password = data.get('confirm_password')
+        else:
+            username = request.form.get('username')
+            email = request.form.get('email')
+            password = request.form.get('password')
+            confirm_password = request.form.get('confirm_password')
 
         if not username or not email or not password:
+            if request.is_json:
+                return jsonify({"success": False, "message": "All fields are required."}), 400
             return render_template_string(REGISTER_HTML, error="All fields are required.")
         if password != confirm_password:
+            if request.is_json:
+                return jsonify({"success": False, "message": "Passwords do not match."}), 400
             return render_template_string(REGISTER_HTML, error="Passwords do not match.")
 
         existing_user = User.query.filter((User.username == username) | (User.email == email)).first()
         if existing_user:
+            if request.is_json:
+                return jsonify({"success": False, "message": "Username or Email already exists."}), 400
             return render_template_string(REGISTER_HTML, error="Username or Email already exists.")
 
         hashed = generate_password_hash(password, method='pbkdf2:sha256')
@@ -1850,6 +1865,8 @@ def register():
         
         db.session.commit()
         session['user_id'] = new_user.id
+        if request.is_json:
+            return jsonify({"success": True, "message": "Registration successful."})
         return redirect(url_for('country_selection'))
 
     return render_template_string(REGISTER_HTML)
@@ -1857,17 +1874,26 @@ def register():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        identifier = request.form.get('identifier')
-        password = request.form.get('password')
+        if request.is_json:
+            data = request.get_json()
+            identifier = data.get('identifier')
+            password = data.get('password')
+        else:
+            identifier = request.form.get('identifier')
+            password = request.form.get('password')
 
         user = User.query.filter((User.username == identifier) | (User.email == identifier)).first()
         if user and check_password_hash(user.password_hash, password):
             session['user_id'] = user.id
+            if request.is_json:
+                return jsonify({"success": True, "message": "Login successful."})
             if request.form.get('remember'):
                 session.permanent = True
             if not user.country:
                 return redirect(url_for('country_selection'))
             return redirect(url_for('home'))
+        if request.is_json:
+            return jsonify({"success": False, "message": "Invalid credentials submitted."}), 401
         return render_template_string(LOGIN_HTML, error="Invalid credentials submitted.")
     
     return render_template_string(LOGIN_HTML)
@@ -1887,24 +1913,39 @@ def logout():
 @app.route('/country_selection', methods=['GET', 'POST'])
 def country_selection():
     if 'user_id' not in session:
+        if request.is_json:
+            return jsonify({"success": False, "message": "Unauthorized Access"}), 401
         return redirect(url_for('login'))
     
     user = User.query.get(session['user_id'])
     if not user:
+        if request.is_json:
+            return jsonify({"success": False, "message": "User not found"}), 404
         return redirect(url_for('login'))
 
     if user.country:
+        if request.is_json:
+            return jsonify({"success": False, "message": "Country already selected"}), 400
         return redirect(url_for('home'))
 
     if request.method == 'POST':
-        selected_country = request.form.get('country')
+        if request.is_json:
+            data = request.get_json()
+            selected_country = data.get('country')
+        else:
+            selected_country = request.form.get('country')
+
         if selected_country in COUNTRY_DATA:
             user.country = selected_country
             units = Unit.query.filter_by(user_id=user.id).all()
             for u in units:
                 u.quantity = 5
             db.session.commit()
+            if request.is_json:
+                return jsonify({"success": True, "message": f"Successfully selected {selected_country}."})
             return redirect(url_for('home'))
+        if request.is_json:
+            return jsonify({"success": False, "message": "Invalid country selected."}), 400
 
     return render_template_string(COUNTRY_SELECTION_HTML, countries=COUNTRY_DATA)
 
