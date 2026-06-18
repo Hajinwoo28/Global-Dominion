@@ -1,46 +1,497 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
-  -->
-  <base href="$FLUTTER_BASE_HREF">
-
-  <meta charset="UTF-8">
-  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
-
-  <!-- iOS meta tags & icons -->
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="global_dominion">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
-
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
-
-  <title>global_dominion</title>
-  <link rel="manifest" href="manifest.json">
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Global Dominion: Rise of Nations is a premium strategy game landing site for a world conquest experience with nations, military units, territory control, and multiplayer warfare." />
+  <title>Global Dominion: Rise of Nations</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
 </head>
 <body>
-  <!--
-    You can customize the "flutter_bootstrap.js" script.
-    This is useful to provide a custom configuration to the Flutter loader
-    or to give the user feedback during the initialization process.
+  <header class="site-header">
+    <div class="nav-brand">
+      <div class="brand-mark">GD</div>
+      <div class="brand-copy">
+        <h1>GLOBAL DOMINION</h1>
+        <p>Rise of Nations</p>
+      </div>
+    </div>
+    <nav class="nav-menu" aria-label="Primary navigation">
+      <a href="#home">Home</a>
+      <a href="#about">About</a>
+      <a href="#nations">Nations</a>
+      <a href="#units">Military Units</a>
+      <a href="#features">Features</a>
+      <a href="#gallery">Gallery</a>
+      <a href="#download">Download</a>
+      <a href="#contact">Contact</a>
+    </nav>
+    <button class="nav-cta">Play Now</button>
+  </header>
 
-    For more details:
-    * https://docs.flutter.dev/platform-integration/web/initialization
-  -->
-  <script src="flutter_bootstrap.js" async></script>
+  <main>
+    <section class="hero" id="home">
+      <div class="hero-copy">
+        <div class="section-title">
+          <span class="subtitle-pill">Global Strategy</span>
+          <h3>Command. Conquer. Control.</h3>
+        </div>
+        <h2><span>GLOBAL DOMINION</span><span>Rise of Nations</span></h2>
+        <p>Choose Your Nation. Expand Your Empire. Rule the World with cinematic strategy, military precision, and global domination.</p>
+        <div class="hero-actions">
+          <button class="btn btn-primary">Play Now</button>
+          <button class="btn btn-secondary btn-trailer">Watch Trailer</button>
+        </div>
+        <div class="hero-stats" id="stats-block">
+          <div class="stats-card">
+            <strong class="stat-number" data-value="195" data-label="195 Playable Nations">0</strong>
+            <span>Playable Nations</span>
+          </div>
+          <div class="stats-card">
+            <strong class="stat-number" data-value="450" data-label="Global Warfare">0</strong>
+            <span>Global Warfare</span>
+          </div>
+          <div class="stats-card">
+            <strong class="stat-number" data-value="120" data-label="Multiplayer Battles">0</strong>
+            <span>Multiplayer Battles</span>
+          </div>
+          <div class="stats-card">
+            <strong class="stat-number" data-value="89" data-label="Territory Expansion">0</strong>
+            <span>Territory Expansion</span>
+          </div>
+        </div>
+      </div>
+      <div class="hero-visual" aria-hidden="true">
+        <div class="hero-map" role="img" aria-label="Animated world map background">
+          <div class="map-grid"><div class="map-line"></div></div>
+          <div class="planetary-ray"></div>
+          <div class="planetary-ray" style="top: 22%; left: 56%; width: 15%; height: 15%;"></div>
+          <div class="planetary-ray" style="top: 68%; left: 18%; width: 10%; height: 10%;"></div>
+          <div class="map-overlays">
+            <div class="map-glow"></div>
+            <div class="map-glow"></div>
+            <div class="map-glow"></div>
+            <div class="map-glow"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="about">
+      <div class="section-title">
+        <span class="subtitle-pill">About The Game</span>
+        <h3>Command Your Nation, Dominate the Globe</h3>
+      </div>
+      <div class="info-panel">
+        <div class="info-copy">
+          <p>Global Dominion: Rise of Nations is a large-scale strategy game where players select a nation, command unique military units, conquer territories, form alliances, and compete for global supremacy.</p>
+          <ul>
+            <li>Choose from elite nations with distinctive strengths and challenges.</li>
+            <li>Master resource strategy, diplomatic leverage, and battlefield tactics.</li>
+            <li>Lead an empire through high-stakes campaigns and multiplayer warzones.</li>
+          </ul>
+        </div>
+        <div class="info-visual">
+          <div class="visual-grid">
+            <div class="visual-block"><span>Animated World Map</span></div>
+            <div class="visual-block"><span>Strategic Warfare</span></div>
+            <div class="visual-block"><span>Territory Conquest</span></div>
+            <div class="visual-block"><span>Military Campaign</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="nations">
+      <div class="section-title">
+        <span class="subtitle-pill">Playable Nations</span>
+        <h3>Choose Your Nation</h3>
+      </div>
+      <div class="nation-grid">
+        <article class="nation-card">
+          <div class="flag">🇺🇸</div>
+          <h4>United States</h4>
+          <div class="nation-meta">
+            <span><strong>Military Bonus:</strong><span>Advanced Air Power</span></span>
+            <span><strong>Difficulty:</strong><span>Medium</span></span>
+            <span><strong>Unique Unit:</strong><span>Stealth Fighter</span></span>
+          </div>
+        </article>
+        <article class="nation-card">
+          <div class="flag">🇨🇳</div>
+          <h4>China</h4>
+          <div class="nation-meta">
+            <span><strong>Military Bonus:</strong><span>Mass Production</span></span>
+            <span><strong>Difficulty:</strong><span>Hard</span></span>
+            <span><strong>Unique Unit:</strong><span>Hypersonic Bomber</span></span>
+          </div>
+        </article>
+        <article class="nation-card">
+          <div class="flag">🇯🇵</div>
+          <h4>Japan</h4>
+          <div class="nation-meta">
+            <span><strong>Military Bonus:</strong><span>Naval Precision</span></span>
+            <span><strong>Difficulty:</strong><span>Medium</span></span>
+            <span><strong>Unique Unit:</strong><span>Carrier Strike Group</span></span>
+          </div>
+        </article>
+        <article class="nation-card">
+          <div class="flag">🇩🇪</div>
+          <h4>Germany</h4>
+          <div class="nation-meta">
+            <span><strong>Military Bonus:</strong><span>Armored Assault</span></span>
+            <span><strong>Difficulty:</strong><span>Medium</span></span>
+            <span><strong>Unique Unit:</strong><span>Battle Tank</span></span>
+          </div>
+        </article>
+        <article class="nation-card">
+          <div class="flag">🇬🇧</div>
+          <h4>United Kingdom</h4>
+          <div class="nation-meta">
+            <span><strong>Military Bonus:</strong><span>Naval Dominance</span></span>
+            <span><strong>Difficulty:</strong><span>Medium</span></span>
+            <span><strong>Unique Unit:</strong><span>Aircraft Carrier</span></span>
+          </div>
+        </article>
+        <article class="nation-card">
+          <div class="flag">🇵🇭</div>
+          <h4>Philippines</h4>
+          <div class="nation-meta">
+            <span><strong>Military Bonus:</strong><span>Island Defense</span></span>
+            <span><strong>Difficulty:</strong><span>Easy</span></span>
+            <span><strong>Unique Unit:</strong><span>Sea Rangers</span></span>
+          </div>
+        </article>
+        <article class="nation-card">
+          <div class="flag">🇷🇺</div>
+          <h4>Russia</h4>
+          <div class="nation-meta">
+            <span><strong>Military Bonus:</strong><span>Strategic Missiles</span></span>
+            <span><strong>Difficulty:</strong><span>Hard</span></span>
+            <span><strong>Unique Unit:</strong><span>Armored Missile Force</span></span>
+          </div>
+        </article>
+        <article class="nation-card">
+          <div class="flag">🇫🇷</div>
+          <h4>France</h4>
+          <div class="nation-meta">
+            <span><strong>Military Bonus:</strong><span>Elite Forces</span></span>
+            <span><strong>Difficulty:</strong><span>Medium</span></span>
+            <span><strong>Unique Unit:</strong><span>Special Ops Brigade</span></span>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="units">
+      <div class="section-title">
+        <span class="subtitle-pill">Military Units</span>
+        <h3>Elite Forces & Weapons</h3>
+      </div>
+      <div class="unit-grid">
+        <article class="unit-card">
+          <div class="unit-thumb"></div>
+          <div class="unit-copy">
+            <h4>Infantry</h4>
+            <ul>
+              <li><span>Stats</span><span>Mobility + Defense</span></li>
+              <li><span>Compatibility</span><span>Universal</span></li>
+              <li><span>Upgrade</span><span>Level 1-5</span></li>
+            </ul>
+          </div>
+        </article>
+        <article class="unit-card">
+          <div class="unit-thumb"></div>
+          <div class="unit-copy">
+            <h4>Tanks</h4>
+            <ul>
+              <li><span>Stats</span><span>Heavy Armor</span></li>
+              <li><span>Compatibility</span><span>Armored Nations</span></li>
+              <li><span>Upgrade</span><span>Level 2-6</span></li>
+            </ul>
+          </div>
+        </article>
+        <article class="unit-card">
+          <div class="unit-thumb"></div>
+          <div class="unit-copy">
+            <h4>Artillery</h4>
+            <ul>
+              <li><span>Stats</span><span>Long Range</span></li>
+              <li><span>Compatibility</span><span>Resource Nations</span></li>
+              <li><span>Upgrade</span><span>Level 1-5</span></li>
+            </ul>
+          </div>
+        </article>
+        <article class="unit-card">
+          <div class="unit-thumb"></div>
+          <div class="unit-copy">
+            <h4>Fighter Jets</h4>
+            <ul>
+              <li><span>Stats</span><span>Air Superiority</span></li>
+              <li><span>Compatibility</span><span>Air Nations</span></li>
+              <li><span>Upgrade</span><span>Level 3-7</span></li>
+            </ul>
+          </div>
+        </article>
+        <article class="unit-card">
+          <div class="unit-thumb"></div>
+          <div class="unit-copy">
+            <h4>Bombers</h4>
+            <ul>
+              <li><span>Stats</span><span>Strategic Strike</span></li>
+              <li><span>Compatibility</span><span>Power Nations</span></li>
+              <li><span>Upgrade</span><span>Level 4-8</span></li>
+            </ul>
+          </div>
+        </article>
+        <article class="unit-card">
+          <div class="unit-thumb"></div>
+          <div class="unit-copy">
+            <h4>Aircraft Carriers</h4>
+            <ul>
+              <li><span>Stats</span><span>Naval Command</span></li>
+              <li><span>Compatibility</span><span>Maritime Nations</span></li>
+              <li><span>Upgrade</span><span>Level 2-6</span></li>
+            </ul>
+          </div>
+        </article>
+        <article class="unit-card">
+          <div class="unit-thumb"></div>
+          <div class="unit-copy">
+            <h4>Naval Fleets</h4>
+            <ul>
+              <li><span>Stats</span><span>Sea Control</span></li>
+              <li><span>Compatibility</span><span>Ocean Powers</span></li>
+              <li><span>Upgrade</span><span>Level 3-7</span></li>
+            </ul>
+          </div>
+        </article>
+        <article class="unit-card">
+          <div class="unit-thumb"></div>
+          <div class="unit-copy">
+            <h4>Special Forces</h4>
+            <ul>
+              <li><span>Stats</span><span>Stealth Ops</span></li>
+              <li><span>Compatibility</span><span>Elite Nations</span></li>
+              <li><span>Upgrade</span><span>Level 5-9</span></li>
+            </ul>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="features">
+      <div class="section-title">
+        <span class="subtitle-pill">Game Features</span>
+        <h3>Command Center Features</h3>
+      </div>
+      <div class="feature-grid">
+        <article class="feature-card">
+          <h4>Country Selection System</h4>
+          <p>Choose among hundreds of nations, each with unique strategic advantages and tailored tech trees.</p>
+        </article>
+        <article class="feature-card">
+          <h4>Nation-Specific Units</h4>
+          <p>Deploy specialized forces and unlock rare units that match your nation’s identity.</p>
+        </article>
+        <article class="feature-card">
+          <h4>Real-Time Territory Expansion</h4>
+          <p>Capture territory dynamically and watch your empire rise with reactive gameplay visuals.</p>
+        </article>
+        <article class="feature-card">
+          <h4>Strategic Resource Management</h4>
+          <p>Balance production, logistics, and capital to maintain a modern war machine.</p>
+        </article>
+        <article class="feature-card">
+          <h4>Alliance System</h4>
+          <p>Form and break alliances with rivals, negotiate pacts, and co-op global battles.</p>
+        </article>
+        <article class="feature-card">
+          <h4>Multiplayer Warfare</h4>
+          <p>Engage real-time battles with other commanders on a massive world stage.</p>
+        </article>
+        <article class="feature-card">
+          <h4>Ranking Leaderboards</h4>
+          <p>Climb the global rankings and earn elite status among the world’s top strategists.</p>
+        </article>
+        <article class="feature-card">
+          <h4>Daily Rewards & Global Events</h4>
+          <p>Stay engaged with daily missions, seasonal events, and worldwide campaigns.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="interactive-map" id="interactive-map">
+      <div class="map-panel">
+        <div class="map-frame">
+          <div class="map-grid">
+            <div class="map-region" style="grid-column: 3 / 6; grid-row: 2 / 4;"><span class="region-title">North America</span></div>
+            <div class="map-region" style="grid-column: 7 / 11; grid-row: 3 / 5;"><span class="region-title">Europe</span></div>
+            <div class="map-region" style="grid-column: 10 / 13; grid-row: 4 / 7;"><span class="region-title">Asia</span></div>
+            <div class="map-region" style="grid-column: 1 / 4; grid-row: 5 / 7;"><span class="region-title">South America</span></div>
+            <div class="map-region" style="grid-column: 5 / 8; grid-row: 5 / 8;"><span class="region-title">Africa</span></div>
+            <div class="map-region" style="grid-column: 2 / 5; grid-row: 2 / 3;"><span class="region-title">Pacific</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="map-key">
+        <div class="key-item"><span class="key-dot"></span><span>Country ownership zones</span></div>
+        <div class="key-item"><span class="key-dot"></span><span>Territorial expansion fronts</span></div>
+        <div class="key-item"><span class="key-dot"></span><span>Alliance battle corridors</span></div>
+        <div class="key-item"><span class="key-dot"></span><span>Active battle regions</span></div>
+      </div>
+    </section>
+
+    <section id="gallery">
+      <div class="section-title">
+        <span class="subtitle-pill">Screenshot Gallery</span>
+        <h3>Visual Command Deck</h3>
+      </div>
+      <div class="gallery-wrap">
+        <div class="gallery-grid">
+          <div class="screenshot-card" data-title="Login Screen" data-preview="preview-1"></div>
+          <div class="screenshot-card" data-title="Registration Screen" data-preview="preview-2"></div>
+          <div class="screenshot-card" data-title="Country Selection" data-preview="preview-3"></div>
+          <div class="screenshot-card" data-title="Main World Map" data-preview="preview-4"></div>
+          <div class="screenshot-card" data-title="Battle Interface" data-preview="preview-5"></div>
+          <div class="screenshot-card" data-title="Territory Expansion" data-preview="preview-6"></div>
+          <div class="screenshot-card" data-title="Military Management" data-preview="preview-7"></div>
+          <div class="screenshot-card" data-title="Alliance Dashboard" data-preview="preview-8"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="trailer">
+      <div class="section-title">
+        <span class="subtitle-pill">Trailer</span>
+        <h3>Cinematic Preview</h3>
+      </div>
+      <div class="trailer-panel">
+        <div class="trailer-player">
+          <video src="https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4" muted loop preload="metadata" playsinline></video>
+          <div class="player-overlay"></div>
+          <div class="play-button"></div>
+        </div>
+        <div class="trailer-copy">
+          <h3>Launch into the global warzone</h3>
+          <p>Experience the cinematic trailer with immersive visuals, strategic displays, and the premium command center atmosphere of Global Dominion.</p>
+          <p>Tap the play button to preview the high-end war strategy world and see how your decisions shape continents.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="download">
+      <div class="section-title">
+        <span class="subtitle-pill">Download</span>
+        <h3>Deploy Your Command Center</h3>
+      </div>
+      <div class="download-grid">
+        <article class="download-card">
+          <h4>Windows</h4>
+          <div class="platform-list">
+            <div class="download-chip"><span>Windows 11</span></div>
+            <div class="download-chip"><span>DirectX 12</span></div>
+          </div>
+          <button class="download-btn">Download for Windows</button>
+        </article>
+        <article class="download-card">
+          <h4>Android</h4>
+          <div class="platform-list">
+            <div class="download-chip"><span>Android 12+</span></div>
+            <div class="download-chip"><span>Google Play</span></div>
+          </div>
+          <button class="download-btn">Download on Android</button>
+        </article>
+        <article class="download-card">
+          <h4>iOS</h4>
+          <div class="platform-list">
+            <div class="download-chip"><span>iOS 16+</span></div>
+            <div class="download-chip"><span>App Store</span></div>
+          </div>
+          <button class="download-btn">Download on iOS</button>
+        </article>
+        <article class="download-card">
+          <h4>Web Browser</h4>
+          <div class="platform-list">
+            <div class="download-chip"><span>Modern Browsers</span></div>
+            <div class="download-chip"><span>Instant Access</span></div>
+          </div>
+          <button class="download-btn">Launch in Browser</button>
+        </article>
+      </div>
+    </section>
+
+    <section id="contact">
+      <div class="section-title">
+        <span class="subtitle-pill">Community</span>
+        <h3>Join the Global Command Network</h3>
+      </div>
+      <div class="community-grid">
+        <article class="community-card">
+          <h4>Discord Community</h4>
+          <div class="community-chip"><span>Live chat with commanders</span></div>
+          <div class="community-chip"><span>Strategy forums</span></div>
+        </article>
+        <article class="community-card">
+          <h4>Facebook Page</h4>
+          <div class="community-chip"><span>Official updates</span></div>
+          <div class="community-chip"><span>Community highlights</span></div>
+        </article>
+        <article class="community-card">
+          <h4>YouTube Channel</h4>
+          <div class="community-chip"><span>Trailer drops</span></div>
+          <div class="community-chip"><span>Developer diaries</span></div>
+        </article>
+        <article class="community-card">
+          <h4>Official Forums</h4>
+          <div class="community-chip"><span>Game support</span></div>
+          <div class="community-chip"><span>Strategy guides</span></div>
+        </article>
+      </div>
+      <div class="community-stats">
+        <div class="community-stat"><strong>84k</strong><span>Active Players</span></div>
+        <div class="community-stat"><strong>12k</strong><span>Discord Members</span></div>
+        <div class="community-stat"><strong>24/7</strong><span>Live Matchmaking</span></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-grid">
+      <div>
+        <h4>About</h4>
+        <p>Global Dominion: Rise of Nations blends luxury visuals with military command center style to deliver a AAA global strategy experience.</p>
+      </div>
+      <div>
+        <h4>Legal</h4>
+        <ul>
+          <li><a href="#">Privacy Policy</a></li>
+          <li><a href="#">Terms of Service</a></li>
+          <li><a href="#">Support</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Connect</h4>
+        <ul>
+          <li><a href="#">Contact</a></li>
+          <li><a href="#">Facebook</a></li>
+          <li><a href="#">Discord</a></li>
+        </ul>
+      </div>
+    </div>
+    <p class="footer-copy">© 2026 Global Dominion. All rights reserved. Crafted for global conquest strategy with premium design and modern gameplay.</p>
+  </footer>
+
+  <div class="lightbox" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="lightbox-content"></div>
+    <button class="lightbox-close" aria-label="Close preview">Close</button>
+    <div class="lightbox-title"></div>
+  </div>
+
+  <script src="script.js"></script>
 </body>
 </html>
