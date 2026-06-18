@@ -730,9 +730,31 @@ class CommandCenterScreen extends StatelessWidget {
                           const SizedBox(height: 26),
                           Row(
                             children: [
-                              _ActionButton(label: 'Deploy Army', color: const Color(0xFFFFD700)),
+                              _ActionButton(
+                                label: 'Deploy Army',
+                                color: const Color(0xFFFFD700),
+                                onPressed: () {
+                                  Navigator.of(context).push(
+                                    PageRouteBuilder(
+                                      pageBuilder: (_, __, ___) => const DeployArmyScreen(),
+                                      transitionsBuilder: (_, anim, __, child) => FadeTransition(opacity: anim, child: child),
+                                    ),
+                                  );
+                                },
+                              ),
                               const SizedBox(width: 16),
-                              _ActionButton(label: 'Open World Map', color: const Color(0xFF4FC3F7)),
+                              _ActionButton(
+                                label: 'Open World Map',
+                                color: const Color(0xFF4FC3F7),
+                                onPressed: () {
+                                  Navigator.of(context).push(
+                                    PageRouteBuilder(
+                                      pageBuilder: (_, __, ___) => const WorldMapScreen(),
+                                      transitionsBuilder: (_, anim, __, child) => FadeTransition(opacity: anim, child: child),
+                                    ),
+                                  );
+                                },
+                              ),
                             ],
                           ),
                         ],
@@ -878,8 +900,9 @@ class _DashboardCard extends StatelessWidget {
 class _ActionButton extends StatelessWidget {
   final String label;
   final Color color;
+  final VoidCallback onPressed;
 
-  const _ActionButton({required this.label, required this.color});
+  const _ActionButton({required this.label, required this.color, required this.onPressed});
 
   @override
   Widget build(BuildContext context) {
@@ -891,8 +914,68 @@ class _ActionButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 16),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         ),
-        onPressed: () {},
+        onPressed: onPressed,
         child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+      ),
+    );
+  }
+}
+
+class DeployArmyScreen extends StatelessWidget {
+  const DeployArmyScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF05070E),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF090D13),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFFFFD700)),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text('Deploy Army', style: TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.bold)),
+      ),
+      body: const Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 28),
+          child: Text(
+            'Army deployment protocols are ready. Select a unit group and secure your frontline in the next phase of operations.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white70, fontSize: 16, height: 1.8),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class WorldMapScreen extends StatelessWidget {
+  const WorldMapScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF05070E),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF090D13),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFFFFD700)),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text('World Map', style: TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.bold)),
+      ),
+      body: const Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 28),
+          child: Text(
+            'The world map is now open. Plan your next territorial advance, check allied positions, and prepare for global maneuvers.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white70, fontSize: 16, height: 1.8),
+          ),
+        ),
       ),
     );
   }
