@@ -1853,15 +1853,15 @@ def register():
             return render_template_string(REGISTER_HTML, error="Username or Email already exists.")
 
         hashed = generate_password_hash(password, method='pbkdf2:sha256')
-        new_user = User(username=username, email=email, password_hash=hashed)
+        new_user = User(username=username, email=email, password_hash=hashed)  # type: ignore[call-arg]
         db.session.add(new_user)
         db.session.commit()
 
-        new_research = Research(user_id=new_user.id)
+        new_research = Research(user_id=new_user.id)  # type: ignore[call-arg]
         db.session.add(new_research)
         
         for utype in ['Infantry', 'Vehicle', 'Aircraft', 'Special']:
-            db.session.add(Unit(user_id=new_user.id, unit_type=utype, quantity=0, level=1))
+            db.session.add(Unit(user_id=new_user.id, unit_type=utype, quantity=0, level=1))  # type: ignore[call-arg]
         
         db.session.commit()
         session['user_id'] = new_user.id
@@ -1883,7 +1883,7 @@ def login():
             password = request.form.get('password')
 
         user = User.query.filter((User.username == identifier) | (User.email == identifier)).first()
-        if user and check_password_hash(user.password_hash, password):
+        if user and password and check_password_hash(user.password_hash, password):
             session['user_id'] = user.id
             if request.is_json:
                 return jsonify({"success": True, "message": "Login successful."})
@@ -1901,7 +1901,7 @@ def login():
 @app.route('/forgot_password', methods=['GET', 'POST'])
 def forgot_password():
     if request.method == 'POST':
-        email = request.form.get('email')
+        _email = request.form.get('email')  # noqa: F841 – reserved for future email dispatch
         return render_template_string(FORGOT_PASSWORD_HTML, message="If this email exists, a recovery link has been sent.")
     return render_template_string(FORGOT_PASSWORD_HTML)
 
@@ -2043,6 +2043,8 @@ def recruit_unit():
          return jsonify({"error": "Unauthorized Access"}), 401
 
     user = User.query.get(session['user_id'])
+    if not user:
+        return jsonify({"error": "User record not found"}), 404
     data = request.json or {}
     unit_type = data.get('unit_type')
     amount = int(data.get('quantity', 1))
@@ -2075,6 +2077,8 @@ def evolve_unit():
          return jsonify({"error": "Unauthorized Access"}), 401
 
     user = User.query.get(session['user_id'])
+    if not user:
+        return jsonify({"error": "User record not found"}), 404
     data = request.json or {}
     unit_type = data.get('unit_type')
 
@@ -2106,6 +2110,8 @@ def research_upgrade():
          return jsonify({"error": "Unauthorized Access"}), 401
 
     user = User.query.get(session['user_id'])
+    if not user:
+        return jsonify({"error": "User record not found"}), 404
     data = request.json or {}
     tech = data.get('tech')
 
@@ -2142,6 +2148,8 @@ def attack_territory():
          return jsonify({"error": "Unauthorized Access"}), 401
 
     user = User.query.get(session['user_id'])
+    if not user:
+        return jsonify({"error": "User record not found"}), 404
     data = request.json or {}
     territory_id = data.get('territory_id')
     spell_casted = data.get('spell')
@@ -2194,7 +2202,7 @@ def attack_territory():
     for u in user_units:
         u.quantity = max(0, int(u.quantity - (u.quantity * loss_rate)))
 
-    loot_gained = {}
+    loot_gained: dict[str, object] = {}
     if battle_won:
         target_territory.owner_id = user.id
         target_territory.controlling_country = user.country
@@ -2252,6 +2260,8 @@ def explore_ruins():
          return jsonify({"error": "Unauthorized Access"}), 401
 
     user = User.query.get(session['user_id'])
+    if not user:
+        return jsonify({"error": "User record not found"}), 404
     data = request.json or {}
     territory_id = data.get('territory_id')
 
@@ -2313,14 +2323,7 @@ def seed_database():
             ("Scandinavian Shield", 480, 80, "crystals", 1.0)
         ]
         for name, x, y, rtype, rate in default_territories:
-            db.session.add(Territory(
-                name=name,
-                x_coord=x,
-                y_coord=y,
-                resource_type=rtype,
-                resource_rate=rate,
-                has_ruins=True
-            ))
+            db.session.add(Territory(name=name, x_coord=x, y_coord=y, resource_type=rtype, resource_rate=rate, has_ruins=True))  # type: ignore[call-arg]
         db.session.commit()
 
 
