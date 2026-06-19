@@ -1,9 +1,12 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class ApiService {
   final String baseUrl;
   String? _cookie;
+
+  static const Duration _timeout = Duration(seconds: 10);
 
   ApiService({required this.baseUrl});
 
@@ -24,14 +27,13 @@ class ApiService {
   }
 
   Future<bool> login(String identifier, String password) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/login'),
-      headers: {'Content-Type': 'application/json'},
-      body: json.encode({
-        'identifier': identifier,
-        'password': password,
-      }),
-    );
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/login'),
+          headers: {'Content-Type': 'application/json'},
+          body: json.encode({'identifier': identifier, 'password': password}),
+        )
+        .timeout(_timeout);
 
     if (response.statusCode == 302 || response.statusCode == 200) {
       _updateCookie(response);
@@ -40,17 +42,24 @@ class ApiService {
     return false;
   }
 
-  Future<bool> register(String username, String email, String password, String confirmPassword) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/register'),
-      headers: {'Content-Type': 'application/json'},
-      body: json.encode({
-        'username': username,
-        'email': email,
-        'password': password,
-        'confirm_password': confirmPassword,
-      }),
-    );
+  Future<bool> register(
+    String username,
+    String email,
+    String password,
+    String confirmPassword,
+  ) async {
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/register'),
+          headers: {'Content-Type': 'application/json'},
+          body: json.encode({
+            'username': username,
+            'email': email,
+            'password': password,
+            'confirm_password': confirmPassword,
+          }),
+        )
+        .timeout(_timeout);
 
     if (response.statusCode == 302 || response.statusCode == 200) {
       _updateCookie(response);
@@ -60,11 +69,13 @@ class ApiService {
   }
 
   Future<bool> setCountry(String country) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/country_selection'),
-      headers: _headers,
-      body: json.encode({'country': country}),
-    );
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/country_selection'),
+          headers: _headers,
+          body: json.encode({'country': country}),
+        )
+        .timeout(_timeout);
 
     if (response.statusCode == 302 || response.statusCode == 200) {
       return true;
@@ -73,7 +84,9 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> getState() async {
-    final response = await http.get(Uri.parse('$baseUrl/api/state'), headers: _headers);
+    final response = await http
+        .get(Uri.parse('$baseUrl/api/state'), headers: _headers)
+        .timeout(_timeout);
     if (response.statusCode == 200) {
       return json.decode(response.body);
     } else {
@@ -82,14 +95,13 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> attack(int territoryId, {String? spell}) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/api/attack'),
-      headers: _headers,
-      body: json.encode({
-        'territory_id': territoryId,
-        'spell': spell,
-      }),
-    );
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/api/attack'),
+          headers: _headers,
+          body: json.encode({'territory_id': territoryId, 'spell': spell}),
+        )
+        .timeout(_timeout);
     if (response.statusCode == 200) {
       return json.decode(response.body);
     } else {
@@ -97,15 +109,17 @@ class ApiService {
     }
   }
 
-  Future<Map<String, dynamic>> recruitUnit(String unitType, int quantity) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/api/recruit_unit'),
-      headers: _headers,
-      body: json.encode({
-        'unit_type': unitType,
-        'quantity': quantity,
-      }),
-    );
+  Future<Map<String, dynamic>> recruitUnit(
+    String unitType,
+    int quantity,
+  ) async {
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/api/recruit_unit'),
+          headers: _headers,
+          body: json.encode({'unit_type': unitType, 'quantity': quantity}),
+        )
+        .timeout(_timeout);
     if (response.statusCode == 200) {
       return json.decode(response.body);
     } else {
@@ -114,13 +128,13 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> evolveUnit(String unitType) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/api/evolve_unit'),
-      headers: _headers,
-      body: json.encode({
-        'unit_type': unitType,
-      }),
-    );
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/api/evolve_unit'),
+          headers: _headers,
+          body: json.encode({'unit_type': unitType}),
+        )
+        .timeout(_timeout);
     if (response.statusCode == 200) {
       return json.decode(response.body);
     } else {

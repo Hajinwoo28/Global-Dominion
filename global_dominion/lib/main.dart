@@ -1,2787 +1,5955 @@
+// ============================================================================
+// GLOBAL DOMINION: RISE OF NATIONS
+// Complete Real-Time Strategy Game with Online Multiplayer
+// Flutter Mobile/Desktop Client
+// ============================================================================
+//
+// pubspec.yaml — add these dependencies:
+//   web_socket_channel: ^3.0.1
+//
+// Flask Backend (server.py) events expected:
+//   RECEIVE: join_room, leave_room, ready, action, end_turn, chat
+//   SEND:    room_created, room_joined, player_ready, game_started,
+//            game_state, action_ack, chat_msg, player_left, game_over
+// ============================================================================
+
+import 'dart:async';
+import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:provider/provider.dart';
-import 'api_service.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 
-void main() {
+// ══════════════════════════════════════════════════════════════════════════════
+// SECTION 1 ▸ CONSTANTS
+// ══════════════════════════════════════════════════════════════════════════════
+
+const String kAppVersion = '1.0.0';
+const String kDefaultWsUrl = 'wss://global-dominion.vercel.app/ws';
+const int kMapW = 30;
+const int kMapH = 20;
+const double kTileSize = 48.0;
+const int kTickMs = 1000; // 1-second game tick
+const int kAiTickMs = 2500; // AI action interval
+const int kEcoVictoryTicks = 300; // 5 min at top economy
+const int kTerritoryVictoryPct = 75;
+
+const Color kColorBg = Color(0xFF0A0E1A);
+const Color kColorPanel = Color(0xFF111827);
+const Color kColorBorder = Color(0xFF1E2D45);
+const Color kColorGold = Color(0xFFD4AF37);
+const Color kColorGoldDark = Color(0xFF8B6914);
+const Color kColorAccent = Color(0xFFE53935);
+const Color kColorText = Color(0xFFE8E0CC);
+const Color kColorMuted = Color(0xFF6B7280);
+const Color kColorSuccess = Color(0xFF22C55E);
+
+const List<Color> kNationColors = [
+  Color(0xFFEF4444),
+  Color(0xFF3B82F6),
+  Color(0xFF22C55E),
+  Color(0xFFF97316),
+  Color(0xFFA855F7),
+  Color(0xFF06B6D4),
+  Color(0xFFEC4899),
+  Color(0xFF64748B),
+  Color(0xFFEAB308),
+  Color(0xFF14B8A6),
+  Color(0xFFD946EF),
+  Color(0xFF0EA5E9),
+  Color(0xFF84CC16),
+  Color(0xFFF43F5E),
+  Color(0xFF6366F1),
+  Color(0xFF78716C),
+];
+
+const List<String> kDefaultNationNames = [
+  'Crimson Empire',
+  'Azure Kingdom',
+  'Emerald Republic',
+  'Amber Dynasty',
+  'Violet Sultanate',
+  'Cyan Federation',
+  'Rose Confederation',
+  'Iron Pact',
+  'Golden Horde',
+  'Jade Empire',
+  'Scarlet Alliance',
+  'Sapphire Union',
+  'Verdant Republic',
+  'Copper League',
+  'Indigo Dominion',
+  'Obsidian Order',
+];
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SECTION 2 ▸ ENUMS
+// ══════════════════════════════════════════════════════════════════════════════
+
+enum TerrainType { plains, forest, mountain, water, desert, tundra }
+
+enum Age {
+  ancient,
+  classical,
+  medieval,
+  renaissance,
+  industrial,
+  modern,
+  information,
+  future,
+}
+
+enum NationTier { settlement, village, town, city, metropolis, globalCapital }
+
+enum VictoryType { military, economic, territorial, technological, diplomatic }
+
+enum GamePhase { menu, lobby, playing, paused, ended }
+
+enum ActionType {
+  build,
+  trainUnit,
+  moveUnit,
+  attack,
+  research,
+  endTurn,
+  diplomacy,
+  upgrade,
+}
+
+enum DiplomacyAction { ally, declareWar, makePeace, embargo }
+
+enum BuildingCat { economic, military, defensive, technology, special }
+
+extension AgeLabel on Age {
+  String get label => const {
+    Age.ancient: 'Ancient Age',
+    Age.classical: 'Classical Age',
+    Age.medieval: 'Medieval Age',
+    Age.renaissance: 'Renaissance Age',
+    Age.industrial: 'Industrial Age',
+    Age.modern: 'Modern Age',
+    Age.information: 'Information Age',
+    Age.future: 'Future Age',
+  }[this]!;
+  int get index2 => Age.values.indexOf(this);
+}
+
+extension NationTierLabel on NationTier {
+  String get label => const {
+    NationTier.settlement: 'Settlement',
+    NationTier.village: 'Village',
+    NationTier.town: 'Town',
+    NationTier.city: 'City',
+    NationTier.metropolis: 'Metropolis',
+    NationTier.globalCapital: 'Global Capital',
+  }[this]!;
+  int get popCap => const {
+    NationTier.settlement: 20,
+    NationTier.village: 50,
+    NationTier.town: 120,
+    NationTier.city: 300,
+    NationTier.metropolis: 750,
+    NationTier.globalCapital: 2000,
+  }[this]!;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SECTION 3 ▸ RESOURCE MODEL
+// ══════════════════════════════════════════════════════════════════════════════
+
+class Resources {
+  double gold;
+  double food;
+  double wood;
+  double stone;
+  double iron;
+  double oil;
+  int population;
+  int populationCap;
+  int researchPoints;
+
+  Resources({
+    this.gold = 200,
+    this.food = 100,
+    this.wood = 80,
+    this.stone = 60,
+    this.iron = 0,
+    this.oil = 0,
+    this.population = 5,
+    this.populationCap = 20,
+    this.researchPoints = 0,
+  });
+
+  bool canAfford(Map<String, double> cost) {
+    return (cost['gold'] ?? 0) <= gold &&
+        (cost['food'] ?? 0) <= food &&
+        (cost['wood'] ?? 0) <= wood &&
+        (cost['stone'] ?? 0) <= stone &&
+        (cost['iron'] ?? 0) <= iron &&
+        (cost['oil'] ?? 0) <= oil;
+  }
+
+  void spend(Map<String, double> cost) {
+    gold -= cost['gold'] ?? 0;
+    food -= cost['food'] ?? 0;
+    wood -= cost['wood'] ?? 0;
+    stone -= cost['stone'] ?? 0;
+    iron -= cost['iron'] ?? 0;
+    oil -= cost['oil'] ?? 0;
+  }
+
+  void add(Map<String, double> income) {
+    gold = (gold + (income['gold'] ?? 0)).clamp(0, 99999);
+    food = (food + (income['food'] ?? 0)).clamp(0, 99999);
+    wood = (wood + (income['wood'] ?? 0)).clamp(0, 99999);
+    stone = (stone + (income['stone'] ?? 0)).clamp(0, 99999);
+    iron = (iron + (income['iron'] ?? 0)).clamp(0, 99999);
+    oil = (oil + (income['oil'] ?? 0)).clamp(0, 99999);
+  }
+
+  Map<String, dynamic> toJson() => {
+    'gold': gold,
+    'food': food,
+    'wood': wood,
+    'stone': stone,
+    'iron': iron,
+    'oil': oil,
+    'population': population,
+    'populationCap': populationCap,
+    'researchPoints': researchPoints,
+  };
+
+  factory Resources.fromJson(Map<String, dynamic> j) => Resources(
+    gold: (j['gold'] ?? 0).toDouble(),
+    food: (j['food'] ?? 0).toDouble(),
+    wood: (j['wood'] ?? 0).toDouble(),
+    stone: (j['stone'] ?? 0).toDouble(),
+    iron: (j['iron'] ?? 0).toDouble(),
+    oil: (j['oil'] ?? 0).toDouble(),
+    population: j['population'] ?? 5,
+    populationCap: j['populationCap'] ?? 20,
+    researchPoints: j['researchPoints'] ?? 0,
+  );
+
+  Resources copy() => Resources(
+    gold: gold,
+    food: food,
+    wood: wood,
+    stone: stone,
+    iron: iron,
+    oil: oil,
+    population: population,
+    populationCap: populationCap,
+    researchPoints: researchPoints,
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SECTION 4 ▸ BUILDING DEFINITIONS
+// ══════════════════════════════════════════════════════════════════════════════
+
+class BuildingDef {
+  final String id, name, emoji, description;
+  final BuildingCat category;
+  final Map<String, double> cost;
+  final Map<String, double> production; // per tick
+  final int buildTicks, health;
+  final Age requiredAge;
+  final int? popCapBonus;
+  final List<String> unlocks; // unit def IDs
+
+  const BuildingDef({
+    required this.id,
+    required this.name,
+    required this.emoji,
+    required this.description,
+    required this.category,
+    required this.cost,
+    this.production = const {},
+    required this.buildTicks,
+    required this.health,
+    this.requiredAge = Age.ancient,
+    this.popCapBonus,
+    this.unlocks = const [],
+  });
+}
+
+final Map<String, BuildingDef> kBuildingDefs = {
+  // ── ECONOMIC ─────────────────────────────────────────────
+  'farm': BuildingDef(
+    id: 'farm',
+    name: 'Farm',
+    emoji: '🌾',
+    category: BuildingCat.economic,
+    description: 'Produces food each tick.',
+    cost: {'gold': 50, 'wood': 30},
+    production: {'food': 4},
+    buildTicks: 3,
+    health: 80,
+    popCapBonus: 10,
+  ),
+  'windmill': BuildingDef(
+    id: 'windmill',
+    name: 'Windmill',
+    emoji: '🏭',
+    category: BuildingCat.economic,
+    description: 'Converts food surplus into gold.',
+    cost: {'gold': 80, 'wood': 50, 'stone': 20},
+    production: {'gold': 3, 'food': 2},
+    buildTicks: 4,
+    health: 100,
+  ),
+  'mine': BuildingDef(
+    id: 'mine',
+    name: 'Mine',
+    emoji: '⛏️',
+    category: BuildingCat.economic,
+    description: 'Extracts stone and iron from mountains.',
+    cost: {'gold': 100, 'wood': 40},
+    production: {'stone': 3, 'iron': 1},
+    buildTicks: 5,
+    health: 120,
+  ),
+  'lumber_mill': BuildingDef(
+    id: 'lumber_mill',
+    name: 'Lumber Mill',
+    emoji: '🪵',
+    category: BuildingCat.economic,
+    description: 'Processes wood efficiently.',
+    cost: {'gold': 60, 'stone': 20},
+    production: {'wood': 4},
+    buildTicks: 3,
+    health: 90,
+  ),
+  'market': BuildingDef(
+    id: 'market',
+    name: 'Market',
+    emoji: '🏪',
+    category: BuildingCat.economic,
+    description: 'Generates gold from trade.',
+    cost: {'gold': 120, 'wood': 60, 'stone': 40},
+    production: {'gold': 6},
+    buildTicks: 5,
+    health: 100,
+    popCapBonus: 5,
+  ),
+  'bank': BuildingDef(
+    id: 'bank',
+    name: 'Bank',
+    emoji: '🏦',
+    category: BuildingCat.economic,
+    description: 'Advanced financial institution.',
+    cost: {'gold': 300, 'stone': 100, 'iron': 50},
+    production: {'gold': 12},
+    buildTicks: 8,
+    health: 150,
+    requiredAge: Age.medieval,
+  ),
+  'oil_rig': BuildingDef(
+    id: 'oil_rig',
+    name: 'Oil Rig',
+    emoji: '🛢️',
+    category: BuildingCat.economic,
+    description: 'Extracts oil for modern units.',
+    cost: {'gold': 500, 'iron': 200, 'stone': 100},
+    production: {'oil': 5, 'gold': 4},
+    buildTicks: 10,
+    health: 200,
+    requiredAge: Age.industrial,
+  ),
+
+  // ── MILITARY ─────────────────────────────────────────────
+  'barracks': BuildingDef(
+    id: 'barracks',
+    name: 'Barracks',
+    emoji: '⚔️',
+    category: BuildingCat.military,
+    description: 'Trains basic land units.',
+    cost: {'gold': 100, 'wood': 80, 'stone': 30},
+    buildTicks: 5,
+    health: 200,
+    unlocks: ['spearman', 'builder', 'farmer'],
+  ),
+  'archery_range': BuildingDef(
+    id: 'archery_range',
+    name: 'Archery Range',
+    emoji: '🏹',
+    category: BuildingCat.military,
+    description: 'Trains ranged units.',
+    cost: {'gold': 120, 'wood': 100},
+    buildTicks: 5,
+    health: 180,
+    unlocks: ['archer', 'crossbowman'],
+  ),
+  'stable': BuildingDef(
+    id: 'stable',
+    name: 'Stable',
+    emoji: '🐴',
+    category: BuildingCat.military,
+    description: 'Trains cavalry units.',
+    cost: {'gold': 150, 'wood': 80, 'food': 60},
+    buildTicks: 6,
+    health: 180,
+    unlocks: ['scout_cavalry', 'knight'],
+    requiredAge: Age.classical,
+  ),
+  'siege_workshop': BuildingDef(
+    id: 'siege_workshop',
+    name: 'Siege Workshop',
+    emoji: '💣',
+    category: BuildingCat.military,
+    description: 'Builds siege engines.',
+    cost: {'gold': 200, 'wood': 150, 'stone': 80},
+    buildTicks: 8,
+    health: 200,
+    unlocks: ['catapult', 'trebuchet'],
+    requiredAge: Age.medieval,
+  ),
+  'military_academy': BuildingDef(
+    id: 'military_academy',
+    name: 'Military Academy',
+    emoji: '🎖️',
+    category: BuildingCat.military,
+    description: 'Trains elite modern soldiers.',
+    cost: {'gold': 400, 'stone': 200, 'iron': 150},
+    buildTicks: 10,
+    health: 250,
+    unlocks: ['rifleman', 'special_forces', 'engineer'],
+    requiredAge: Age.industrial,
+  ),
+  'tank_factory': BuildingDef(
+    id: 'tank_factory',
+    name: 'Tank Factory',
+    emoji: '🪖',
+    category: BuildingCat.military,
+    description: 'Produces armored vehicles.',
+    cost: {'gold': 600, 'iron': 300, 'oil': 100},
+    buildTicks: 12,
+    health: 300,
+    unlocks: ['tank', 'artillery'],
+    requiredAge: Age.modern,
+  ),
+  'air_force_base': BuildingDef(
+    id: 'air_force_base',
+    name: 'Air Force Base',
+    emoji: '✈️',
+    category: BuildingCat.military,
+    description: 'Fields aircraft and helicopters.',
+    cost: {'gold': 800, 'iron': 400, 'oil': 200},
+    buildTicks: 15,
+    health: 350,
+    unlocks: ['jet_fighter', 'attack_helicopter'],
+    requiredAge: Age.modern,
+  ),
+  'naval_base': BuildingDef(
+    id: 'naval_base',
+    name: 'Naval Base',
+    emoji: '⚓',
+    category: BuildingCat.military,
+    description: 'Builds warships and submarines.',
+    cost: {'gold': 700, 'iron': 350, 'wood': 200},
+    buildTicks: 14,
+    health: 320,
+    unlocks: ['destroyer', 'submarine'],
+    requiredAge: Age.industrial,
+  ),
+
+  // ── DEFENSIVE ────────────────────────────────────────────
+  'walls': BuildingDef(
+    id: 'walls',
+    name: 'Walls',
+    emoji: '🧱',
+    category: BuildingCat.defensive,
+    description: 'Stone walls that fortify territory.',
+    cost: {'stone': 80, 'gold': 40},
+    buildTicks: 4,
+    health: 500,
+  ),
+  'watchtower': BuildingDef(
+    id: 'watchtower',
+    name: 'Watchtower',
+    emoji: '🗼',
+    category: BuildingCat.defensive,
+    description: 'Ranged defensive structure.',
+    cost: {'wood': 60, 'stone': 40, 'gold': 50},
+    buildTicks: 3,
+    health: 200,
+  ),
+  'fortress': BuildingDef(
+    id: 'fortress',
+    name: 'Fortress',
+    emoji: '🏰',
+    category: BuildingCat.defensive,
+    description: 'Powerful defensive stronghold.',
+    cost: {'stone': 200, 'iron': 80, 'gold': 300},
+    buildTicks: 12,
+    health: 1000,
+    requiredAge: Age.medieval,
+    popCapBonus: 20,
+  ),
+  'cannon_tower': BuildingDef(
+    id: 'cannon_tower',
+    name: 'Cannon Tower',
+    emoji: '💥',
+    category: BuildingCat.defensive,
+    description: 'Heavy artillery emplacement.',
+    cost: {'iron': 150, 'stone': 100, 'gold': 400},
+    buildTicks: 10,
+    health: 400,
+    requiredAge: Age.renaissance,
+  ),
+  'missile_defense': BuildingDef(
+    id: 'missile_defense',
+    name: 'Missile Defense',
+    emoji: '🚀',
+    category: BuildingCat.defensive,
+    description: 'Intercepts air and missile attacks.',
+    cost: {'gold': 1000, 'iron': 500, 'oil': 200},
+    buildTicks: 20,
+    health: 500,
+    requiredAge: Age.modern,
+  ),
+
+  // ── TECHNOLOGY ───────────────────────────────────────────
+  'research_center': BuildingDef(
+    id: 'research_center',
+    name: 'Research Center',
+    emoji: '🔬',
+    category: BuildingCat.technology,
+    description: 'Generates research points per tick.',
+    cost: {'gold': 200, 'stone': 100, 'wood': 80},
+    production: {'research': 2},
+    buildTicks: 7,
+    health: 150,
+    requiredAge: Age.classical,
+  ),
+  'university': BuildingDef(
+    id: 'university',
+    name: 'University',
+    emoji: '🎓',
+    category: BuildingCat.technology,
+    description: 'Advanced research generation.',
+    cost: {'gold': 400, 'stone': 200, 'iron': 50},
+    production: {'research': 5},
+    buildTicks: 10,
+    health: 200,
+    requiredAge: Age.medieval,
+    popCapBonus: 10,
+  ),
+  'innovation_lab': BuildingDef(
+    id: 'innovation_lab',
+    name: 'Innovation Lab',
+    emoji: '💡',
+    category: BuildingCat.technology,
+    description: 'Cutting-edge research facility.',
+    cost: {'gold': 800, 'iron': 300, 'oil': 100},
+    production: {'research': 10},
+    buildTicks: 15,
+    health: 300,
+    requiredAge: Age.modern,
+  ),
+
+  // ── SPECIAL ──────────────────────────────────────────────
+  'harbor': BuildingDef(
+    id: 'harbor',
+    name: 'Harbor',
+    emoji: '🚢',
+    category: BuildingCat.special,
+    description: 'Enables naval trade and units.',
+    cost: {'gold': 350, 'wood': 200, 'stone': 100},
+    production: {'gold': 5},
+    buildTicks: 8,
+    health: 300,
+    requiredAge: Age.classical,
+    unlocks: ['trader'],
+  ),
+  'airport': BuildingDef(
+    id: 'airport',
+    name: 'Airport',
+    emoji: '🛫',
+    category: BuildingCat.special,
+    description: 'Strategic transport hub.',
+    cost: {'gold': 900, 'iron': 400, 'oil': 150},
+    production: {'gold': 8},
+    buildTicks: 18,
+    health: 400,
+    requiredAge: Age.modern,
+  ),
+  'nuclear_facility': BuildingDef(
+    id: 'nuclear_facility',
+    name: 'Nuclear Facility',
+    emoji: '☢️',
+    category: BuildingCat.special,
+    description: 'Provides nuclear energy and weapons.',
+    cost: {'gold': 2000, 'iron': 800, 'oil': 400},
+    production: {'gold': 15, 'oil': 10},
+    buildTicks: 30,
+    health: 600,
+    requiredAge: Age.information,
+  ),
+  'space_center': BuildingDef(
+    id: 'space_center',
+    name: 'Space Center',
+    emoji: '🛸',
+    category: BuildingCat.special,
+    description: 'Required for technological victory.',
+    cost: {'gold': 5000, 'iron': 2000, 'oil': 1000},
+    production: {'research': 20, 'gold': 20},
+    buildTicks: 50,
+    health: 800,
+    requiredAge: Age.future,
+  ),
+  'capital_fortress': BuildingDef(
+    id: 'capital_fortress',
+    name: 'Capital Fortress',
+    emoji: '🏛️',
+    category: BuildingCat.defensive,
+    description: 'Your nation\'s beating heart. Losing it ends your game.',
+    cost: {},
+    buildTicks: 0,
+    health: 2000,
+    popCapBonus: 20,
+  ),
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SECTION 5 ▸ UNIT DEFINITIONS
+// ══════════════════════════════════════════════════════════════════════════════
+
+class UnitDef {
+  final String id, name, emoji;
+  final bool isMilitary;
+  final int health, attack, defense, speed, range;
+  final Map<String, double> cost;
+  final int trainTicks;
+  final Age requiredAge;
+  final String? requiredBuilding;
+
+  const UnitDef({
+    required this.id,
+    required this.name,
+    required this.emoji,
+    this.isMilitary = false,
+    required this.health,
+    this.attack = 0,
+    this.defense = 0,
+    this.speed = 1,
+    this.range = 1,
+    required this.cost,
+    required this.trainTicks,
+    this.requiredAge = Age.ancient,
+    this.requiredBuilding,
+  });
+}
+
+final Map<String, UnitDef> kUnitDefs = {
+  // ── CIVILIAN ─────────────────────────────────────────────
+  'builder': UnitDef(
+    id: 'builder',
+    name: 'Builder',
+    emoji: '👷',
+    health: 40,
+    defense: 1,
+    speed: 2,
+    cost: {'gold': 50, 'food': 20},
+    trainTicks: 3,
+    requiredBuilding: 'barracks',
+  ),
+  'engineer': UnitDef(
+    id: 'engineer',
+    name: 'Engineer',
+    emoji: '🔧',
+    health: 50,
+    defense: 2,
+    speed: 2,
+    cost: {'gold': 100, 'food': 30, 'iron': 10},
+    trainTicks: 5,
+    requiredAge: Age.industrial,
+    requiredBuilding: 'military_academy',
+  ),
+  'farmer': UnitDef(
+    id: 'farmer',
+    name: 'Farmer',
+    emoji: '🧑‍🌾',
+    health: 30,
+    defense: 0,
+    speed: 1,
+    cost: {'gold': 30, 'food': 10},
+    trainTicks: 2,
+    requiredBuilding: 'barracks',
+  ),
+  'trader': UnitDef(
+    id: 'trader',
+    name: 'Trader',
+    emoji: '🧑‍💼',
+    health: 35,
+    defense: 0,
+    speed: 3,
+    cost: {'gold': 80, 'food': 20},
+    trainTicks: 4,
+    requiredBuilding: 'harbor',
+  ),
+  'repair_specialist': UnitDef(
+    id: 'repair_specialist',
+    name: 'Repair Specialist',
+    emoji: '🛠️',
+    health: 45,
+    defense: 2,
+    speed: 2,
+    cost: {'gold': 120, 'iron': 30},
+    trainTicks: 5,
+    requiredAge: Age.industrial,
+    requiredBuilding: 'military_academy',
+  ),
+
+  // ── ANCIENT ──────────────────────────────────────────────
+  'spearman': UnitDef(
+    id: 'spearman',
+    name: 'Spearman',
+    emoji: '🗡️',
+    isMilitary: true,
+    health: 80,
+    attack: 15,
+    defense: 8,
+    speed: 2,
+    cost: {'gold': 60, 'food': 30, 'wood': 10},
+    trainTicks: 3,
+    requiredBuilding: 'barracks',
+  ),
+  'archer': UnitDef(
+    id: 'archer',
+    name: 'Archer',
+    emoji: '🏹',
+    isMilitary: true,
+    health: 60,
+    attack: 18,
+    defense: 5,
+    speed: 2,
+    range: 3,
+    cost: {'gold': 70, 'wood': 30, 'food': 20},
+    trainTicks: 3,
+    requiredBuilding: 'archery_range',
+  ),
+  'scout_cavalry': UnitDef(
+    id: 'scout_cavalry',
+    name: 'Scout Cavalry',
+    emoji: '🐎',
+    isMilitary: true,
+    health: 70,
+    attack: 12,
+    defense: 6,
+    speed: 4,
+    cost: {'gold': 80, 'food': 40},
+    trainTicks: 4,
+    requiredAge: Age.classical,
+    requiredBuilding: 'stable',
+  ),
+
+  // ── MEDIEVAL ─────────────────────────────────────────────
+  'knight': UnitDef(
+    id: 'knight',
+    name: 'Knight',
+    emoji: '🛡️',
+    isMilitary: true,
+    health: 120,
+    attack: 28,
+    defense: 22,
+    speed: 3,
+    cost: {'gold': 150, 'iron': 50, 'food': 40},
+    trainTicks: 6,
+    requiredAge: Age.medieval,
+    requiredBuilding: 'stable',
+  ),
+  'crossbowman': UnitDef(
+    id: 'crossbowman',
+    name: 'Crossbowman',
+    emoji: '🎯',
+    isMilitary: true,
+    health: 70,
+    attack: 28,
+    defense: 8,
+    speed: 2,
+    range: 4,
+    cost: {'gold': 120, 'iron': 30, 'wood': 40},
+    trainTicks: 5,
+    requiredAge: Age.medieval,
+    requiredBuilding: 'archery_range',
+  ),
+  'catapult': UnitDef(
+    id: 'catapult',
+    name: 'Catapult',
+    emoji: '💣',
+    isMilitary: true,
+    health: 80,
+    attack: 45,
+    defense: 4,
+    speed: 1,
+    range: 5,
+    cost: {'gold': 200, 'wood': 150, 'stone': 60},
+    trainTicks: 8,
+    requiredAge: Age.medieval,
+    requiredBuilding: 'siege_workshop',
+  ),
+  'trebuchet': UnitDef(
+    id: 'trebuchet',
+    name: 'Trebuchet',
+    emoji: '🏹',
+    isMilitary: true,
+    health: 90,
+    attack: 65,
+    defense: 3,
+    speed: 1,
+    range: 6,
+    cost: {'gold': 300, 'wood': 200, 'stone': 100},
+    trainTicks: 10,
+    requiredAge: Age.renaissance,
+    requiredBuilding: 'siege_workshop',
+  ),
+
+  // ── INDUSTRIAL ───────────────────────────────────────────
+  'rifleman': UnitDef(
+    id: 'rifleman',
+    name: 'Rifleman',
+    emoji: '💂',
+    isMilitary: true,
+    health: 100,
+    attack: 40,
+    defense: 15,
+    speed: 2,
+    range: 3,
+    cost: {'gold': 180, 'iron': 60, 'food': 30},
+    trainTicks: 5,
+    requiredAge: Age.industrial,
+    requiredBuilding: 'military_academy',
+  ),
+  'artillery': UnitDef(
+    id: 'artillery',
+    name: 'Artillery',
+    emoji: '🎖️',
+    isMilitary: true,
+    health: 110,
+    attack: 75,
+    defense: 10,
+    speed: 1,
+    range: 6,
+    cost: {'gold': 350, 'iron': 150, 'oil': 20},
+    trainTicks: 10,
+    requiredAge: Age.industrial,
+    requiredBuilding: 'tank_factory',
+  ),
+  'tank': UnitDef(
+    id: 'tank',
+    name: 'Tank',
+    emoji: '🪖',
+    isMilitary: true,
+    health: 200,
+    attack: 80,
+    defense: 50,
+    speed: 3,
+    cost: {'gold': 500, 'iron': 200, 'oil': 50},
+    trainTicks: 12,
+    requiredAge: Age.modern,
+    requiredBuilding: 'tank_factory',
+  ),
+
+  // ── MODERN ───────────────────────────────────────────────
+  'special_forces': UnitDef(
+    id: 'special_forces',
+    name: 'Special Forces',
+    emoji: '🔱',
+    isMilitary: true,
+    health: 150,
+    attack: 90,
+    defense: 40,
+    speed: 4,
+    cost: {'gold': 600, 'iron': 150, 'oil': 60},
+    trainTicks: 10,
+    requiredAge: Age.modern,
+    requiredBuilding: 'military_academy',
+  ),
+  'attack_helicopter': UnitDef(
+    id: 'attack_helicopter',
+    name: 'Attack Helicopter',
+    emoji: '🚁',
+    isMilitary: true,
+    health: 160,
+    attack: 100,
+    defense: 30,
+    speed: 6,
+    range: 4,
+    cost: {'gold': 800, 'iron': 300, 'oil': 120},
+    trainTicks: 14,
+    requiredAge: Age.modern,
+    requiredBuilding: 'air_force_base',
+  ),
+  'jet_fighter': UnitDef(
+    id: 'jet_fighter',
+    name: 'Jet Fighter',
+    emoji: '✈️',
+    isMilitary: true,
+    health: 140,
+    attack: 120,
+    defense: 25,
+    speed: 8,
+    range: 5,
+    cost: {'gold': 1000, 'iron': 400, 'oil': 200},
+    trainTicks: 16,
+    requiredAge: Age.modern,
+    requiredBuilding: 'air_force_base',
+  ),
+  'destroyer': UnitDef(
+    id: 'destroyer',
+    name: 'Destroyer',
+    emoji: '🚢',
+    isMilitary: true,
+    health: 250,
+    attack: 95,
+    defense: 60,
+    speed: 4,
+    range: 5,
+    cost: {'gold': 900, 'iron': 350, 'oil': 150},
+    trainTicks: 18,
+    requiredAge: Age.industrial,
+    requiredBuilding: 'naval_base',
+  ),
+  'submarine': UnitDef(
+    id: 'submarine',
+    name: 'Submarine',
+    emoji: '🔱',
+    isMilitary: true,
+    health: 200,
+    attack: 140,
+    defense: 50,
+    speed: 3,
+    range: 6,
+    cost: {'gold': 1200, 'iron': 500, 'oil': 250},
+    trainTicks: 20,
+    requiredAge: Age.modern,
+    requiredBuilding: 'naval_base',
+  ),
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SECTION 6 ▸ TECHNOLOGY DEFINITIONS
+// ══════════════════════════════════════════════════════════════════════════════
+
+class TechDef {
+  final String id, name, emoji, description;
+  final Age era;
+  final int cost;
+  final List<String> prerequisites;
+  final Map<String, double> bonuses; // 'gold_production', 'unit_attack', etc.
+
+  const TechDef({
+    required this.id,
+    required this.name,
+    required this.emoji,
+    required this.description,
+    required this.era,
+    required this.cost,
+    this.prerequisites = const [],
+    this.bonuses = const {},
+  });
+}
+
+final Map<String, TechDef> kTechDefs = {
+  // ANCIENT
+  'pottery': TechDef(
+    id: 'pottery',
+    name: 'Pottery',
+    emoji: '🏺',
+    description: 'Increases food storage capacity.',
+    era: Age.ancient,
+    cost: 50,
+    bonuses: {'food_storage': 0.5},
+  ),
+  'bronze_working': TechDef(
+    id: 'bronze_working',
+    name: 'Bronze Working',
+    emoji: '🔨',
+    description: '+10% unit attack.',
+    era: Age.ancient,
+    cost: 80,
+    bonuses: {'unit_attack': 0.10},
+  ),
+  'agriculture': TechDef(
+    id: 'agriculture',
+    name: 'Agriculture',
+    emoji: '🌿',
+    description: '+30% farm production.',
+    era: Age.ancient,
+    cost: 60,
+    bonuses: {'farm_prod': 0.30},
+  ),
+  'masonry': TechDef(
+    id: 'masonry',
+    name: 'Masonry',
+    emoji: '🧱',
+    description: '+50% building health.',
+    era: Age.ancient,
+    cost: 70,
+    bonuses: {'building_hp': 0.50},
+  ),
+  // CLASSICAL
+  'iron_working': TechDef(
+    id: 'iron_working',
+    name: 'Iron Working',
+    emoji: '⚒️',
+    description: '+20% military unit attack.',
+    era: Age.classical,
+    cost: 120,
+    bonuses: {'unit_attack': 0.20},
+  ),
+  'philosophy': TechDef(
+    id: 'philosophy',
+    name: 'Philosophy',
+    emoji: '📜',
+    description: '+50% research generation.',
+    era: Age.classical,
+    cost: 100,
+    bonuses: {'research_prod': 0.50},
+  ),
+  'trade_routes': TechDef(
+    id: 'trade_routes',
+    name: 'Trade Routes',
+    emoji: '🛒',
+    description: '+40% market and harbor gold.',
+    era: Age.classical,
+    cost: 110,
+    bonuses: {'market_gold': 0.40},
+  ),
+  // MEDIEVAL
+  'steel': TechDef(
+    id: 'steel',
+    name: 'Steel',
+    emoji: '🗡️',
+    description: '+25% military attack and defense.',
+    era: Age.medieval,
+    cost: 180,
+    bonuses: {'unit_attack': 0.25, 'unit_defense': 0.25},
+  ),
+  'gunpowder': TechDef(
+    id: 'gunpowder',
+    name: 'Gunpowder',
+    emoji: '💥',
+    description: 'Unlocks siege units.',
+    era: Age.medieval,
+    cost: 200,
+    bonuses: {},
+  ),
+  'chivalry': TechDef(
+    id: 'chivalry',
+    name: 'Chivalry',
+    emoji: '🛡️',
+    description: '+40% cavalry unit stats.',
+    era: Age.medieval,
+    cost: 160,
+    bonuses: {'cavalry_attack': 0.40},
+  ),
+  // RENAISSANCE
+  'banking': TechDef(
+    id: 'banking',
+    name: 'Banking',
+    emoji: '💰',
+    description: '+60% gold generation.',
+    era: Age.renaissance,
+    cost: 250,
+    bonuses: {'gold_prod': 0.60},
+  ),
+  'astronomy': TechDef(
+    id: 'astronomy',
+    name: 'Astronomy',
+    emoji: '🌟',
+    description: '+2 unit range globally.',
+    era: Age.renaissance,
+    cost: 220,
+    bonuses: {'unit_range': 2},
+  ),
+  'printing_press': TechDef(
+    id: 'printing_press',
+    name: 'Printing Press',
+    emoji: '📰',
+    description: '+80% research generation.',
+    era: Age.renaissance,
+    cost: 280,
+    bonuses: {'research_prod': 0.80},
+  ),
+  // INDUSTRIAL
+  'steam_power': TechDef(
+    id: 'steam_power',
+    name: 'Steam Power',
+    emoji: '⚙️',
+    description: '+30% production speed.',
+    era: Age.industrial,
+    cost: 350,
+    bonuses: {'build_speed': 0.30},
+  ),
+  'rifling': TechDef(
+    id: 'rifling',
+    name: 'Rifling',
+    emoji: '🔫',
+    description: '+35% ranged unit attack.',
+    era: Age.industrial,
+    cost: 380,
+    bonuses: {'ranged_attack': 0.35},
+  ),
+  'combustion': TechDef(
+    id: 'combustion',
+    name: 'Combustion',
+    emoji: '🔥',
+    description: 'Unlocks oil extraction and tanks.',
+    era: Age.industrial,
+    cost: 400,
+    bonuses: {},
+  ),
+  // MODERN
+  'electronics': TechDef(
+    id: 'electronics',
+    name: 'Electronics',
+    emoji: '💻',
+    description: '+50% research generation.',
+    era: Age.modern,
+    cost: 500,
+    bonuses: {'research_prod': 0.50},
+  ),
+  'nuclear_fission': TechDef(
+    id: 'nuclear_fission',
+    name: 'Nuclear Fission',
+    emoji: '☢️',
+    description: 'Unlocks nuclear facility.',
+    era: Age.modern,
+    cost: 800,
+    bonuses: {},
+  ),
+  'aviation': TechDef(
+    id: 'aviation',
+    name: 'Aviation',
+    emoji: '✈️',
+    description: 'Unlocks air units.',
+    era: Age.modern,
+    cost: 600,
+    bonuses: {},
+  ),
+  // INFORMATION
+  'stealth': TechDef(
+    id: 'stealth',
+    name: 'Stealth Tech',
+    emoji: '👁️',
+    description: '+25% special forces stats.',
+    era: Age.information,
+    cost: 700,
+    bonuses: {'special_attack': 0.25},
+  ),
+  'ai_systems': TechDef(
+    id: 'ai_systems',
+    name: 'AI Systems',
+    emoji: '🤖',
+    description: '+100% research generation.',
+    era: Age.information,
+    cost: 1000,
+    bonuses: {'research_prod': 1.0},
+  ),
+  // FUTURE
+  'fusion_power': TechDef(
+    id: 'fusion_power',
+    name: 'Fusion Power',
+    emoji: '⚡',
+    description: 'All production +100%.',
+    era: Age.future,
+    cost: 2000,
+    bonuses: {'all_prod': 1.0},
+  ),
+  'quantum_computing': TechDef(
+    id: 'quantum_computing',
+    name: 'Quantum Computing',
+    emoji: '🔮',
+    description: 'Required for tech victory.',
+    era: Age.future,
+    cost: 3000,
+    bonuses: {'research_prod': 2.0},
+  ),
+  'space_colonization': TechDef(
+    id: 'space_colonization',
+    name: 'Space Colonization',
+    emoji: '🛸',
+    description: 'Final step: tech victory.',
+    era: Age.future,
+    cost: 5000,
+    prerequisites: ['quantum_computing', 'fusion_power'],
+    bonuses: {},
+  ),
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SECTION 7 ▸ MAP & TILE MODELS
+// ══════════════════════════════════════════════════════════════════════════════
+
+class MapTile {
+  final int x, y;
+  TerrainType terrain;
+  String? ownerNationId;
+  String? buildingId;
+  final List<String> unitIds;
+
+  MapTile({
+    required this.x,
+    required this.y,
+    this.terrain = TerrainType.plains,
+    this.ownerNationId,
+    this.buildingId,
+    List<String>? unitIds,
+  }) : unitIds = unitIds ?? [];
+
+  Color get baseColor {
+    switch (terrain) {
+      case TerrainType.plains:
+        return const Color(0xFF2D5A27);
+      case TerrainType.forest:
+        return const Color(0xFF1B3A1B);
+      case TerrainType.mountain:
+        return const Color(0xFF5C4033);
+      case TerrainType.water:
+        return const Color(0xFF0D3B6B);
+      case TerrainType.desert:
+        return const Color(0xFF8B6914);
+      case TerrainType.tundra:
+        return const Color(0xFF4A5568);
+    }
+  }
+
+  String get emoji {
+    switch (terrain) {
+      case TerrainType.plains:
+        return '🌿';
+      case TerrainType.forest:
+        return '🌲';
+      case TerrainType.mountain:
+        return '⛰️';
+      case TerrainType.water:
+        return '🌊';
+      case TerrainType.desert:
+        return '🏜️';
+      case TerrainType.tundra:
+        return '❄️';
+    }
+  }
+
+  Map<String, dynamic> toJson() => {
+    'x': x,
+    'y': y,
+    'terrain': terrain.name,
+    'owner': ownerNationId,
+    'building': buildingId,
+    'units': unitIds,
+  };
+
+  factory MapTile.fromJson(Map<String, dynamic> j) => MapTile(
+    x: j['x'],
+    y: j['y'],
+    terrain: TerrainType.values.firstWhere(
+      (t) => t.name == j['terrain'],
+      orElse: () => TerrainType.plains,
+    ),
+    ownerNationId: j['owner'],
+    buildingId: j['building'],
+    unitIds: List<String>.from(j['units'] ?? []),
+  );
+}
+
+class GameMap {
+  final int width, height;
+  final List<List<MapTile>> tiles;
+
+  GameMap({this.width = kMapW, this.height = kMapH})
+    : tiles = List.generate(
+        kMapH,
+        (y) => List.generate(kMapW, (x) => MapTile(x: x, y: y)),
+      );
+
+  MapTile at(int x, int y) => tiles[y][x];
+  bool isValid(int x, int y) => x >= 0 && x < width && y >= 0 && y < height;
+
+  List<MapTile> neighbors(int x, int y) {
+    final res = <MapTile>[];
+    for (final d in [
+      [-1, 0],
+      [1, 0],
+      [0, -1],
+      [0, 1],
+    ]) {
+      final nx = x + d[0], ny = y + d[1];
+      if (isValid(nx, ny)) res.add(at(nx, ny));
+    }
+    return res;
+  }
+
+  List<MapTile> inRange(int x, int y, int r) {
+    final res = <MapTile>[];
+    for (int dy = -r; dy <= r; dy++) {
+      for (int dx = -r; dx <= r; dx++) {
+        if (dx == 0 && dy == 0) continue;
+        final dist = dx.abs() + dy.abs();
+        if (dist <= r && isValid(x + dx, y + dy)) res.add(at(x + dx, y + dy));
+      }
+    }
+    return res;
+  }
+
+  void generate(int seed, int nationCount) {
+    final rng = math.Random(seed);
+
+    // Fill with plains first
+    for (int y = 0; y < height; y++) {
+      for (int x = 0; x < width; x++) {
+        tiles[y][x].terrain = TerrainType.plains;
+      }
+    }
+
+    // Water blobs (edges + random interior)
+    _placeTerrain(
+      rng,
+      TerrainType.water,
+      (width * height * 0.18).round(),
+      minSize: 4,
+      maxSize: 12,
+    );
+    _placeTerrain(
+      rng,
+      TerrainType.forest,
+      (width * height * 0.18).round(),
+      minSize: 3,
+      maxSize: 8,
+    );
+    _placeTerrain(
+      rng,
+      TerrainType.mountain,
+      (width * height * 0.10).round(),
+      minSize: 2,
+      maxSize: 6,
+    );
+    _placeTerrain(
+      rng,
+      TerrainType.desert,
+      (width * height * 0.08).round(),
+      minSize: 3,
+      maxSize: 7,
+    );
+    _placeTerrain(
+      rng,
+      TerrainType.tundra,
+      (width * height * 0.06).round(),
+      minSize: 2,
+      maxSize: 5,
+    );
+  }
+
+  void _placeTerrain(
+    math.Random rng,
+    TerrainType t,
+    int count, {
+    required int minSize,
+    required int maxSize,
+  }) {
+    int placed = 0;
+    int attempts = 0;
+    while (placed < count && attempts < count * 10) {
+      attempts++;
+      int cx = rng.nextInt(width), cy = rng.nextInt(height);
+      final size = minSize + rng.nextInt(maxSize - minSize + 1);
+      int thisBatch = 0;
+      final queue = [MapTile(x: cx, y: cy)];
+      final visited = <String>{};
+      while (queue.isNotEmpty && thisBatch < size) {
+        final current = queue.removeAt(0);
+        final key = '${current.x},${current.y}';
+        if (visited.contains(key)) continue;
+        visited.add(key);
+        if (!isValid(current.x, current.y)) continue;
+        tiles[current.y][current.x].terrain = t;
+        thisBatch++;
+        placed++;
+        final ns = neighbors(current.x, current.y)..shuffle(rng);
+        queue.addAll(ns.take(2));
+      }
+    }
+  }
+
+  List<List<int>> getSpawnPositions(int count, math.Random rng) {
+    final positions = <List<int>>[];
+    final cellW =
+        width ~/
+        (count <= 4
+            ? 2
+            : count <= 8
+            ? 4
+            : 4);
+    final cellH =
+        height ~/
+        (count <= 4
+            ? 2
+            : count <= 8
+            ? 2
+            : 4);
+
+    for (int i = 0; i < count; i++) {
+      int cx = (i % (width ~/ cellW)) * cellW + cellW ~/ 2;
+      int cy = (i ~/ (width ~/ cellW)) * cellH + cellH ~/ 2;
+      // Find nearest non-water tile
+      for (int r = 0; r < 10; r++) {
+        bool found = false;
+        for (int dy = -r; dy <= r && !found; dy++) {
+          for (int dx = -r; dx <= r && !found; dx++) {
+            final nx = cx + dx, ny = cy + dy;
+            if (isValid(nx, ny) && at(nx, ny).terrain != TerrainType.water) {
+              cx = nx;
+              cy = ny;
+              found = true;
+            }
+          }
+        }
+        if (found) break;
+      }
+      positions.add([cx, cy]);
+    }
+    return positions;
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SECTION 8 ▸ GAME ENTITY MODELS
+// ══════════════════════════════════════════════════════════════════════════════
+
+class Building {
+  String id, defId, nationId;
+  int x, y, health, maxHealth, buildTicksLeft;
+  bool isConstructing;
+  String? trainingUnitDefId;
+  int trainingTicksLeft;
+
+  Building({
+    required this.id,
+    required this.defId,
+    required this.nationId,
+    required this.x,
+    required this.y,
+    required this.health,
+    required this.maxHealth,
+    this.buildTicksLeft = 0,
+    this.isConstructing = false,
+    this.trainingUnitDefId,
+    this.trainingTicksLeft = 0,
+  });
+
+  BuildingDef get def => kBuildingDefs[defId]!;
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'defId': defId,
+    'nationId': nationId,
+    'x': x,
+    'y': y,
+    'health': health,
+    'maxHealth': maxHealth,
+    'buildTicksLeft': buildTicksLeft,
+    'isConstructing': isConstructing,
+    'trainingUnitDefId': trainingUnitDefId,
+    'trainingTicksLeft': trainingTicksLeft,
+  };
+
+  factory Building.fromJson(Map<String, dynamic> j) => Building(
+    id: j['id'],
+    defId: j['defId'],
+    nationId: j['nationId'],
+    x: j['x'],
+    y: j['y'],
+    health: j['health'],
+    maxHealth: j['maxHealth'],
+    buildTicksLeft: j['buildTicksLeft'] ?? 0,
+    isConstructing: j['isConstructing'] ?? false,
+    trainingUnitDefId: j['trainingUnitDefId'],
+    trainingTicksLeft: j['trainingTicksLeft'] ?? 0,
+  );
+}
+
+class GameUnit {
+  String id, defId, nationId;
+  int x, y, health, maxHealth;
+  bool hasMoved, hasAttacked;
+  int movesLeft;
+
+  GameUnit({
+    required this.id,
+    required this.defId,
+    required this.nationId,
+    required this.x,
+    required this.y,
+    required this.health,
+    required this.maxHealth,
+    this.hasMoved = false,
+    this.hasAttacked = false,
+    this.movesLeft = 0,
+  });
+
+  UnitDef get def => kUnitDefs[defId]!;
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'defId': defId,
+    'nationId': nationId,
+    'x': x,
+    'y': y,
+    'health': health,
+    'maxHealth': maxHealth,
+    'hasMoved': hasMoved,
+    'hasAttacked': hasAttacked,
+    'movesLeft': movesLeft,
+  };
+
+  factory GameUnit.fromJson(Map<String, dynamic> j) => GameUnit(
+    id: j['id'],
+    defId: j['defId'],
+    nationId: j['nationId'],
+    x: j['x'],
+    y: j['y'],
+    health: j['health'],
+    maxHealth: j['maxHealth'],
+    hasMoved: j['hasMoved'] ?? false,
+    hasAttacked: j['hasAttacked'] ?? false,
+    movesLeft: j['movesLeft'] ?? 0,
+  );
+}
+
+class ResearchProject {
+  final String techId;
+  double progress; // 0.0 – 1.0
+  bool completed;
+
+  ResearchProject({
+    required this.techId,
+    this.progress = 0,
+    this.completed = false,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'techId': techId,
+    'progress': progress,
+    'completed': completed,
+  };
+  factory ResearchProject.fromJson(Map<String, dynamic> j) => ResearchProject(
+    techId: j['techId'],
+    progress: (j['progress'] ?? 0).toDouble(),
+    completed: j['completed'] ?? false,
+  );
+}
+
+class DiplomacyState {
+  String otherId;
+  bool isAllied, atWar;
+  int treaties; // bitmask
+
+  DiplomacyState({
+    required this.otherId,
+    this.isAllied = false,
+    this.atWar = false,
+    this.treaties = 0,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'otherId': otherId,
+    'isAllied': isAllied,
+    'atWar': atWar,
+    'treaties': treaties,
+  };
+  factory DiplomacyState.fromJson(Map<String, dynamic> j) => DiplomacyState(
+    otherId: j['otherId'],
+    isAllied: j['isAllied'] ?? false,
+    atWar: j['atWar'] ?? false,
+    treaties: j['treaties'] ?? 0,
+  );
+}
+
+class Nation {
+  String id, name;
+  Color color;
+  bool isAI, isAlive, isPlayer;
+
+  Resources resources;
+  NationTier tier;
+  Age currentAge;
+
+  Set<String> ownedTiles; // "x,y"
+  List<String> buildingIds;
+  List<String> unitIds;
+
+  String? capitalBuildingId;
+  int capitalX, capitalY;
+
+  Map<String, ResearchProject> research;
+  String? activeResearchId;
+
+  Map<String, DiplomacyState> diplomacy;
+
+  // Stats
+  int economyScore = 0, militaryScore = 0, influenceScore = 0;
+  int economicVictoryTicks = 0;
+  int techVictoryProgress = 0; // 0-100
+
+  // AI
+  String aiStrategy = 'balanced';
+  int aiTick = 0;
+
+  // Chat / log
+  List<String> eventLog = [];
+
+  Nation({
+    required this.id,
+    required this.name,
+    required this.color,
+    this.isAI = false,
+    this.isAlive = true,
+    this.isPlayer = false,
+    required this.capitalX,
+    required this.capitalY,
+    Resources? resources,
+    this.tier = NationTier.settlement,
+    this.currentAge = Age.ancient,
+    Set<String>? ownedTiles,
+    List<String>? buildingIds,
+    List<String>? unitIds,
+    Map<String, ResearchProject>? research,
+    Map<String, DiplomacyState>? diplomacy,
+    this.capitalBuildingId,
+  }) : resources = resources ?? Resources(),
+       ownedTiles = ownedTiles ?? {},
+       buildingIds = buildingIds ?? [],
+       unitIds = unitIds ?? [],
+       research = research ?? {},
+       diplomacy = diplomacy ?? {};
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'color': color.value,
+    'isAI': isAI,
+    'isAlive': isAlive,
+    'isPlayer': isPlayer,
+    'resources': resources.toJson(),
+    'tier': tier.name,
+    'currentAge': currentAge.name,
+    'ownedTiles': ownedTiles.toList(),
+    'buildingIds': buildingIds,
+    'unitIds': unitIds,
+    'capitalBuildingId': capitalBuildingId,
+    'capitalX': capitalX,
+    'capitalY': capitalY,
+    'research': research.map((k, v) => MapEntry(k, v.toJson())),
+    'activeResearchId': activeResearchId,
+    'diplomacy': diplomacy.map((k, v) => MapEntry(k, v.toJson())),
+    'economyScore': economyScore,
+    'militaryScore': militaryScore,
+    'influenceScore': influenceScore,
+    'economicVictoryTicks': economicVictoryTicks,
+    'aiStrategy': aiStrategy,
+  };
+
+  factory Nation.fromJson(Map<String, dynamic> j) {
+    final n = Nation(
+      id: j['id'],
+      name: j['name'],
+      color: Color(j['color']),
+      isAI: j['isAI'] ?? false,
+      isAlive: j['isAlive'] ?? true,
+      isPlayer: j['isPlayer'] ?? false,
+      resources: Resources.fromJson(j['resources']),
+      capitalX: j['capitalX'] ?? 0,
+      capitalY: j['capitalY'] ?? 0,
+      capitalBuildingId: j['capitalBuildingId'],
+    );
+    n.tier = NationTier.values.firstWhere(
+      (t) => t.name == j['tier'],
+      orElse: () => NationTier.settlement,
+    );
+    n.currentAge = Age.values.firstWhere(
+      (a) => a.name == j['currentAge'],
+      orElse: () => Age.ancient,
+    );
+    n.ownedTiles = Set<String>.from(j['ownedTiles'] ?? []);
+    n.buildingIds = List<String>.from(j['buildingIds'] ?? []);
+    n.unitIds = List<String>.from(j['unitIds'] ?? []);
+    n.activeResearchId = j['activeResearchId'];
+    n.economyScore = j['economyScore'] ?? 0;
+    n.militaryScore = j['militaryScore'] ?? 0;
+    n.influenceScore = j['influenceScore'] ?? 0;
+    n.economicVictoryTicks = j['economicVictoryTicks'] ?? 0;
+    n.aiStrategy = j['aiStrategy'] ?? 'balanced';
+    if (j['research'] != null) {
+      (j['research'] as Map).forEach((k, v) {
+        n.research[k] = ResearchProject.fromJson(v);
+      });
+    }
+    if (j['diplomacy'] != null) {
+      (j['diplomacy'] as Map).forEach((k, v) {
+        n.diplomacy[k] = DiplomacyState.fromJson(v);
+      });
+    }
+    return n;
+  }
+
+  bool hasCompletedTech(String techId) => research[techId]?.completed == true;
+
+  bool hasBuilding(String defId, Map<String, Building> buildings) =>
+      buildingIds.any((id) => buildings[id]?.defId == defId);
+
+  void addTile(int x, int y) => ownedTiles.add('$x,$y');
+  void removeTile(int x, int y) => ownedTiles.remove('$x,$y');
+  bool ownsTile(int x, int y) => ownedTiles.contains('$x,$y');
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SECTION 9 ▸ LOBBY MODEL
+// ══════════════════════════════════════════════════════════════════════════════
+
+class LobbyPlayer {
+  String id, name, nationName;
+  Color nationColor;
+  bool ready;
+
+  LobbyPlayer({
+    required this.id,
+    required this.name,
+    required this.nationName,
+    required this.nationColor,
+    this.ready = false,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'nationName': nationName,
+    'nationColor': nationColor.value,
+    'ready': ready,
+  };
+
+  factory LobbyPlayer.fromJson(Map<String, dynamic> j) => LobbyPlayer(
+    id: j['id'],
+    name: j['name'],
+    nationName: j['nationName'],
+    nationColor: Color(j['nationColor']),
+    ready: j['ready'] ?? false,
+  );
+}
+
+class GameRoom {
+  String id, name, hostId, gameMode;
+  int maxPlayers;
+  List<LobbyPlayer> players;
+  bool started;
+  int seed;
+
+  GameRoom({
+    required this.id,
+    required this.name,
+    required this.hostId,
+    this.gameMode = 'ffa',
+    this.maxPlayers = 8,
+    List<LobbyPlayer>? players,
+    this.started = false,
+    this.seed = 0,
+  }) : players = players ?? [];
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SECTION 10 ▸ GAME STATE
+// ══════════════════════════════════════════════════════════════════════════════
+
+class GameEvent {
+  final String message;
+  final Color color;
+  final DateTime time;
+  GameEvent(this.message, {this.color = kColorText}) : time = DateTime.now();
+}
+
+class GameState extends ChangeNotifier {
+  // Core data
+  String gameId = '';
+  GameMap map = GameMap();
+  Map<String, Nation> nations = {};
+  Map<String, Building> buildings = {};
+  Map<String, GameUnit> units = {};
+  GamePhase phase = GamePhase.menu;
+  int tick = 0;
+
+  // Player
+  String? playerNationId;
+  String? localPlayerId;
+
+  // Victory
+  VictoryType? victoryType;
+  String? winnerNationId;
+
+  // Selection
+  int? selX, selY;
+  String? selUnitId, selBuildingId;
+  String? pendingBuildDefId;
+  List<List<int>> moveHighlights = [];
+  List<List<int>> attackHighlights = [];
+
+  // Chat & events
+  List<GameEvent> events = [];
+  List<Map<String, String>> chatMessages = [];
+
+  // Unique ID counter
+  int _nextId = 0;
+  String _uid(String prefix) => '${prefix}_${_nextId++}';
+
+  // ── Initialise single player ──────────────────────────────
+  void initSinglePlayer({
+    required int aiCount,
+    required int difficulty,
+    required int seed,
+    required String playerNationName,
+    required Color playerColor,
+  }) {
+    gameId = 'sp_${DateTime.now().millisecondsSinceEpoch}';
+    tick = 0;
+    nations.clear();
+    buildings.clear();
+    units.clear();
+    events.clear();
+    chatMessages.clear();
+    phase = GamePhase.playing;
+
+    map = GameMap();
+    map.generate(seed, aiCount + 1);
+
+    final rng = math.Random(seed);
+    final spawnPositions = map.getSpawnPositions(aiCount + 1, rng);
+
+    // Player nation
+    final playerId = 'n_0';
+    playerNationId = playerId;
+    _spawnNation(
+      id: playerId,
+      name: playerNationName,
+      color: playerColor,
+      isAI: false,
+      isPlayer: true,
+      x: spawnPositions[0][0],
+      y: spawnPositions[0][1],
+    );
+
+    // AI nations
+    for (int i = 0; i < aiCount; i++) {
+      final idx = i + 1;
+      final colorIdx = idx % kNationColors.length;
+      final strategies = [
+        'military',
+        'economic',
+        'expansion',
+        'technology',
+        'balanced',
+      ];
+      final n = _spawnNation(
+        id: 'n_$idx',
+        name: kDefaultNationNames[idx % kDefaultNationNames.length],
+        color: kNationColors[colorIdx],
+        isAI: true,
+        isPlayer: false,
+        x: spawnPositions[idx][0],
+        y: spawnPositions[idx][1],
+      );
+      n.aiStrategy = strategies[rng.nextInt(strategies.length)];
+    }
+
+    addEvent(
+      '🌍 Global Dominion begins! Build your empire.',
+      color: kColorGold,
+    );
+    notifyListeners();
+  }
+
+  Nation _spawnNation({
+    required String id,
+    required String name,
+    required Color color,
+    required bool isAI,
+    required bool isPlayer,
+    required int x,
+    required int y,
+  }) {
+    final nation = Nation(
+      id: id,
+      name: name,
+      color: color,
+      isAI: isAI,
+      isPlayer: isPlayer,
+      capitalX: x,
+      capitalY: y,
+    );
+
+    // Claim starting territory (3x3)
+    for (int dy = -1; dy <= 1; dy++) {
+      for (int dx = -1; dx <= 1; dx++) {
+        final nx = x + dx, ny = y + dy;
+        if (map.isValid(nx, ny) &&
+            map.at(nx, ny).terrain != TerrainType.water) {
+          map.at(nx, ny).ownerNationId = id;
+          nation.addTile(nx, ny);
+        }
+      }
+    }
+
+    // Place capital
+    final cap = Building(
+      id: _uid('b'),
+      defId: 'capital_fortress',
+      nationId: id,
+      x: x,
+      y: y,
+      health: kBuildingDefs['capital_fortress']!.health,
+      maxHealth: kBuildingDefs['capital_fortress']!.health,
+    );
+    buildings[cap.id] = cap;
+    nation.capitalBuildingId = cap.id;
+    nation.buildingIds.add(cap.id);
+    map.at(x, y).buildingId = cap.id;
+
+    // Starting units
+    for (int i = 0; i < 3; i++) {
+      final sx =
+          x +
+          (i == 0
+              ? 1
+              : i == 1
+              ? -1
+              : 0);
+      final sy = y + (i == 2 ? 1 : 0);
+      if (map.isValid(sx, sy) && map.at(sx, sy).terrain != TerrainType.water) {
+        _spawnUnit(defId: 'builder', nationId: id, x: sx, y: sy);
+      }
+    }
+    _spawnUnit(defId: 'spearman', nationId: id, x: x, y: y + 1);
+
+    nations[id] = nation;
+    return nation;
+  }
+
+  void _spawnUnit({
+    required String defId,
+    required String nationId,
+    required int x,
+    required int y,
+  }) {
+    if (!map.isValid(x, y)) return;
+    final def = kUnitDefs[defId];
+    if (def == null) return;
+    final unit = GameUnit(
+      id: _uid('u'),
+      defId: defId,
+      nationId: nationId,
+      x: x,
+      y: y,
+      health: def.health,
+      maxHealth: def.health,
+      movesLeft: def.speed,
+    );
+    units[unit.id] = unit;
+    nations[nationId]?.unitIds.add(unit.id);
+    map.at(x, y).unitIds.add(unit.id);
+  }
+
+  // ── Game tick ─────────────────────────────────────────────
+  void processTick() {
+    if (phase != GamePhase.playing) return;
+    tick++;
+
+    for (final nation in nations.values.where((n) => n.isAlive)) {
+      _processNationTick(nation);
+    }
+
+    _resetUnitMoves();
+    _checkVictoryConditions();
+
+    if (tick % 30 == 0) addEvent('📅 Turn $tick complete.', color: kColorMuted);
+    notifyListeners();
+  }
+
+  void _processNationTick(Nation nation) {
+    // Resource production
+    double gold = 0, food = 0, wood = 0, stone = 0, iron = 0, oil = 0;
+    int research = 0;
+
+    // Base income
+    gold += 2;
+    food += 1;
+
+    // Building production
+    for (final bid in nation.buildingIds) {
+      final b = buildings[bid];
+      if (b == null || b.isConstructing) continue;
+      final def = b.def;
+
+      gold += def.production['gold'] ?? 0;
+      food += def.production['food'] ?? 0;
+      wood += def.production['wood'] ?? 0;
+      stone += def.production['stone'] ?? 0;
+      iron += def.production['iron'] ?? 0;
+      oil += def.production['oil'] ?? 0;
+      research += (def.production['research'] ?? 0).round();
+
+      // Apply research bonuses
+      if (nation.hasCompletedTech('agriculture') && def.id == 'farm')
+        food *= 1.3;
+      if (nation.hasCompletedTech('trade_routes') &&
+          (def.id == 'market' || def.id == 'harbor'))
+        gold *= 1.4;
+      if (nation.hasCompletedTech('banking') &&
+          (def.id == 'bank' || def.id == 'market'))
+        gold *= 1.6;
+      if (nation.hasCompletedTech('philosophy') ||
+          nation.hasCompletedTech('printing_press'))
+        research = (research * 1.5).round();
+      if (nation.hasCompletedTech('ai_systems')) research *= 2;
+      if (nation.hasCompletedTech('fusion_power')) {
+        gold *= 2;
+        food *= 2;
+        wood *= 2;
+        stone *= 2;
+        iron *= 2;
+        oil *= 2;
+      }
+
+      // Advance construction
+      if (b.isConstructing) {
+        b.buildTicksLeft--;
+        if (b.buildTicksLeft <= 0) {
+          b.isConstructing = false;
+          addEvent(
+            '🏗️ ${nation.name} finished building ${def.name}!',
+            color: nation.color,
+          );
+        }
+      }
+
+      // Advance training
+      if (b.trainingUnitDefId != null) {
+        b.trainingTicksLeft--;
+        if (b.trainingTicksLeft <= 0) {
+          _completeUnitTraining(b, nation);
+        }
+      }
+    }
+
+    nation.resources.add({
+      'gold': gold,
+      'food': food,
+      'wood': wood,
+      'stone': stone,
+      'iron': iron,
+      'oil': oil,
+    });
+    nation.resources.researchPoints += research;
+
+    // Research progress
+    if (nation.activeResearchId != null) {
+      final proj = nation.research[nation.activeResearchId!];
+      if (proj != null && !proj.completed) {
+        final techCost = kTechDefs[proj.techId]?.cost ?? 100;
+        proj.progress += research / techCost;
+        if (proj.progress >= 1.0) {
+          proj.progress = 1.0;
+          proj.completed = true;
+          nation.activeResearchId = null;
+          addEvent(
+            '🔬 ${nation.name} researched ${kTechDefs[proj.techId]?.name}!',
+            color: nation.color,
+          );
+        }
+      }
+    }
+
+    // Nation tier upgrade check
+    _checkTierUpgrade(nation);
+
+    // Scores
+    nation.economyScore =
+        (nation.resources.gold +
+                nation.resources.food * 0.5 +
+                nation.resources.wood * 0.3 +
+                nation.resources.stone * 0.3 +
+                nation.resources.iron * 0.5 +
+                nation.resources.oil * 0.8)
+            .round();
+    nation.militaryScore = nation.unitIds
+        .map((uid) => units[uid])
+        .whereType<GameUnit>()
+        .where((u) => u.def.isMilitary)
+        .fold(0, (sum, u) => sum + u.def.attack + u.def.defense);
+    nation.influenceScore =
+        nation.buildingIds.length * 5 + nation.ownedTiles.length * 2;
+  }
+
+  void _checkTierUpgrade(Nation nation) {
+    final tierThresholds = {
+      NationTier.settlement: (tiles: 5, buildings: 3, pop: 10),
+      NationTier.village: (tiles: 15, buildings: 6, pop: 30),
+      NationTier.town: (tiles: 30, buildings: 12, pop: 80),
+      NationTier.city: (tiles: 60, buildings: 20, pop: 200),
+      NationTier.metropolis: (tiles: 100, buildings: 35, pop: 500),
+    };
+
+    final current = nation.tier;
+    if (current == NationTier.globalCapital) return;
+
+    final tiers = NationTier.values;
+    final nextTier = tiers[tiers.indexOf(current) + 1];
+    final threshold = tierThresholds[current];
+    if (threshold == null) return;
+
+    if (nation.ownedTiles.length >= threshold.tiles &&
+        nation.buildingIds.length >= threshold.buildings &&
+        nation.resources.population >= threshold.pop) {
+      nation.tier = nextTier;
+      nation.resources.populationCap += nextTier.popCap;
+      addEvent(
+        '🌆 ${nation.name} has risen to ${nextTier.label}!',
+        color: nation.color,
+      );
+    }
+  }
+
+  void _completeUnitTraining(Building b, Nation nation) {
+    final defId = b.trainingUnitDefId!;
+    // Find empty tile near building
+    int ux = b.x, uy = b.y + 1;
+    for (int r = 1; r <= 3; r++) {
+      bool found = false;
+      for (int dy = -r; dy <= r && !found; dy++) {
+        for (int dx = -r; dx <= r && !found; dx++) {
+          final nx = b.x + dx, ny = b.y + dy;
+          if (map.isValid(nx, ny) &&
+              map.at(nx, ny).unitIds.isEmpty &&
+              map.at(nx, ny).terrain != TerrainType.water) {
+            ux = nx;
+            uy = ny;
+            found = true;
+          }
+        }
+      }
+      if (found) break;
+    }
+    _spawnUnit(defId: defId, nationId: nation.id, x: ux, y: uy);
+    b.trainingUnitDefId = null;
+    b.trainingTicksLeft = 0;
+    addEvent(
+      '⚔️ ${nation.name} trained a ${kUnitDefs[defId]?.name ?? defId}!',
+      color: nation.color,
+    );
+  }
+
+  void _resetUnitMoves() {
+    for (final unit in units.values) {
+      unit.hasMoved = false;
+      unit.hasAttacked = false;
+      unit.movesLeft = unit.def.speed;
+    }
+  }
+
+  // ── PLAYER ACTIONS ────────────────────────────────────────
+
+  bool buildBuilding(String nationId, String buildingDefId, int x, int y) {
+    final nation = nations[nationId];
+    final def = kBuildingDefs[buildingDefId];
+    if (nation == null || def == null) return false;
+    if (!nation.isAlive) return false;
+
+    // Age check
+    if (def.requiredAge.index2 > nation.currentAge.index2) {
+      addEvent('❌ Requires ${def.requiredAge.label}!', color: kColorAccent);
+      return false;
+    }
+
+    // Tile check
+    if (!map.isValid(x, y)) return false;
+    final tile = map.at(x, y);
+    if (tile.buildingId != null) {
+      addEvent('❌ Tile already has a building!', color: kColorAccent);
+      return false;
+    }
+    if (tile.terrain == TerrainType.water) {
+      addEvent('❌ Cannot build on water!', color: kColorAccent);
+      return false;
+    }
+    if (tile.ownerNationId != nationId) {
+      addEvent('❌ Must build on your own territory!', color: kColorAccent);
+      return false;
+    }
+
+    // Cost check
+    if (!nation.resources.canAfford(def.cost)) {
+      addEvent(
+        '❌ Insufficient resources for ${def.name}!',
+        color: kColorAccent,
+      );
+      return false;
+    }
+
+    nation.resources.spend(def.cost);
+
+    final b = Building(
+      id: _uid('b'),
+      defId: buildingDefId,
+      nationId: nationId,
+      x: x,
+      y: y,
+      health: def.health,
+      maxHealth: def.health,
+      buildTicksLeft: def.buildTicks,
+      isConstructing: def.buildTicks > 0,
+    );
+    buildings[b.id] = b;
+    nation.buildingIds.add(b.id);
+    tile.buildingId = b.id;
+
+    // Pop cap bonus
+    if (def.popCapBonus != null)
+      nation.resources.populationCap += def.popCapBonus!;
+
+    addEvent(
+      '🏗️ ${nation.name} is building a ${def.name}!',
+      color: nation.color,
+    );
+    notifyListeners();
+    return true;
+  }
+
+  bool trainUnit(String nationId, String buildingId, String unitDefId) {
+    final nation = nations[nationId];
+    final building = buildings[buildingId];
+    final def = kUnitDefs[unitDefId];
+    if (nation == null || building == null || def == null) return false;
+    if (!nation.isAlive ||
+        building.isConstructing ||
+        building.trainingUnitDefId != null)
+      return false;
+
+    if (def.requiredAge.index2 > nation.currentAge.index2) {
+      addEvent('❌ Requires ${def.requiredAge.label}!', color: kColorAccent);
+      return false;
+    }
+
+    if (!nation.resources.canAfford(def.cost)) {
+      addEvent('❌ Insufficient resources!', color: kColorAccent);
+      return false;
+    }
+
+    nation.resources.spend(def.cost);
+    building.trainingUnitDefId = unitDefId;
+    building.trainingTicksLeft = def.trainTicks;
+
+    addEvent(
+      '🎯 ${nation.name} is training a ${def.name}!',
+      color: nation.color,
+    );
+    notifyListeners();
+    return true;
+  }
+
+  bool moveUnit(String unitId, int toX, int toY) {
+    final unit = units[unitId];
+    if (unit == null || unit.hasMoved) return false;
+    if (!map.isValid(toX, toY)) return false;
+
+    final targetTile = map.at(toX, toY);
+
+    // Check if occupied by enemy
+    for (final uid in targetTile.unitIds) {
+      final other = units[uid];
+      if (other != null && other.nationId != unit.nationId) {
+        addEvent('❌ Tile occupied by enemy!', color: kColorAccent);
+        return false;
+      }
+    }
+
+    if (targetTile.terrain == TerrainType.water &&
+        unit.defId != 'destroyer' &&
+        unit.defId != 'submarine') {
+      addEvent('❌ Unit cannot enter water!', color: kColorAccent);
+      return false;
+    }
+
+    // Distance check (simple Manhattan)
+    final dist = (toX - unit.x).abs() + (toY - unit.y).abs();
+    if (dist > unit.def.speed) return false;
+
+    // Move
+    map.at(unit.x, unit.y).unitIds.remove(unitId);
+    unit.x = toX;
+    unit.y = toY;
+    map.at(toX, toY).unitIds.add(unitId);
+    unit.hasMoved = true;
+    unit.movesLeft -= dist;
+
+    // Claim tile
+    if (targetTile.ownerNationId != unit.nationId) {
+      if (targetTile.ownerNationId != null) {
+        nations[targetTile.ownerNationId!]?.removeTile(toX, toY);
+      }
+      targetTile.ownerNationId = unit.nationId;
+      nations[unit.nationId]?.addTile(toX, toY);
+    }
+
+    notifyListeners();
+    return true;
+  }
+
+  bool attackTarget(String attackerUnitId, int targetX, int targetY) {
+    final attacker = units[attackerUnitId];
+    if (attacker == null || attacker.hasAttacked) return false;
+    if (!attacker.def.isMilitary) return false;
+
+    final dist = (targetX - attacker.x).abs() + (targetY - attacker.y).abs();
+    if (dist > attacker.def.range) return false;
+
+    final targetTile = map.at(targetX, targetY);
+    final attackerNation = nations[attacker.nationId]!;
+
+    // Attack enemy units
+    final enemyUnitIds = targetTile.unitIds
+        .where((uid) => units[uid]?.nationId != attacker.nationId)
+        .toList();
+
+    if (enemyUnitIds.isNotEmpty) {
+      final targetUnitId = enemyUnitIds.first;
+      final targetUnit = units[targetUnitId]!;
+      _resolveCombat(
+        attacker,
+        targetUnit,
+        attackerNation,
+        nations[targetUnit.nationId]!,
+      );
+      attacker.hasAttacked = true;
+      notifyListeners();
+      return true;
+    }
+
+    // Attack enemy building
+    final buildingId = targetTile.buildingId;
+    if (buildingId != null) {
+      final b = buildings[buildingId];
+      if (b != null && b.nationId != attacker.nationId) {
+        final damage =
+            (attacker.def.attack *
+                    (1 +
+                        (attackerNation.hasCompletedTech('bronze_working')
+                            ? 0.1
+                            : 0) +
+                        (attackerNation.hasCompletedTech('iron_working')
+                            ? 0.2
+                            : 0) +
+                        (attackerNation.hasCompletedTech('steel') ? 0.25 : 0)))
+                .round();
+        b.health -= damage;
+        addEvent(
+          '💥 ${attackerNation.name} dealt $damage dmg to ${b.def.name}!',
+          color: attackerNation.color,
+        );
+
+        if (b.health <= 0) {
+          _destroyBuilding(b, attackerNation);
+        }
+        attacker.hasAttacked = true;
+        notifyListeners();
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  void _resolveCombat(GameUnit a, GameUnit d, Nation aNation, Nation dNation) {
+    final atkBonus =
+        (aNation.hasCompletedTech('bronze_working') ? 0.1 : 0) +
+        (aNation.hasCompletedTech('iron_working') ? 0.2 : 0) +
+        (aNation.hasCompletedTech('steel') ? 0.25 : 0);
+    final defBonus =
+        (dNation.hasCompletedTech('masonry') ? 0.15 : 0) +
+        (dNation.hasCompletedTech('steel') ? 0.25 : 0);
+
+    final atkDmg = math.max(
+      1,
+      (a.def.attack * (1 + atkBonus) - d.def.defense * 0.5 * (1 + defBonus))
+          .round(),
+    );
+    final defDmg = math.max(
+      0,
+      (d.def.attack * 0.5 * (1 + defBonus * 0.5) - a.def.defense * 0.3).round(),
+    );
+
+    d.health -= atkDmg;
+    a.health -= defDmg;
+
+    addEvent(
+      '⚔️ ${aNation.name}\'s ${a.def.name} → ${dNation.name}\'s ${d.def.name}: -$atkDmg hp',
+      color: aNation.color,
+    );
+
+    if (d.health <= 0) _removeUnit(d.id);
+    if (a.health <= 0) _removeUnit(a.id);
+  }
+
+  void _removeUnit(String unitId) {
+    final unit = units.remove(unitId);
+    if (unit == null) return;
+    nations[unit.nationId]?.unitIds.remove(unitId);
+    map.at(unit.x, unit.y).unitIds.remove(unitId);
+  }
+
+  void _destroyBuilding(Building b, Nation capturer) {
+    addEvent(
+      '🔥 ${b.def.name} destroyed by ${capturer.name}!',
+      color: capturer.color,
+    );
+    map.at(b.x, b.y).buildingId = null;
+    buildings.remove(b.id);
+
+    final ownerNation = nations[b.nationId];
+    ownerNation?.buildingIds.remove(b.id);
+
+    // Check if capital destroyed
+    if (b.defId == 'capital_fortress') {
+      ownerNation?.isAlive = false;
+      addEvent(
+        '💀 ${ownerNation?.name} has been conquered!',
+        color: kColorAccent,
+      );
+
+      // Transfer all territory to capturer
+      if (ownerNation != null) {
+        for (final tileKey in ownerNation.ownedTiles) {
+          final parts = tileKey.split(',');
+          final x = int.parse(parts[0]), y = int.parse(parts[1]);
+          map.at(x, y).ownerNationId = capturer.id;
+          capturer.addTile(x, y);
+        }
+        ownerNation.ownedTiles.clear();
+      }
+    }
+  }
+
+  bool startResearch(String nationId, String techId) {
+    final nation = nations[nationId];
+    final tech = kTechDefs[techId];
+    if (nation == null || tech == null) return false;
+    if (nation.hasCompletedTech(techId)) return false;
+
+    // Check prerequisites
+    for (final prereq in tech.prerequisites) {
+      if (!nation.hasCompletedTech(prereq)) {
+        addEvent(
+          '❌ Requires ${kTechDefs[prereq]?.name ?? prereq} first!',
+          color: kColorAccent,
+        );
+        return false;
+      }
+    }
+
+    // Check age
+    if (tech.era.index2 > nation.currentAge.index2) {
+      addEvent('❌ Requires ${tech.era.label}!', color: kColorAccent);
+      return false;
+    }
+
+    nation.research[techId] ??= ResearchProject(techId: techId);
+    nation.activeResearchId = techId;
+    addEvent(
+      '🔬 ${nation.name} is researching ${tech.name}!',
+      color: nation.color,
+    );
+    notifyListeners();
+    return true;
+  }
+
+  bool performDiplomacy(
+    String nationId,
+    String targetId,
+    DiplomacyAction action,
+  ) {
+    final nation = nations[nationId];
+    final target = nations[targetId];
+    if (nation == null || target == null) return false;
+
+    nation.diplomacy[targetId] ??= DiplomacyState(otherId: targetId);
+    target.diplomacy[nationId] ??= DiplomacyState(otherId: nationId);
+
+    switch (action) {
+      case DiplomacyAction.ally:
+        nation.diplomacy[targetId]!.isAllied = true;
+        target.diplomacy[nationId]!.isAllied = true;
+        nation.diplomacy[targetId]!.atWar = false;
+        target.diplomacy[nationId]!.atWar = false;
+        nation.influenceScore += 20;
+        target.influenceScore += 20;
+        addEvent(
+          '🤝 ${nation.name} and ${target.name} formed an alliance!',
+          color: kColorGold,
+        );
+        break;
+      case DiplomacyAction.declareWar:
+        nation.diplomacy[targetId]!.atWar = true;
+        target.diplomacy[nationId]!.atWar = true;
+        nation.diplomacy[targetId]!.isAllied = false;
+        target.diplomacy[nationId]!.isAllied = false;
+        addEvent(
+          '⚔️ ${nation.name} declared war on ${target.name}!',
+          color: kColorAccent,
+        );
+        break;
+      case DiplomacyAction.makePeace:
+        nation.diplomacy[targetId]!.atWar = false;
+        target.diplomacy[nationId]!.atWar = false;
+        addEvent(
+          '🕊️ ${nation.name} and ${target.name} made peace!',
+          color: kColorSuccess,
+        );
+        break;
+      case DiplomacyAction.embargo:
+        addEvent(
+          '📦 ${nation.name} imposed an embargo on ${target.name}!',
+          color: kColorMuted,
+        );
+        break;
+    }
+    notifyListeners();
+    return true;
+  }
+
+  bool advanceAge(String nationId) {
+    final nation = nations[nationId];
+    if (nation == null) return false;
+    if (nation.currentAge == Age.future) return false;
+
+    final ages = Age.values;
+    final nextAge = ages[ages.indexOf(nation.currentAge) + 1];
+
+    // Age advance costs
+    final ageCosts = <Age, Map<String, double>>{
+      Age.classical: {'gold': 500, 'stone': 100, 'food': 200},
+      Age.medieval: {'gold': 800, 'stone': 200, 'iron': 50},
+      Age.renaissance: {'gold': 1200, 'iron': 100, 'stone': 300},
+      Age.industrial: {'gold': 2000, 'iron': 300, 'oil': 50},
+      Age.modern: {'gold': 3500, 'iron': 500, 'oil': 200},
+      Age.information: {'gold': 6000, 'iron': 800, 'oil': 400},
+      Age.future: {'gold': 12000, 'iron': 2000, 'oil': 1000},
+    };
+
+    final cost = ageCosts[nextAge] ?? {};
+    if (!nation.resources.canAfford(cost)) {
+      addEvent(
+        '❌ Insufficient resources to advance to ${nextAge.label}!',
+        color: kColorAccent,
+      );
+      return false;
+    }
+
+    nation.resources.spend(cost);
+    nation.currentAge = nextAge;
+    addEvent(
+      '🌅 ${nation.name} entered the ${nextAge.label}!',
+      color: kColorGold,
+    );
+    notifyListeners();
+    return true;
+  }
+
+  // ── Victory checks ────────────────────────────────────────
+  void _checkVictoryConditions() {
+    final alive = nations.values.where((n) => n.isAlive).toList();
+
+    // Military victory
+    if (alive.length == 1) {
+      _triggerVictory(VictoryType.military, alive.first.id);
+      return;
+    }
+
+    // Check for player-specific defeats/wins
+    for (final nation in nations.values) {
+      if (!nation.isAlive) continue;
+
+      // Territorial victory (75% of tiles)
+      final totalTiles = kMapW * kMapH;
+      if (nation.ownedTiles.length >= totalTiles * kTerritoryVictoryPct / 100) {
+        _triggerVictory(VictoryType.territorial, nation.id);
+        return;
+      }
+
+      // Technological victory
+      if (nation.hasCompletedTech('space_colonization') &&
+          nation.hasBuilding('space_center', buildings)) {
+        _triggerVictory(VictoryType.technological, nation.id);
+        return;
+      }
+
+      // Economic victory
+      final topEconomy = alive.map((n) => n.economyScore).reduce(math.max);
+      if (nation.economyScore == topEconomy && alive.length > 1) {
+        nation.economicVictoryTicks++;
+        if (nation.economicVictoryTicks >= kEcoVictoryTicks) {
+          _triggerVictory(VictoryType.economic, nation.id);
+          return;
+        }
+      } else {
+        nation.economicVictoryTicks = 0;
+      }
+
+      // Diplomatic victory (highest influence with 3+ alliances)
+      final allies = nation.diplomacy.values.where((d) => d.isAllied).length;
+      if (allies >= 3) {
+        final topInfluence = alive
+            .map((n) => n.influenceScore)
+            .reduce(math.max);
+        if (nation.influenceScore == topInfluence && tick >= 500) {
+          _triggerVictory(VictoryType.diplomatic, nation.id);
+          return;
+        }
+      }
+    }
+  }
+
+  void _triggerVictory(VictoryType type, String winnerId) {
+    victoryType = type;
+    winnerNationId = winnerId;
+    phase = GamePhase.ended;
+    final winner = nations[winnerId];
+    const labels = {
+      VictoryType.military: 'Military Conquest',
+      VictoryType.economic: 'Economic Dominance',
+      VictoryType.territorial: 'Territorial Control',
+      VictoryType.technological: 'Technological Ascension',
+      VictoryType.diplomatic: 'Global Diplomacy',
+    };
+    addEvent(
+      '🏆 ${winner?.name} achieved VICTORY: ${labels[type]}!',
+      color: kColorGold,
+    );
+    notifyListeners();
+  }
+
+  // ── Selection helpers ─────────────────────────────────────
+  void selectTile(int x, int y) {
+    if (!map.isValid(x, y)) return;
+    selX = x;
+    selY = y;
+    moveHighlights.clear();
+    attackHighlights.clear();
+
+    final tile = map.at(x, y);
+
+    // Select unit on tile
+    final playerUnits = tile.unitIds
+        .where((uid) => units[uid]?.nationId == playerNationId)
+        .toList();
+    if (playerUnits.isNotEmpty) {
+      selUnitId = playerUnits.first;
+      selBuildingId = null;
+      _computeUnitHighlights(units[selUnitId!]!);
+    } else {
+      selUnitId = null;
+    }
+
+    // Select building
+    if (tile.buildingId != null &&
+        buildings[tile.buildingId!]?.nationId == playerNationId) {
+      selBuildingId = tile.buildingId;
+    } else {
+      selBuildingId = null;
+    }
+
+    pendingBuildDefId = null;
+    notifyListeners();
+  }
+
+  void _computeUnitHighlights(GameUnit unit) {
+    if (unit.hasMoved) return;
+    for (int dy = -unit.def.speed; dy <= unit.def.speed; dy++) {
+      for (int dx = -unit.def.speed; dx <= unit.def.speed; dx++) {
+        final dist = dx.abs() + dy.abs();
+        if (dist == 0 || dist > unit.def.speed) continue;
+        final nx = unit.x + dx, ny = unit.y + dy;
+        if (!map.isValid(nx, ny)) continue;
+        final t = map.at(nx, ny);
+        if (t.terrain == TerrainType.water &&
+            unit.defId != 'destroyer' &&
+            unit.defId != 'submarine')
+          continue;
+        final hasEnemy = t.unitIds.any(
+          (uid) => units[uid]?.nationId != unit.nationId,
+        );
+        if (!hasEnemy) moveHighlights.add([nx, ny]);
+      }
+    }
+    if (!unit.hasAttacked && unit.def.isMilitary) {
+      for (int dy = -unit.def.range; dy <= unit.def.range; dy++) {
+        for (int dx = -unit.def.range; dx <= unit.def.range; dx++) {
+          final dist = dx.abs() + dy.abs();
+          if (dist == 0 || dist > unit.def.range) continue;
+          final nx = unit.x + dx, ny = unit.y + dy;
+          if (!map.isValid(nx, ny)) continue;
+          final t = map.at(nx, ny);
+          final hasEnemy =
+              t.unitIds.any((uid) => units[uid]?.nationId != unit.nationId) ||
+              (t.buildingId != null &&
+                  buildings[t.buildingId!]?.nationId != unit.nationId);
+          if (hasEnemy) attackHighlights.add([nx, ny]);
+        }
+      }
+    }
+  }
+
+  void clearSelection() {
+    selX = selY = null;
+    selUnitId = selBuildingId = null;
+    pendingBuildDefId = null;
+    moveHighlights.clear();
+    attackHighlights.clear();
+    notifyListeners();
+  }
+
+  void handleTileAction(int x, int y) {
+    // Build mode
+    if (pendingBuildDefId != null) {
+      buildBuilding(playerNationId!, pendingBuildDefId!, x, y);
+      clearSelection();
+      return;
+    }
+
+    // Unit action
+    if (selUnitId != null) {
+      final unit = units[selUnitId!];
+      if (unit == null) {
+        clearSelection();
+        return;
+      }
+
+      final isMoveTarget = moveHighlights.any((h) => h[0] == x && h[1] == y);
+      final isAttackTarget = attackHighlights.any(
+        (h) => h[0] == x && h[1] == y,
+      );
+
+      if (isAttackTarget) {
+        attackTarget(selUnitId!, x, y);
+        clearSelection();
+      } else if (isMoveTarget) {
+        moveUnit(selUnitId!, x, y);
+        selectTile(x, y); // reselect
+      } else {
+        selectTile(x, y);
+      }
+    } else {
+      selectTile(x, y);
+    }
+  }
+
+  // ── Events & Chat ─────────────────────────────────────────
+  void addEvent(String msg, {Color color = kColorText}) {
+    events.insert(0, GameEvent(msg, color: color));
+    if (events.length > 50) events.removeLast();
+  }
+
+  /// Public wrapper so external widgets can trigger a rebuild.
+  void rebuild() => notifyListeners();
+
+  void addChatMessage(String sender, String msg) {
+    chatMessages.add({
+      'sender': sender,
+      'msg': msg,
+      'time': DateTime.now().toIso8601String(),
+    });
+    if (chatMessages.length > 100) chatMessages.removeAt(0);
+  }
+
+  // ── Serialization ─────────────────────────────────────────
+  Map<String, dynamic> toJson() => {
+    'gameId': gameId,
+    'tick': tick,
+    'map': {
+      'tiles': map.tiles.expand((row) => row).map((t) => t.toJson()).toList(),
+    },
+    'nations': nations.map((k, v) => MapEntry(k, v.toJson())),
+    'buildings': buildings.map((k, v) => MapEntry(k, v.toJson())),
+    'units': units.map((k, v) => MapEntry(k, v.toJson())),
+    'phase': phase.name,
+    'playerNationId': playerNationId,
+    'victoryType': victoryType?.name,
+    'winnerNationId': winnerNationId,
+  };
+
+  void loadFromJson(Map<String, dynamic> j) {
+    gameId = j['gameId'] ?? gameId;
+    tick = j['tick'] ?? tick;
+
+    if (j['map'] != null) {
+      final tileList = (j['map']['tiles'] as List)
+          .map((t) => MapTile.fromJson(t))
+          .toList();
+      for (final tile in tileList) {
+        if (map.isValid(tile.x, tile.y)) {
+          map.tiles[tile.y][tile.x] = tile;
+        }
+      }
+    }
+
+    if (j['nations'] != null) {
+      nations = (j['nations'] as Map).map(
+        (k, v) => MapEntry(k as String, Nation.fromJson(v)),
+      );
+    }
+    if (j['buildings'] != null) {
+      buildings = (j['buildings'] as Map).map(
+        (k, v) => MapEntry(k as String, Building.fromJson(v)),
+      );
+    }
+    if (j['units'] != null) {
+      units = (j['units'] as Map).map(
+        (k, v) => MapEntry(k as String, GameUnit.fromJson(v)),
+      );
+    }
+
+    phase = GamePhase.values.firstWhere(
+      (p) => p.name == j['phase'],
+      orElse: () => phase,
+    );
+    playerNationId = j['playerNationId'];
+    if (j['victoryType'] != null) {
+      victoryType = VictoryType.values.firstWhere(
+        (v) => v.name == j['victoryType'],
+      );
+    }
+    winnerNationId = j['winnerNationId'];
+    notifyListeners();
+  }
+
+  // Getters
+  Nation? get playerNation =>
+      playerNationId != null ? nations[playerNationId!] : null;
+  List<Nation> get aliveNations =>
+      nations.values.where((n) => n.isAlive).toList();
+  List<Building> buildingsFor(String nationId) => [
+    for (final id in nations[nationId]?.buildingIds ?? [])
+      if (buildings[id] != null) buildings[id]!,
+  ];
+
+  List<GameUnit> unitsFor(String nationId) => [
+    for (final id in nations[nationId]?.unitIds ?? [])
+      if (units[id] != null) units[id]!,
+  ];
+
+  List<GameUnit> unitsAt(int x, int y) => map
+      .at(x, y)
+      .unitIds
+      .map((id) => units[id])
+      .whereType<GameUnit>()
+      .toList();
+
+  Building? buildingAt(int x, int y) {
+    final bid = map.at(x, y).buildingId;
+    return bid != null ? buildings[bid] : null;
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SECTION 11 ▸ AI ENGINE
+// ══════════════════════════════════════════════════════════════════════════════
+
+class AIEngine {
+  final GameState state;
+  final Nation nation;
+  final math.Random _rng;
+
+  AIEngine(this.state, this.nation) : _rng = math.Random(nation.id.hashCode);
+
+  void processTick() {
+    if (!nation.isAlive) return;
+    nation.aiTick++;
+    _tryResearch();
+    _tryAdvanceAge();
+    _tryBuild();
+    _tryTrain();
+    _tryExpand();
+    _tryCombat();
+  }
+
+  void _tryResearch() {
+    if (nation.activeResearchId != null) return;
+    final available = kTechDefs.entries
+        .where(
+          (e) =>
+              e.value.era.index2 <= nation.currentAge.index2 &&
+              !nation.hasCompletedTech(e.key) &&
+              e.value.prerequisites.every((p) => nation.hasCompletedTech(p)),
+        )
+        .toList();
+    if (available.isEmpty) return;
+    available.shuffle(_rng);
+    state.startResearch(nation.id, available.first.key);
+  }
+
+  void _tryAdvanceAge() {
+    if (nation.aiTick % 20 != 0) return;
+    if (nation.resources.gold > 2000) state.advanceAge(nation.id);
+  }
+
+  void _tryBuild() {
+    if (nation.aiTick % 3 != 0) return;
+    final priority = _getBuildPriority();
+    for (final defId in priority) {
+      final def = kBuildingDefs[defId];
+      if (def == null) continue;
+      if (def.requiredAge.index2 > nation.currentAge.index2) continue;
+      if (!nation.resources.canAfford(def.cost)) continue;
+      final count = nation.buildingIds
+          .where((bid) => state.buildings[bid]?.defId == defId)
+          .length;
+      if (count >= _maxBuildings(defId)) continue;
+      final tile = _findBuildTile();
+      if (tile == null) continue;
+      state.buildBuilding(nation.id, defId, tile[0], tile[1]);
+      return;
+    }
+  }
+
+  List<String> _getBuildPriority() {
+    switch (nation.aiStrategy) {
+      case 'military':
+        return [
+          'barracks',
+          'archery_range',
+          'stable',
+          'siege_workshop',
+          'military_academy',
+          'tank_factory',
+          'farm',
+          'mine',
+          'market',
+          'walls',
+        ];
+      case 'economic':
+        return [
+          'farm',
+          'windmill',
+          'lumber_mill',
+          'market',
+          'mine',
+          'bank',
+          'oil_rig',
+          'harbor',
+          'research_center',
+          'barracks',
+        ];
+      case 'technology':
+        return [
+          'research_center',
+          'university',
+          'innovation_lab',
+          'farm',
+          'mine',
+          'market',
+          'barracks',
+        ];
+      default:
+        return [
+          'farm',
+          'barracks',
+          'lumber_mill',
+          'mine',
+          'archery_range',
+          'market',
+          'research_center',
+          'stable',
+          'walls',
+        ];
+    }
+  }
+
+  int _maxBuildings(String defId) {
+    const caps = {
+      'farm': 5,
+      'windmill': 3,
+      'mine': 3,
+      'lumber_mill': 3,
+      'market': 2,
+      'bank': 1,
+      'oil_rig': 2,
+      'barracks': 2,
+      'archery_range': 1,
+      'stable': 1,
+      'siege_workshop': 1,
+      'military_academy': 1,
+      'tank_factory': 1,
+      'air_force_base': 1,
+      'naval_base': 1,
+      'walls': 8,
+      'watchtower': 4,
+      'fortress': 1,
+      'cannon_tower': 2,
+      'research_center': 2,
+      'university': 1,
+      'innovation_lab': 1,
+      'harbor': 1,
+    };
+    return caps[defId] ?? 1;
+  }
+
+  List<int>? _findBuildTile() {
+    final owned = nation.ownedTiles.toList()..shuffle(_rng);
+    for (final key in owned) {
+      final p = key.split(',');
+      final x = int.parse(p[0]), y = int.parse(p[1]);
+      if (!state.map.isValid(x, y)) continue;
+      final t = state.map.at(x, y);
+      if (t.buildingId == null &&
+          t.terrain != TerrainType.water &&
+          t.terrain != TerrainType.mountain)
+        return [x, y];
+    }
+    return null;
+  }
+
+  void _tryTrain() {
+    if (nation.aiTick % 4 != 0) return;
+    for (final bid in nation.buildingIds) {
+      final b = state.buildings[bid];
+      if (b == null || b.isConstructing || b.trainingUnitDefId != null)
+        continue;
+      final opts = b.def.unlocks.where((uid) {
+        final d = kUnitDefs[uid];
+        return d != null &&
+            d.requiredAge.index2 <= nation.currentAge.index2 &&
+            nation.resources.canAfford(d.cost);
+      }).toList();
+      if (opts.isNotEmpty) {
+        state.trainUnit(nation.id, bid, opts.last);
+        return;
+      }
+    }
+  }
+
+  void _tryExpand() {
+    if (nation.aiTick % 2 != 0) return;
+    for (final uid in nation.unitIds.toList()) {
+      final unit = state.units[uid];
+      if (unit == null || unit.hasMoved || unit.def.isMilitary) continue;
+      final targets = state.map
+          .inRange(unit.x, unit.y, unit.def.speed)
+          .where(
+            (t) =>
+                t.ownerNationId == null &&
+                t.terrain != TerrainType.water &&
+                t.unitIds.isEmpty,
+          )
+          .toList();
+      if (targets.isNotEmpty) {
+        targets.shuffle(_rng);
+        state.moveUnit(uid, targets.first.x, targets.first.y);
+      }
+    }
+  }
+
+  void _tryCombat() {
+    if (nation.aiTick % 2 != 0) return;
+    for (final uid in nation.unitIds.toList()) {
+      final unit = state.units[uid];
+      if (unit == null || !unit.def.isMilitary) continue;
+      if (!unit.hasAttacked) {
+        for (final tile in state.map.inRange(unit.x, unit.y, unit.def.range)) {
+          final hasEnemy =
+              tile.unitIds.any(
+                (id) => state.units[id]?.nationId != nation.id,
+              ) ||
+              (tile.buildingId != null &&
+                  state.buildings[tile.buildingId!]?.nationId != nation.id);
+          if (hasEnemy) {
+            state.attackTarget(uid, tile.x, tile.y);
+            break;
+          }
+        }
+      }
+      if (!unit.hasMoved) {
+        final enemies = state.nations.values
+            .where(
+              (n) =>
+                  n.isAlive &&
+                  n.id != nation.id &&
+                  nation.diplomacy[n.id]?.isAllied != true,
+            )
+            .toList();
+        if (enemies.isEmpty) continue;
+        enemies.sort((a, b) {
+          final da = (a.capitalX - unit.x).abs() + (a.capitalY - unit.y).abs();
+          final db = (b.capitalX - unit.x).abs() + (b.capitalY - unit.y).abs();
+          return da.compareTo(db);
+        });
+        final target = enemies.first;
+        final dx = (target.capitalX - unit.x).sign,
+            dy = (target.capitalY - unit.y).sign;
+        final nx = unit.x + dx, ny = unit.y + dy;
+        if (state.map.isValid(nx, ny)) {
+          final t = state.map.at(nx, ny);
+          if (!t.unitIds.any((id) => state.units[id]?.nationId != nation.id))
+            state.moveUnit(uid, nx, ny);
+        }
+      }
+    }
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SECTION 12 ▸ MULTIPLAYER SERVICE
+// ══════════════════════════════════════════════════════════════════════════════
+
+class MultiplayerService {
+  static final MultiplayerService instance = MultiplayerService._();
+  MultiplayerService._();
+
+  WebSocketChannel? _channel;
+  bool _connected = false;
+  String _serverUrl = kDefaultWsUrl;
+  String? _roomCode;
+
+  final StreamController<Map<String, dynamic>> _events =
+      StreamController.broadcast();
+  Stream<Map<String, dynamic>> get events => _events.stream;
+  bool get connected => _connected;
+  String? get roomCode => _roomCode;
+  String get serverUrl => _serverUrl;
+  set serverUrl(String v) => _serverUrl = v;
+
+  Future<bool> connect() async {
+    try {
+      _channel = WebSocketChannel.connect(Uri.parse(_serverUrl));
+      _channel!.stream.listen(
+        (data) {
+          try {
+            _events.add(jsonDecode(data as String) as Map<String, dynamic>);
+          } catch (_) {}
+        },
+        onDone: () {
+          _connected = false;
+          _events.add({'type': 'disconnected'});
+        },
+        onError: (_) {
+          _connected = false;
+          _events.add({'type': 'error'});
+        },
+      );
+      _connected = true;
+      return true;
+    } catch (_) {
+      _connected = false;
+      return false;
+    }
+  }
+
+  void disconnect() {
+    _channel?.sink.close();
+    _connected = false;
+    _roomCode = null;
+  }
+
+  void _send(String type, Map<String, dynamic> data) {
+    if (!_connected) return;
+    try {
+      _channel!.sink.add(jsonEncode({'type': type, 'data': data}));
+    } catch (_) {}
+  }
+
+  void createRoom({
+    required String roomName,
+    required String playerName,
+    required String nationName,
+    required int nationColorValue,
+    int maxPlayers = 8,
+    String gameMode = 'ffa',
+  }) {
+    _send('create_room', {
+      'roomName': roomName,
+      'playerName': playerName,
+      'nationName': nationName,
+      'nationColor': nationColorValue,
+      'maxPlayers': maxPlayers,
+      'gameMode': gameMode,
+    });
+  }
+
+  void joinRoom({
+    required String code,
+    required String playerName,
+    required String nationName,
+    required int nationColorValue,
+  }) {
+    _roomCode = code;
+    _send('join_room', {
+      'code': code,
+      'playerName': playerName,
+      'nationName': nationName,
+      'nationColor': nationColorValue,
+    });
+  }
+
+  void setReady(bool ready) => _send('ready', {'ready': ready});
+  void startGame() => _send('start_game', {});
+  void leaveRoom() {
+    _send('leave_room', {});
+    _roomCode = null;
+  }
+
+  void sendAction(ActionType type, Map<String, dynamic> payload) =>
+      _send('action', {'actionType': type.name, ...payload});
+  void sendBuild(String defId, int x, int y) =>
+      sendAction(ActionType.build, {'buildingDefId': defId, 'x': x, 'y': y});
+  void sendMove(String unitId, int tx, int ty) =>
+      sendAction(ActionType.moveUnit, {'unitId': unitId, 'toX': tx, 'toY': ty});
+  void sendAttack(String unitId, int tx, int ty) => sendAction(
+    ActionType.attack,
+    {'unitId': unitId, 'targetX': tx, 'targetY': ty},
+  );
+  void sendResearch(String techId) =>
+      sendAction(ActionType.research, {'techId': techId});
+  void sendTrain(String bid, String uid) =>
+      sendAction(ActionType.trainUnit, {'buildingId': bid, 'unitDefId': uid});
+  void sendDiplomacy(String targetId, DiplomacyAction a) => sendAction(
+    ActionType.diplomacy,
+    {'targetNationId': targetId, 'action': a.name},
+  );
+  void syncState(Map<String, dynamic> s) => _send('sync_state', s);
+  void sendChat(String msg) => _send('chat', {'message': msg});
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SECTION 13 ▸ MAIN APP
+// ══════════════════════════════════════════════════════════════════════════════
+
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  SystemChrome.setPreferredOrientations([
+  await SystemChrome.setPreferredOrientations([
     DeviceOrientation.landscapeLeft,
     DeviceOrientation.landscapeRight,
   ]);
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  runApp(GlobalDominionApp());
+}
 
-  final apiService = ApiService(
-    baseUrl: 'http://localhost:5000',
-  ); // Assuming local backend
+class GlobalDominionApp extends StatelessWidget {
+  final GameState _game = GameState();
+  GlobalDominionApp({super.key});
 
-  runApp(
-    ChangeNotifierProvider(
-      create: (_) => GameManager(apiService: apiService),
-      child: const GlobalDominion(),
+  @override
+  Widget build(BuildContext ctx) => ListenableBuilder(
+    listenable: _game,
+    builder: (c, _) => MaterialApp(
+      title: 'Global Dominion: Rise of Nations',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: kColorBg,
+        colorScheme: const ColorScheme.dark(
+          primary: kColorGold,
+          secondary: kColorGoldDark,
+          surface: kColorPanel,
+          error: kColorAccent,
+        ),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: kColorPanel,
+          foregroundColor: kColorGold,
+          elevation: 0,
+        ),
+        textTheme: const TextTheme(
+          bodyMedium: TextStyle(color: kColorText),
+          bodySmall: TextStyle(color: kColorMuted),
+          titleLarge: TextStyle(
+            color: kColorGold,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1.5,
+          ),
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: kColorGoldDark,
+            foregroundColor: kColorText,
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(4)),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+            textStyle: const TextStyle(
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.2,
+            ),
+          ),
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: kColorBorder,
+          labelStyle: const TextStyle(color: kColorMuted),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(4),
+            borderSide: const BorderSide(color: kColorGoldDark),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(4),
+            borderSide: const BorderSide(color: kColorBorder),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(4),
+            borderSide: const BorderSide(color: kColorGold),
+          ),
+        ),
+      ),
+      home: SplashScreen(game: _game),
     ),
   );
 }
 
-class GameManager extends ChangeNotifier {
-  final ApiService apiService;
-  Map<String, dynamic>? _state;
-  bool _isLoading = false;
-  bool _isAdmin = false;
-  String _currentWeather = 'Clear';
-  final List<AdminItemGrant> _itemGrants = [];
+// ══════════════════════════════════════════════════════════════════════════════
+// SECTION 14 ▸ SPLASH SCREEN
+// ══════════════════════════════════════════════════════════════════════════════
 
-  // Hardcoded admin commander account — grants access to the Admin Panel.
-  static const String _adminUsername = 'Hajinwoo';
-  static const String _adminPassword = 'BuunjaxPuccaV2';
-
-  GameManager({required this.apiService});
-
-  Map<String, dynamic>? get state => _state;
-  bool get isLoading => _isLoading;
-  bool get isAdmin => _isAdmin;
-  String get currentWeather => _currentWeather;
-  List<AdminItemGrant> get itemGrants => List.unmodifiable(_itemGrants);
-
-  /// Grants [quantity] of [item] to [username]. Admin-only action.
-  void adminGiveItem(String username, String item, int quantity) {
-    if (!_isAdmin) return;
-    _itemGrants.insert(
-      0,
-      AdminItemGrant(
-        username: username,
-        item: item,
-        quantity: quantity,
-        timestamp: DateTime.now(),
-      ),
-    );
-    notifyListeners();
-  }
-
-  /// Changes the active world weather event. Admin-only action.
-  void adminSetWeather(String weather) {
-    if (!_isAdmin) return;
-    _currentWeather = weather;
-    notifyListeners();
-  }
-
-  Future<void> refreshState() async {
-    _isLoading = true;
-    notifyListeners();
-    try {
-      _state = await apiService.getState();
-    } catch (e) {
-      debugPrint('Error refreshing state: $e');
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
-  }
-
-  Future<bool> login(String identifier, String password) async {
-    _isLoading = true;
-    notifyListeners();
-    try {
-      // Admin commander shortcut — bypasses the regular backend login.
-      if (identifier.trim() == _adminUsername && password == _adminPassword) {
-        _isAdmin = true;
-        _state = {
-          'profile': {
-            'username': _adminUsername,
-            'country': 'GLOBAL COMMAND',
-            'gold': 999999,
-            'supplies': 999999,
-            'crystals': 999999,
-            'power_level': 9999,
-          },
-        };
-        return true;
-      }
-
-      final success = await apiService.login(identifier, password);
-      if (success) {
-        await refreshState();
-      }
-      return success;
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
-  }
-
-  Future<bool> register(
-    String username,
-    String email,
-    String password,
-    String confirmPassword,
-  ) async {
-    _isLoading = true;
-    notifyListeners();
-    try {
-      final success = await apiService.register(
-        username,
-        email,
-        password,
-        confirmPassword,
-      );
-      return success;
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
-  }
-
-  Future<Map<String, dynamic>> attack(int territoryId, {String? spell}) async {
-    final result = await apiService.attack(territoryId, spell: spell);
-    await refreshState();
-    return result;
-  }
-}
-
-/// A record of an item grant issued by the admin.
-class AdminItemGrant {
-  final String username;
-  final String item;
-  final int quantity;
-  final DateTime timestamp;
-
-  AdminItemGrant({
-    required this.username,
-    required this.item,
-    required this.quantity,
-    required this.timestamp,
-  });
-}
-
-class GlobalDominion extends StatelessWidget {
-  const GlobalDominion({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Global Dominion',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: Colors.black,
-        primaryColor: const Color(0xFFFFD700),
-        colorScheme: const ColorScheme.dark(
-          primary: Color(0xFFFFD700),
-          secondary: Color(0xFF4FC3F7),
-          surface: Color(0xFF1A1208),
-        ),
-        textTheme: const TextTheme(
-          displayLarge: TextStyle(
-            color: Color(0xFFFFD700),
-            fontWeight: FontWeight.bold,
-            letterSpacing: 2,
-          ),
-          bodyLarge: TextStyle(color: Colors.white70),
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: const Color(0xFF2A1E12).withValues(alpha: 0.7),
-          labelStyle: const TextStyle(color: Color(0xFFAA8820)),
-          enabledBorder: const OutlineInputBorder(
-            borderSide: BorderSide(color: Color(0xFF5C4008), width: 1),
-          ),
-          focusedBorder: const OutlineInputBorder(
-            borderSide: BorderSide(color: Color(0xFFFFD700), width: 2),
-          ),
-        ),
-      ),
-      home: const SplashScreen(),
-      routes: {
-        '/login': (context) => const LoginScreen(),
-        '/register': (context) => const RegisterScreen(),
-        '/country_selection': (context) => const CountrySelectionScreen(),
-        '/home': (context) => const HomeScreen(),
-        '/game': (context) => const GameScreen(),
-        '/settings': (context) => const SettingsScreen(),
-        '/rankings': (context) => const RankingsScreen(),
-        '/admin': (context) => const AdminPanelScreen(),
-      },
-    );
-  }
-}
-
-class RankingsScreen extends StatefulWidget {
-  const RankingsScreen({super.key});
-
-  @override
-  State<RankingsScreen> createState() => _RankingsScreenState();
-}
-
-class _RankingsScreenState extends State<RankingsScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Stack(
-        children: [
-          // Background
-          Positioned.fill(
-            child: Opacity(
-              opacity: 0.5,
-              child: Image.asset(
-                'assets/images/global_dominion.png',
-                fit: BoxFit.cover,
-              ),
-            ),
-          ),
-          // Content
-          Column(
-            children: [
-              // Header
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 20),
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Colors.transparent,
-                      Colors.black87,
-                      Colors.transparent,
-                    ],
-                  ),
-                ),
-                child: Column(
-                  children: [
-                    const Text(
-                      'RANKING SYSTEM',
-                      style: TextStyle(
-                        color: Color(0xFFF4E19C),
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 2,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Image.asset('assets/images/world_map.png', width: 150),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 40,
-                    vertical: 20,
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Main Table Area
-                      Expanded(
-                        flex: 3,
-                        child: GameCard(
-                          padding: EdgeInsets.zero,
-                          child: Column(
-                            children: [
-                              TabBar(
-                                controller: _tabController,
-                                indicatorColor: const Color(0xFFFFD700),
-                                labelColor: const Color(0xFFFFD700),
-                                unselectedLabelColor: Colors.white54,
-                                tabs: const [
-                                  Tab(text: 'GLOBAL RANKINGS'),
-                                  Tab(text: 'COUNTRY RANKINGS'),
-                                ],
-                              ),
-                              const Padding(
-                                padding: EdgeInsets.all(16.0),
-                                child: Row(
-                                  children: [
-                                    _RankSubTab(
-                                      label: 'Total Power',
-                                      isActive: true,
-                                    ),
-                                    _RankSubTab(label: 'Territory'),
-                                    _RankSubTab(label: 'Wins'),
-                                    _RankSubTab(label: 'Alliance Score'),
-                                  ],
-                                ),
-                              ),
-                              const _RankTableHeader(),
-                              Expanded(
-                                child: ListView.builder(
-                                  itemCount: 10,
-                                  itemBuilder: (context, index) =>
-                                      _RankTableRow(index: index),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 30),
-                      // Sidebar
-                      Expanded(
-                        flex: 1,
-                        child: Column(
-                          children: [
-                            _SidebarSection(
-                              title: 'YOUR RANK',
-                              child: _ProfileRankCard(
-                                label: 'Rank: 42',
-                                sublabel: '273.23M',
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-                            _SidebarSection(
-                              title: 'Strongest General',
-                              child: _MiniProfileCard(
-                                name: 'GeneralDominus',
-                                stat: 'Power: 206,557',
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-                            _SidebarSection(
-                              title: 'Most Conquered Land',
-                              child: _MiniProfileCard(
-                                name: 'Kusnia',
-                                stat: 'Land Area: 230,634',
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 20),
-                child: TacticalButton(
-                  label: 'CLOSE',
-                  width: 200,
-                  onPressed: () => Navigator.pop(context),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _RankSubTab extends StatelessWidget {
-  final String label;
-  final bool isActive;
-
-  const _RankSubTab({required this.label, this.isActive = false});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(right: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: isActive ? const Color(0xFF5C4008) : Colors.transparent,
-        border: Border.all(color: const Color(0xFF5C4008)),
-        borderRadius: BorderRadius.circular(2),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: isActive ? const Color(0xFFFFD700) : Colors.white54,
-          fontSize: 12,
-        ),
-      ),
-    );
-  }
-}
-
-class _RankTableHeader extends StatelessWidget {
-  const _RankTableHeader();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      color: Colors.black45,
-      child: const Row(
-        children: [
-          SizedBox(
-            width: 50,
-            child: Text(
-              'Rank',
-              style: TextStyle(color: Colors.white54, fontSize: 12),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              'Player',
-              style: TextStyle(color: Colors.white54, fontSize: 12),
-            ),
-          ),
-          SizedBox(
-            width: 150,
-            child: Text(
-              'Territory Controlled',
-              style: TextStyle(color: Colors.white54, fontSize: 12),
-            ),
-          ),
-          SizedBox(
-            width: 100,
-            child: Text(
-              'Wins',
-              style: TextStyle(color: Colors.white54, fontSize: 12),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _RankTableRow extends StatelessWidget {
-  final int index;
-  const _RankTableRow({required this.index});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = [
-      const Color(0xFFFFD700),
-      const Color(0xFFC0C0C0),
-      const Color(0xFFCD7F32),
-    ];
-    final isTop3 = index < 3;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
-        ),
-        color: index % 2 == 0
-            ? Colors.transparent
-            : Colors.white.withValues(alpha: 0.02),
-      ),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 50,
-            child: isTop3
-                ? Icon(Icons.workspace_premium, color: colors[index], size: 20)
-                : Text(
-                    '${index + 1}',
-                    style: const TextStyle(color: Colors.white70),
-                  ),
-          ),
-          Expanded(
-            child: Row(
-              children: [
-                const CircleAvatar(
-                  radius: 12,
-                  backgroundColor: Colors.white10,
-                  child: Icon(Icons.person, size: 14),
-                ),
-                const SizedBox(width: 10),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'GeneralDominus',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      'Level ${42 - index}',
-                      style: const TextStyle(
-                        color: Colors.white54,
-                        fontSize: 10,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(
-            width: 150,
-            child: Text('17,366', style: TextStyle(color: Colors.white70)),
-          ),
-          const SizedBox(
-            width: 100,
-            child: Text('189,296', style: TextStyle(color: Color(0xFFFFD700))),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SidebarSection extends StatelessWidget {
-  final String title;
-  final Widget child;
-
-  const _SidebarSection({required this.title, required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title.toUpperCase(),
-          style: const TextStyle(
-            color: Color(0xFFAA8820),
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 8),
-        child,
-      ],
-    );
-  }
-}
-
-class _ProfileRankCard extends StatelessWidget {
-  final String label;
-  final String sublabel;
-
-  const _ProfileRankCard({required this.label, required this.sublabel});
-
-  @override
-  Widget build(BuildContext context) {
-    return GameCard(
-      padding: const EdgeInsets.all(12),
-      child: Row(
-        children: [
-          const CircleAvatar(
-            radius: 20,
-            backgroundColor: Colors.white10,
-            child: Icon(Icons.person, size: 24),
-          ),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text(
-                sublabel,
-                style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MiniProfileCard extends StatelessWidget {
-  final String name;
-  final String stat;
-
-  const _MiniProfileCard({required this.name, required this.stat});
-
-  @override
-  Widget build(BuildContext context) {
-    return GameCard(
-      padding: const EdgeInsets.all(10),
-      child: Row(
-        children: [
-          const CircleAvatar(
-            radius: 16,
-            backgroundColor: Colors.white10,
-            child: Icon(Icons.person, size: 18),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  stat,
-                  style: const TextStyle(color: Colors.white54, fontSize: 10),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────
-// HELPER UI COMPONENTS
-// ─────────────────────────────────────────────
-
-class GameCard extends StatelessWidget {
-  final Widget child;
-  final double? width;
-  final double? height;
-  final EdgeInsetsGeometry? padding;
-
-  const GameCard({
-    super.key,
-    required this.child,
-    this.width,
-    this.height,
-    this.padding,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: width,
-      height: height,
-      padding: padding ?? const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A1208).withValues(alpha: 0.85),
-        border: Border.all(color: const Color(0xFFAA8820), width: 2),
-        borderRadius: BorderRadius.circular(4),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.5),
-            blurRadius: 20,
-            spreadRadius: 5,
-          ),
-        ],
-      ),
-      child: child,
-    );
-  }
-}
-
-class TacticalButton extends StatelessWidget {
-  final String label;
-  final VoidCallback? onPressed;
-  final Color color;
-  final double width;
-
-  const TacticalButton({
-    super.key,
-    required this.label,
-    this.onPressed,
-    this.color = const Color(0xFFFFD700),
-    this.width = double.infinity,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: width,
-      height: 50,
-      child: Stack(
-        children: [
-          // Background with clip
-          Positioned.fill(
-            child: CustomPaint(
-              painter: _TacticalButtonPainter(color: color, isPressed: false),
-            ),
-          ),
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: onPressed,
-              child: Center(
-                child: Text(
-                  label.toUpperCase(),
-                  style: const TextStyle(
-                    color: Colors.black,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 2,
-                    fontSize: 16,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TacticalButtonPainter extends CustomPainter {
-  final Color color;
-  final bool isPressed;
-
-  _TacticalButtonPainter({required this.color, required this.isPressed});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-
-    final path = Path();
-    const double notch = 12.0;
-
-    path.moveTo(notch, 0);
-    path.lineTo(size.width - notch, 0);
-    path.lineTo(size.width, size.height / 2);
-    path.lineTo(size.width - notch, size.height);
-    path.lineTo(notch, size.height);
-    path.lineTo(0, size.height / 2);
-    path.close();
-
-    canvas.drawPath(path, paint);
-
-    // Border
-    final borderPaint = Paint()
-      ..color = Colors.black.withValues(alpha: 0.3)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
-    canvas.drawPath(path, borderPaint);
-  }
-
-  @override
-  bool shouldRepaint(CustomPainter oldDelegate) => false;
-}
-
-// ─────────────────────────────────────────────
-// ORNATE FRAME PAINTER — decorative gold border for SplashScreen
-// ─────────────────────────────────────────────
-class _OrnateFramePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    const gold = Color(0xFFAA8820);
-    const brightGold = Color(0xFFD4A818);
-    const dimGold = Color(0xFF5C4008);
-
-    final w = size.width;
-    final h = size.height;
-
-    // ── Outer border ──
-    final outerPaint = Paint()
-      ..color = gold
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.5;
-    const o = 9.0;
-    canvas.drawRect(Rect.fromLTWH(o, o, w - o * 2, h - o * 2), outerPaint);
-
-    // ── Inner border ──
-    final innerPaint = Paint()
-      ..color = dimGold
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
-    const i = 17.0;
-    canvas.drawRect(Rect.fromLTWH(i, i, w - i * 2, h - i * 2), innerPaint);
-
-    // ── Corner L-brackets (bright gold, thicker) ──
-    final bracketPaint = Paint()
-      ..color = brightGold
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3.0
-      ..strokeCap = StrokeCap.square;
-
-    const cl = 44.0; // corner leg length
-
-    void drawL(double cx, double cy, double dx, double dy) {
-      canvas.drawLine(Offset(cx + dx * cl, cy), Offset(cx, cy), bracketPaint);
-      canvas.drawLine(Offset(cx, cy), Offset(cx, cy + dy * cl), bracketPaint);
-    }
-
-    drawL(o, o, 1, 1); // top-left
-    drawL(w - o, o, -1, 1); // top-right
-    drawL(o, h - o, 1, -1); // bottom-left
-    drawL(w - o, h - o, -1, -1); // bottom-right
-
-    // ── Diamond accents at mid-edge ──
-    final diamondPaint = Paint()
-      ..color = gold
-      ..style = PaintingStyle.fill;
-
-    void drawDiamond(double cx, double cy, double r) {
-      final path = Path()
-        ..moveTo(cx, cy - r)
-        ..lineTo(cx + r, cy)
-        ..lineTo(cx, cy + r)
-        ..lineTo(cx - r, cy)
-        ..close();
-      canvas.drawPath(path, diamondPaint);
-    }
-
-    drawDiamond(w / 2, o, 5.5); // top center
-    drawDiamond(w / 2, h - o, 5.5); // bottom center
-    drawDiamond(o, h / 2, 4.0); // left center
-    drawDiamond(w - o, h / 2, 4.0); // right center
-  }
-
-  @override
-  bool shouldRepaint(_OrnateFramePainter old) => false;
-}
-
-class TacticalInput extends StatelessWidget {
-  final TextEditingController controller;
-  final String label;
-  final bool obscureText;
-  final Widget? suffixIcon;
-
-  const TacticalInput({
-    super.key,
-    required this.controller,
-    required this.label,
-    this.obscureText = false,
-    this.suffixIcon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: TextField(
-        controller: controller,
-        obscureText: obscureText,
-        style: const TextStyle(color: Colors.white, fontSize: 16),
-        decoration: InputDecoration(
-          labelText: '[ $label ]',
-          suffixIcon: suffixIcon,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 20,
-            vertical: 16,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────
-// LOGIN SCREEN
-// ─────────────────────────────────────────────
-// ─────────────────────────────────────────────
-// LOGIN SCREEN — Overhauled to match Image 3
-// ─────────────────────────────────────────────
-class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
-
-  @override
-  State<LoginScreen> createState() => _LoginScreenState();
-}
-
-class _LoginScreenState extends State<LoginScreen> {
-  final _identifierController = TextEditingController();
-  final _passwordController = TextEditingController();
-  bool _obscurePassword = true;
-  bool _rememberMe = false;
-  String? _error;
-
-  void _login() async {
-    final gameManager = context.read<GameManager>();
-    final success = await gameManager.login(
-      _identifierController.text,
-      _passwordController.text,
-    );
-    if (success) {
-      if (mounted) {
-        final state = gameManager.state;
-        final hasCountry =
-            state != null &&
-            state['profile'] != null &&
-            state['profile']['country'] != null;
-        if (hasCountry) {
-          Navigator.of(context).pushReplacementNamed('/home');
-        } else {
-          Navigator.of(context).pushReplacementNamed('/country_selection');
-        }
-      }
-    } else {
-      setState(() => _error = 'Invalid credentials');
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isLoading = context.watch<GameManager>().isLoading;
-
-    return Scaffold(
-      body: Stack(
-        children: [
-          // Background
-          Positioned.fill(
-            child: Opacity(
-              opacity: 0.4,
-              child: Image.asset(
-                'assets/images/global_dominion.png',
-                fit: BoxFit.cover,
-              ),
-            ),
-          ),
-          // Frame
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                border: Border.all(color: const Color(0xFF3A2800), width: 10),
-              ),
-            ),
-          ),
-          // Center Card
-          Center(
-            child: GameCard(
-              width: 450,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Image.asset('assets/images/world_map.png', width: 120),
-                  const SizedBox(height: 30),
-                  TacticalInput(
-                    controller: _identifierController,
-                    label: 'Username / Email',
-                  ),
-                  TacticalInput(
-                    controller: _passwordController,
-                    label: 'Password',
-                    obscureText: _obscurePassword,
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility_off
-                            : Icons.visibility,
-                        color: const Color(0xFF8B6914),
-                      ),
-                      onPressed: () =>
-                          setState(() => _obscurePassword = !_obscurePassword),
-                    ),
-                  ),
-                  Row(
-                    children: [
-                      Checkbox(
-                        value: _rememberMe,
-                        onChanged: (v) =>
-                            setState(() => _rememberMe = v ?? false),
-                        activeColor: const Color(0xFFFFD700),
-                        checkColor: Colors.black,
-                      ),
-                      const Text(
-                        'Remember Me',
-                        style: TextStyle(color: Colors.white70, fontSize: 12),
-                      ),
-                      const Spacer(),
-                      TextButton(
-                        onPressed: () {},
-                        child: const Text(
-                          'Forgot Password',
-                          style: TextStyle(color: Colors.white70, fontSize: 12),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  if (_error != null)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: Text(
-                        _error!,
-                        style: const TextStyle(color: Colors.redAccent),
-                      ),
-                    ),
-                  isLoading
-                      ? const CircularProgressIndicator(
-                          color: Color(0xFFFFD700),
-                        )
-                      : TacticalButton(label: 'LOGIN', onPressed: _login),
-                  const SizedBox(height: 16),
-                  TextButton(
-                    onPressed: () =>
-                        Navigator.of(context).pushNamed('/register'),
-                    child: const Text(
-                      'NEW COMMANDER? ENLIST HERE',
-                      style: TextStyle(color: Color(0xFFFFD700), fontSize: 10),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────
-// REGISTER SCREEN
-// ─────────────────────────────────────────────
-// ─────────────────────────────────────────────
-// REGISTER SCREEN — Overhauled to match Image 2
-// ─────────────────────────────────────────────
-class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({super.key});
-
-  @override
-  State<RegisterScreen> createState() => _RegisterScreenState();
-}
-
-class _RegisterScreenState extends State<RegisterScreen> {
-  final _usernameController = TextEditingController();
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final _confirmPasswordController = TextEditingController();
-  String? _selectedCountry;
-  bool _obscurePassword = true;
-  bool _obscureConfirmPassword = true;
-  bool _acceptTerms = false;
-  String? _error;
-
-  final List<String> _countries = [
-    'USA',
-    'Japan',
-    'Russia',
-    'Philippines',
-    'Germany',
-    'China',
-    'France',
-    'UK',
-  ];
-
-  void _register() async {
-    if (_passwordController.text != _confirmPasswordController.text) {
-      setState(() => _error = 'Passwords do not match');
-      return;
-    }
-    if (!_acceptTerms) {
-      setState(() => _error = 'Please accept Terms and Conditions');
-      return;
-    }
-
-    final gameManager = context.read<GameManager>();
-    final success = await gameManager.register(
-      _usernameController.text,
-      _emailController.text,
-      _passwordController.text,
-      _confirmPasswordController.text,
-    );
-    if (success) {
-      if (_selectedCountry != null) {
-        await gameManager.apiService.setCountry(_selectedCountry!);
-      }
-      if (mounted) {
-        Navigator.of(context).pushReplacementNamed('/home');
-      }
-    } else {
-      setState(() => _error = 'Registration failed');
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isLoading = context.watch<GameManager>().isLoading;
-
-    return Scaffold(
-      body: Stack(
-        children: [
-          // Background
-          Positioned.fill(
-            child: Opacity(
-              opacity: 0.4,
-              child: Image.asset(
-                'assets/images/global_dominion.png',
-                fit: BoxFit.cover,
-              ),
-            ),
-          ),
-          // Frame
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                border: Border.all(color: const Color(0xFF3A2800), width: 10),
-              ),
-            ),
-          ),
-          // Center Card
-          Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(vertical: 40),
-              child: GameCard(
-                width: 480,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Close button
-                    Align(
-                      alignment: Alignment.topRight,
-                      child: GestureDetector(
-                        onTap: () => Navigator.of(context).pop(),
-                        child: Container(
-                          width: 28,
-                          height: 28,
-                          decoration: BoxDecoration(
-                            color: Colors.black26,
-                            border: Border.all(
-                              color: const Color(0xFF5C4008),
-                              width: 1,
-                            ),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: const Icon(
-                            Icons.close,
-                            color: Colors.white54,
-                            size: 16,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Image.asset('assets/images/world_map.png', width: 100),
-                    const SizedBox(height: 20),
-                    TacticalInput(
-                      controller: _usernameController,
-                      label: 'Username',
-                    ),
-                    TacticalInput(controller: _emailController, label: 'Email'),
-                    TacticalInput(
-                      controller: _passwordController,
-                      label: 'Password',
-                      obscureText: _obscurePassword,
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscurePassword
-                              ? Icons.visibility_off
-                              : Icons.visibility,
-                          color: const Color(0xFF8B6914),
-                        ),
-                        onPressed: () => setState(
-                          () => _obscurePassword = !_obscurePassword,
-                        ),
-                      ),
-                    ),
-                    TacticalInput(
-                      controller: _confirmPasswordController,
-                      label: 'Confirm Password',
-                      obscureText: _obscureConfirmPassword,
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscureConfirmPassword
-                              ? Icons.visibility_off
-                              : Icons.visibility,
-                          color: const Color(0xFF8B6914),
-                        ),
-                        onPressed: () => setState(
-                          () => _obscureConfirmPassword =
-                              !_obscureConfirmPassword,
-                        ),
-                      ),
-                    ),
-                    // Country Dropdown
-                    Container(
-                      margin: const EdgeInsets.only(bottom: 16),
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF2A1E12).withValues(alpha: 0.7),
-                        border: Border.all(color: const Color(0xFF5C4008)),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          value: _selectedCountry,
-                          hint: const Text(
-                            'Country Selection',
-                            style: TextStyle(color: Color(0xFFAA8820)),
-                          ),
-                          isExpanded: true,
-                          dropdownColor: const Color(0xFF1A1208),
-                          icon: const Icon(
-                            Icons.arrow_drop_down,
-                            color: Color(0xFFFFD700),
-                          ),
-                          items: _countries
-                              .map(
-                                (c) =>
-                                    DropdownMenuItem(value: c, child: Text(c)),
-                              )
-                              .toList(),
-                          onChanged: (v) =>
-                              setState(() => _selectedCountry = v),
-                        ),
-                      ),
-                    ),
-                    Row(
-                      children: [
-                        Checkbox(
-                          value: _acceptTerms,
-                          onChanged: (v) =>
-                              setState(() => _acceptTerms = v ?? false),
-                          activeColor: const Color(0xFFFFD700),
-                          checkColor: Colors.black,
-                        ),
-                        const Text(
-                          'Terms and Conditions',
-                          style: TextStyle(color: Colors.white70, fontSize: 12),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    if (_error != null)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 16),
-                        child: Text(
-                          _error!,
-                          style: const TextStyle(color: Colors.redAccent),
-                        ),
-                      ),
-                    isLoading
-                        ? const CircularProgressIndicator(
-                            color: Color(0xFFFFD700),
-                          )
-                        : TacticalButton(
-                            label: 'REGISTER',
-                            onPressed: _register,
-                          ),
-                    const SizedBox(height: 16),
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text(
-                        'ALREADY SERVING? RETURN TO LOGIN',
-                        style: TextStyle(
-                          color: Color(0xFFFFD700),
-                          fontSize: 10,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────
-// COUNTRY SELECTION SCREEN
-// ─────────────────────────────────────────────
-// ─────────────────────────────────────────────
-// COUNTRY SELECTION SCREEN — Overhauled to match Image 4
-// ─────────────────────────────────────────────
-class CountrySelectionScreen extends StatelessWidget {
-  const CountrySelectionScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final countries = [
-      {'name': 'USA', 'bonus': '+5 Marine Infantry', 'flag': '🇺🇸'},
-      {'name': 'Japan', 'bonus': '+5 F-35 Fighter', 'flag': '🇯🇵'},
-      {'name': 'Russia', 'bonus': '+5 Elite Infantry', 'flag': '🇷🇺'},
-      {
-        'name': 'Kusnia',
-        'bonus': '+6 Elite Spetsnaz',
-        'flag': '🇷🇸',
-      }, // Mock flag for Kusnia
-      {
-        'name': 'USA ',
-        'bonus': '+3 F-35 Infantry',
-        'flag': '🇺🇸',
-      }, // Variants as seen in image
-      {'name': 'Japan ', 'bonus': '+1 F-35 Fighter', 'flag': '🇯🇵'},
-      {'name': 'Kusnia ', 'bonus': '+1 Elite Infantry', 'flag': '🇷🇸'},
-      {'name': 'Russia ', 'bonus': '+1 F-35 Fighter', 'flag': '🇷🇺'},
-    ];
-
-    return Scaffold(
-      body: Stack(
-        children: [
-          // Background Glow
-          Positioned.fill(
-            child: Container(
-              decoration: const BoxDecoration(
-                gradient: RadialGradient(
-                  colors: [Color(0xFF1A2A3A), Colors.black],
-                  radius: 1.5,
-                ),
-              ),
-            ),
-          ),
-          // Content
-          Column(
-            children: [
-              const SizedBox(height: 40),
-              const Text(
-                'Choose Your Country Screen',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const Text(
-                'Permanent selection',
-                style: TextStyle(color: Colors.white54, fontSize: 16),
-              ),
-              Expanded(
-                child: Row(
-                  children: [
-                    // Left Column
-                    _buildCountryColumn(
-                      context,
-                      countries.sublist(0, 2),
-                      countries.sublist(4, 6),
-                    ),
-                    // Center Globe
-                    Expanded(
-                      flex: 2,
-                      child: Center(
-                        child: Container(
-                          width: 400,
-                          height: 400,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.blue.withValues(alpha: 0.3),
-                                blurRadius: 100,
-                                spreadRadius: 20,
-                              ),
-                            ],
-                            image: const DecorationImage(
-                              image: AssetImage(
-                                'assets/images/global_dominion.png',
-                              ),
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: RadialGradient(
-                                colors: [
-                                  Colors.transparent,
-                                  Colors.black.withValues(alpha: 0.5),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    // Right Column
-                    _buildCountryColumn(
-                      context,
-                      countries.sublist(2, 4),
-                      countries.sublist(6, 8),
-                    ),
-                  ],
-                ),
-              ),
-              TacticalButton(
-                label: 'Choose Your Country Screen',
-                width: 400,
-                onPressed: () {},
-              ),
-              const SizedBox(height: 40),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCountryColumn(
-    BuildContext context,
-    List<Map<String, String>> top,
-    List<Map<String, String>> bottom,
-  ) {
-    return Expanded(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          ...top.map((c) => _CountryCard(country: c)),
-          const SizedBox(height: 20),
-          ...bottom.map((c) => _CountryCard(country: c)),
-        ],
-      ),
-    );
-  }
-}
-
-class _CountryCard extends StatelessWidget {
-  final Map<String, String> country;
-
-  const _CountryCard({required this.country});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () async {
-        final gameManager = context.read<GameManager>();
-        final success = await gameManager.apiService.setCountry(
-          country['name']!.trim(),
-        );
-        if (success) {
-          await gameManager.refreshState();
-          if (context.mounted) {
-            Navigator.of(context).pushReplacementNamed('/home');
-          }
-        }
-      },
-      child: Container(
-        width: 180,
-        margin: const EdgeInsets.symmetric(vertical: 8),
-        decoration: BoxDecoration(
-          color: const Color(0xFF0F1620),
-          border: Border.all(color: const Color(0xFF3A4A5A), width: 1),
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: Column(
-          children: [
-            Stack(
-              children: [
-                // Portrait Placeholder
-                Container(
-                  height: 120,
-                  width: double.infinity,
-                  color: Colors.black26,
-                  child: const Icon(
-                    Icons.person,
-                    color: Colors.white24,
-                    size: 60,
-                  ),
-                ),
-                Positioned(
-                  top: 5,
-                  left: 5,
-                  child: Text(
-                    country['flag']!,
-                    style: const TextStyle(fontSize: 20),
-                  ),
-                ),
-              ],
-            ),
-            Container(
-              padding: const EdgeInsets.all(8),
-              width: double.infinity,
-              color: Colors.black45,
-              child: Column(
-                children: [
-                  Text(
-                    country['name']!,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.military_tech,
-                        color: Color(0xFFC9B96A),
-                        size: 14,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        country['bonus']!,
-                        style: const TextStyle(
-                          color: Color(0xFFC9B96A),
-                          fontSize: 10,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────
-// SPLASH SCREEN — Overhauled to match Image 1
-// ─────────────────────────────────────────────
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key});
-
+  final GameState game;
+  const SplashScreen({super.key, required this.game});
   @override
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
 class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _pulse;
+  late AnimationController _ctrl;
+  late Animation<double> _fade, _scale;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
+    _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 2),
-    )..repeat(reverse: true);
-    _pulse = Tween<double>(
-      begin: 0.8,
+      duration: const Duration(milliseconds: 2000),
+    );
+    _fade = CurvedAnimation(
+      parent: _ctrl,
+      curve: const Interval(0.0, 0.5, curve: Curves.easeIn),
+    );
+    _scale = Tween<double>(
+      begin: 0.85,
       end: 1.0,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack));
+    _ctrl.forward();
+    Future.delayed(const Duration(milliseconds: 3000), () {
+      if (mounted)
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => MainMenuScreen(game: widget.game)),
+        );
+    });
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _ctrl.dispose();
     super.dispose();
   }
 
-  void _navigateToLogin() {
-    Navigator.of(context).pushReplacementNamed('/login');
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: kColorBg,
+    body: Center(
+      child: FadeTransition(
+        opacity: _fade,
+        child: ScaleTransition(
+          scale: _scale,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('🌍', style: TextStyle(fontSize: 80)),
+              const SizedBox(height: 20),
+              const Text(
+                'GLOBAL DOMINION',
+                style: TextStyle(
+                  color: kColorGold,
+                  fontSize: 34,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 6,
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'RISE OF NATIONS',
+                style: TextStyle(
+                  color: kColorText,
+                  fontSize: 15,
+                  letterSpacing: 8,
+                ),
+              ),
+              const SizedBox(height: 32),
+              const SizedBox(
+                width: 200,
+                child: LinearProgressIndicator(
+                  backgroundColor: kColorBorder,
+                  valueColor: AlwaysStoppedAnimation<Color>(kColorGold),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'v$kAppVersion',
+                style: TextStyle(color: kColorMuted, fontSize: 11),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SECTION 15 ▸ MAIN MENU
+// ══════════════════════════════════════════════════════════════════════════════
+
+class MainMenuScreen extends StatefulWidget {
+  final GameState game;
+  const MainMenuScreen({super.key, required this.game});
+  @override
+  State<MainMenuScreen> createState() => _MainMenuScreenState();
+}
+
+class _MainMenuScreenState extends State<MainMenuScreen>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _g;
+  @override
+  void initState() {
+    super.initState();
+    _g = AnimationController(vsync: this, duration: const Duration(seconds: 2))
+      ..repeat(reverse: true);
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Focus(
-        autofocus: true,
-        onKeyEvent: (node, event) {
-          _navigateToLogin();
-          return KeyEventResult.handled;
-        },
-        child: GestureDetector(
-          onTap: _navigateToLogin,
-          child: Stack(
-            children: [
-              // Background
-              Positioned.fill(
-                child: Image.asset(
-                  'assets/images/global_dominion.png',
-                  fit: BoxFit.cover,
-                ),
-              ),
-              // Overlay — dark vignette toward edges
-              Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: RadialGradient(
-                      colors: [
-                        Colors.transparent,
-                        Colors.black.withValues(alpha: 0.8),
-                      ],
-                      radius: 1.2,
-                    ),
-                  ),
-                ),
-              ),
-              // Ornate gold frame over everything
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: CustomPaint(painter: _OrnateFramePainter()),
-                ),
-              ),
-              // Logo and Title
-              Center(
+  void dispose() {
+    _g.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    body: Stack(
+      children: [
+        CustomPaint(
+          painter: _GridBgPainter(),
+          size: MediaQuery.of(context).size,
+        ),
+        Row(
+          children: [
+            Expanded(
+              flex: 3,
+              child: Center(
                 child: Column(
-                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Image.asset('assets/images/world_map.png', width: 450),
-                    const SizedBox(height: 20),
-                  ],
-                ),
-              ),
-              // Press Any Key — pulsing
-              Positioned(
-                bottom: 80,
-                left: 0,
-                right: 0,
-                child: FadeTransition(
-                  opacity: _pulse,
-                  child: const Text(
-                    'PRESS ANY KEY TO CONQUER',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Color(0xFFFFD700),
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 4,
-                      shadows: [Shadow(color: Colors.black, blurRadius: 10)],
-                    ),
-                  ),
-                ),
-              ),
-              // Bottom-right — login link + gear + blue compass
-              Positioned(
-                bottom: 22,
-                right: 22,
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    GestureDetector(
-                      onTap: _navigateToLogin,
-                      child: const Text(
-                        'LOGIN / CREATE ACCOUNT',
-                        style: TextStyle(
-                          color: Colors.white60,
-                          fontSize: 11,
-                          letterSpacing: 1,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    GestureDetector(
-                      onTap: () => Navigator.of(context).pushNamed('/settings'),
-                      child: Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          color: const Color(
-                            0xFF1A1208,
-                          ).withValues(alpha: 0.75),
-                          border: Border.all(
-                            color: const Color(0xFF5C4008),
-                            width: 1,
-                          ),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Icon(
-                          Icons.settings,
-                          color: Color(0xFFAA8820),
-                          size: 18,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    GestureDetector(
-                      onTap: _navigateToLogin,
-                      child: Container(
-                        width: 46,
-                        height: 46,
+                    AnimatedBuilder(
+                      animation: _g,
+                      builder: (_, __) => Container(
+                        width: 100,
+                        height: 100,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: const Color(0xFF0E3A60),
-                          border: Border.all(
-                            color: const Color(0xFF4A90C0),
-                            width: 2,
-                          ),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(
-                                0xFF4A90C0,
-                              ).withValues(alpha: 0.45),
-                              blurRadius: 14,
-                              spreadRadius: 2,
+                              color: kColorGold.withOpacity(_g.value * 0.5),
+                              blurRadius: 40,
+                              spreadRadius: 10,
                             ),
                           ],
                         ),
-                        child: const Icon(
-                          Icons.navigation,
-                          color: Colors.white,
-                          size: 24,
+                        child: const Center(
+                          child: Text('🌍', style: TextStyle(fontSize: 72)),
                         ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    const Text(
+                      'GLOBAL DOMINION',
+                      style: TextStyle(
+                        color: kColorGold,
+                        fontSize: 26,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 5,
+                      ),
+                    ),
+                    const Text(
+                      'RISE OF NATIONS',
+                      style: TextStyle(
+                        color: kColorText,
+                        fontSize: 12,
+                        letterSpacing: 6,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Build · Conquer · Dominate',
+                      style: TextStyle(
+                        color: kColorMuted,
+                        fontSize: 10,
+                        letterSpacing: 2,
                       ),
                     ),
                   ],
                 ),
               ),
-              // Top-right — styled close/exit button
-              Positioned(
-                top: 22,
-                right: 22,
-                child: GestureDetector(
-                  onTap: () => SystemNavigator.pop(),
-                  child: Container(
-                    width: 30,
-                    height: 30,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF8B0000).withValues(alpha: 0.85),
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(
-                        color: Colors.red.withValues(alpha: 0.4),
-                        width: 1,
+            ),
+            Container(width: 1, height: 260, color: kColorGoldDark),
+            Expanded(
+              flex: 2,
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 36),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _MBtn(
+                        icon: '⚔️',
+                        label: 'SINGLE PLAYER',
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                SinglePlayerSetupScreen(game: widget.game),
+                          ),
+                        ),
                       ),
-                    ),
-                    child: const Icon(
-                      Icons.close,
-                      color: Colors.white,
-                      size: 16,
-                    ),
-                  ),
-                ),
-              ),
-              // Bottom-left — ornate castle emblem
-              Positioned(
-                bottom: 22,
-                left: 22,
-                child: Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1A1208).withValues(alpha: 0.88),
-                    border: Border.all(
-                      color: const Color(0xFFAA8820),
-                      width: 2,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFFFFD700).withValues(alpha: 0.25),
-                        blurRadius: 16,
-                        spreadRadius: 2,
+                      const SizedBox(height: 10),
+                      _MBtn(
+                        icon: '🌐',
+                        label: 'MULTIPLAYER',
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                MultiplayerMenuScreen(game: widget.game),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      _MBtn(
+                        icon: '⚙️',
+                        label: 'SETTINGS',
+                        secondary: true,
+                        onTap: () => _settings(context),
+                      ),
+                      const SizedBox(height: 10),
+                      _MBtn(
+                        icon: '📜',
+                        label: 'HOW TO PLAY',
+                        secondary: true,
+                        onTap: () => _howToPlay(context),
                       ),
                     ],
                   ),
-                  child: const Icon(
-                    Icons.castle,
-                    color: Color(0xFFFFD700),
-                    size: 30,
-                  ),
                 ),
               ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────
-// HOME / MAIN MENU SCREEN
-// ─────────────────────────────────────────────
-class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
-
-  @override
-  State<HomeScreen> createState() => _HomeScreenState();
-}
-
-class _HomeScreenState extends State<HomeScreen>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _menuController;
-  late List<Animation<Offset>> _slideAnimations;
-  late List<_MenuItem> _menuItems;
-
-  @override
-  void initState() {
-    super.initState();
-    final isAdmin = context.read<GameManager>().isAdmin;
-    _menuItems = [
-      _MenuItem(label: 'START GAME', icon: Icons.flag_rounded, route: '/game'),
-      if (isAdmin)
-        _MenuItem(
-          label: 'ADMIN PANEL',
-          icon: Icons.admin_panel_settings_rounded,
-          route: '/admin',
-        ),
-      _MenuItem(
-        label: 'SETTINGS',
-        icon: Icons.settings_rounded,
-        route: '/settings',
-      ),
-      _MenuItem(
-        label: 'QUIT',
-        icon: Icons.power_settings_new_rounded,
-        route: null,
-      ),
-    ];
-
-    _menuController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
-    );
-
-    _slideAnimations = List.generate(_menuItems.length, (i) {
-      final start = i * 0.2;
-      final end = start + 0.6;
-      return Tween<Offset>(
-        begin: const Offset(0, 0.6),
-        end: Offset.zero,
-      ).animate(
-        CurvedAnimation(
-          parent: _menuController,
-          curve: Interval(
-            start.clamp(0, 1),
-            end.clamp(0, 1),
-            curve: Curves.easeOutCubic,
-          ),
-        ),
-      );
-    });
-
-    _menuController.forward();
-  }
-
-  @override
-  void dispose() {
-    _menuController.dispose();
-    super.dispose();
-  }
-
-  void _onMenuTap(_MenuItem item) {
-    if (item.route == null) {
-      _showQuitDialog();
-    } else {
-      Navigator.of(context).push(
-        PageRouteBuilder(
-          pageBuilder: (_, _, _) {
-            switch (item.route) {
-              case '/game':
-                return const GameScreen();
-              case '/admin':
-                return const AdminPanelScreen();
-              default:
-                return const SettingsScreen();
-            }
-          },
-          transitionsBuilder: (_, anim, _, child) => FadeTransition(
-            opacity: anim,
-            child: SlideTransition(
-              position: Tween<Offset>(
-                begin: const Offset(0.05, 0),
-                end: Offset.zero,
-              ).animate(anim),
-              child: child,
             ),
-          ),
+          ],
         ),
-      );
-    }
-  }
-
-  void _showQuitDialog() {
-    showDialog(
-      context: context,
-      barrierColor: Colors.black54,
-      builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1208),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(4),
-          side: const BorderSide(color: Color(0xFFAA8820), width: 2),
-        ),
-        title: const Text(
-          'QUIT GAME?',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: Color(0xFFFFD700),
-            fontWeight: FontWeight.bold,
-            letterSpacing: 2,
-          ),
-        ),
-        content: const Text(
-          'Are you sure you want to exit Global Dominion?',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.white70),
-        ),
-        actionsAlignment: MainAxisAlignment.center,
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text(
-              'CANCEL',
-              style: TextStyle(color: Colors.white54),
-            ),
-          ),
-          const SizedBox(width: 16),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFAA3300),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-            ),
-            onPressed: () => SystemNavigator.pop(),
-            child: const Text('QUIT', style: TextStyle(letterSpacing: 2)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          image: DecorationImage(
-            image: AssetImage('assets/images/global_dominion.png'),
-            fit: BoxFit.cover,
-          ),
-        ),
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Colors.black.withValues(alpha: 0.25),
-                Colors.black.withValues(alpha: 0.75),
-              ],
-            ),
-          ),
-          child: Row(
-            children: [
-              // Left spacer
-              const Expanded(child: SizedBox()),
-              // Center menu panel
-              SizedBox(
-                width: 320,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    ...List.generate(_menuItems.length, (i) {
-                      return SlideTransition(
-                        position: _slideAnimations[i],
-                        child: FadeTransition(
-                          opacity: _menuController,
-                          child: Padding(
-                            padding: const EdgeInsets.only(bottom: 14),
-                            child: _MenuButtonWidget(
-                              item: _menuItems[i],
-                              onTap: () => _onMenuTap(_menuItems[i]),
-                            ),
-                          ),
-                        ),
-                      );
-                    }),
-                    const SizedBox(height: 48),
-                  ],
-                ),
-              ),
-              // Right spacer
-              const Expanded(child: SizedBox()),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MenuItem {
-  final String label;
-  final IconData icon;
-  final String? route;
-  const _MenuItem({required this.label, required this.icon, this.route});
-}
-
-class _MenuButtonWidget extends StatefulWidget {
-  final _MenuItem item;
-  final VoidCallback onTap;
-
-  const _MenuButtonWidget({required this.item, required this.onTap});
-
-  @override
-  State<_MenuButtonWidget> createState() => _MenuButtonWidgetState();
-}
-
-class _MenuButtonWidgetState extends State<_MenuButtonWidget> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          width: _hovered ? 310 : 290,
-          height: 54,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: _hovered
-                  ? [
-                      const Color(0xFFB8860B),
-                      const Color(0xFFFFD700),
-                      const Color(0xFFB8860B),
-                    ]
-                  : [
-                      const Color(0xFF5C4008),
-                      const Color(0xFF9A6F0A),
-                      const Color(0xFF5C4008),
-                    ],
-            ),
-            border: Border.all(
-              color: _hovered
-                  ? const Color(0xFFFFD700)
-                  : const Color(0xFF8B6914),
-              width: 2,
-            ),
-            borderRadius: BorderRadius.circular(3),
-            boxShadow: _hovered
-                ? [
-                    BoxShadow(
-                      color: const Color(0xFFFFD700).withValues(alpha: 0.45),
-                      blurRadius: 18,
-                      spreadRadius: 2,
-                    ),
-                  ]
-                : [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.5),
-                      blurRadius: 8,
-                    ),
-                  ],
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                widget.item.icon,
-                color: _hovered ? Colors.white : Colors.white70,
-                size: 20,
-              ),
-              const SizedBox(width: 12),
-              Text(
-                widget.item.label,
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.bold,
-                  color: _hovered ? Colors.white : Colors.white70,
-                  letterSpacing: 2.5,
-                  shadows: const [Shadow(color: Colors.black54, blurRadius: 6)],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────
-// GAME SCREEN (placeholder — build your game here)
-// ─────────────────────────────────────────────
-class GameScreen extends StatefulWidget {
-  const GameScreen({super.key});
-
-  @override
-  State<GameScreen> createState() => _GameScreenState();
-}
-
-class _GameScreenState extends State<GameScreen>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _progressController;
-  String _status = 'Initializing command center...';
-
-  @override
-  void initState() {
-    super.initState();
-    _progressController =
-        AnimationController(vsync: this, duration: const Duration(seconds: 6))
-          ..addListener(() {
-            setState(() {
-              final progress = _progressController.value;
-              if (progress < 0.25) {
-                _status = 'Booting satellite network...';
-              } else if (progress < 0.55) {
-                _status = 'Deploying reconnaissance teams...';
-              } else if (progress < 0.85) {
-                _status = 'Activating command protocols...';
-              } else {
-                _status = 'Ready for global engagement.';
-              }
-            });
-          });
-    _progressController.forward();
-  }
-
-  @override
-  void dispose() {
-    _progressController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final progress = _progressController.value;
-    final isReady = progress >= 1.0;
-
-    return Scaffold(
-      backgroundColor: const Color(0xFF0D1117),
-      body: Stack(
-        children: [
-          // Background tint
-          Container(
-            decoration: const BoxDecoration(
-              gradient: RadialGradient(
-                center: Alignment.topLeft,
-                radius: 1.5,
-                colors: [Color(0xFF1A2A1A), Color(0xFF0D1117)],
-              ),
-            ),
-          ),
-          // Top bar
-          SafeArea(
-            child: Column(
-              children: [
-                _GameTopBar(),
-                Expanded(
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Image.asset(
-                          'assets/images/world_map.png',
-                          width: 120,
-                          height: 120,
-                        ),
-                        const SizedBox(height: 24),
-                        const Text(
-                          'YOUR EMPIRE AWAITS',
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFFFFD700),
-                            letterSpacing: 3,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          _status,
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 16,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                        const SizedBox(height: 22),
-                        Container(
-                          width: 280,
-                          height: 14,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF14221A),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xFF314130)),
-                          ),
-                          child: Stack(
-                            children: [
-                              Positioned.fill(
-                                child: FractionallySizedBox(
-                                  widthFactor: progress,
-                                  alignment: Alignment.centerLeft,
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFFFD700),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 18),
-                        Text(
-                          '${(progress * 100).round()}% complete',
-                          style: const TextStyle(
-                            color: Colors.white54,
-                            fontSize: 13,
-                          ),
-                        ),
-                        const SizedBox(height: 32),
-                        if (isReady)
-                          ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFFFD700),
-                              foregroundColor: const Color(0xFF0B0B0B),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 28,
-                                vertical: 14,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(30),
-                              ),
-                            ),
-                            onPressed: () {
-                              Navigator.of(context).pushReplacement(
-                                PageRouteBuilder(
-                                  pageBuilder: (_, _, _) =>
-                                      const CommandCenterScreen(),
-                                  transitionsBuilder: (_, anim, _, child) =>
-                                      FadeTransition(
-                                        opacity: anim,
-                                        child: child,
-                                      ),
-                                ),
-                              );
-                            },
-                            child: const Text(
-                              'ENTER COMMAND CENTER',
-                              style: TextStyle(
-                                letterSpacing: 2,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _GameTopBar extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      decoration: const BoxDecoration(
-        color: Color(0xFF0A0E0A),
-        border: Border(bottom: BorderSide(color: Color(0xFF2A3A2A), width: 1)),
-      ),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: () => Navigator.pop(context),
-            icon: const Icon(
-              Icons.arrow_back_ios_new_rounded,
-              color: Color(0xFFFFD700),
-              size: 18,
-            ),
-            tooltip: 'Back to Menu',
-          ),
-          const SizedBox(width: 8),
-          const Text(
-            'GLOBAL DOMINION',
-            style: TextStyle(
-              color: Color(0xFFFFD700),
-              fontWeight: FontWeight.bold,
-              letterSpacing: 2,
-            ),
-          ),
-          const Spacer(),
-          // Resource bar placeholders
-          _ResourceChip(
-            icon: Icons.grain_rounded,
-            label: '1,200',
-            color: const Color(0xFFFFD700),
-          ),
-          const SizedBox(width: 16),
-          _ResourceChip(
-            icon: Icons.people_rounded,
-            label: '850',
-            color: const Color(0xFF4FC3F7),
-          ),
-          const SizedBox(width: 16),
-          _ResourceChip(
-            icon: Icons.shield_rounded,
-            label: '300',
-            color: const Color(0xFFEF9A9A),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ResourceChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-
-  const _ResourceChip({
-    required this.icon,
-    required this.label,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final state = context.watch<GameManager>().state;
-    String dynamicLabel = label;
-    if (state != null && state['profile'] != null) {
-      if (icon == Icons.grain_rounded)
-        dynamicLabel = state['profile']['gold'].toString();
-      if (icon == Icons.people_rounded)
-        dynamicLabel = state['profile']['supplies'].toString();
-      if (icon == Icons.shield_rounded)
-        dynamicLabel = state['profile']['crystals'].toString();
-    }
-
-    return Row(
-      children: [
-        Icon(icon, color: color, size: 16),
-        const SizedBox(width: 4),
-        Text(
-          dynamicLabel,
-          style: TextStyle(
-            color: color,
-            fontWeight: FontWeight.bold,
-            fontSize: 13,
+        Positioned(
+          bottom: 8,
+          right: 12,
+          child: const Text(
+            'v$kAppVersion',
+            style: TextStyle(color: kColorMuted, fontSize: 10),
           ),
         ),
       ],
+    ),
+  );
+
+  void _settings(BuildContext ctx) {
+    final ctrl = TextEditingController(
+      text: MultiplayerService.instance.serverUrl,
+    );
+    showDialog(
+      context: ctx,
+      builder: (_) => AlertDialog(
+        backgroundColor: kColorPanel,
+        title: const Text('⚙️ Settings', style: TextStyle(color: kColorGold)),
+        content: TextField(
+          controller: ctrl,
+          style: const TextStyle(color: kColorText, fontSize: 12),
+          decoration: const InputDecoration(labelText: 'WebSocket Server URL'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(color: kColorMuted)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              MultiplayerService.instance.serverUrl = ctrl.text;
+              Navigator.pop(ctx);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
     );
   }
-}
 
-class CommandCenterScreen extends StatelessWidget {
-  const CommandCenterScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF05070E),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 18),
-              decoration: const BoxDecoration(
-                color: Color(0xFF090D13),
-                border: Border(
-                  bottom: BorderSide(color: Color(0xFF1E293C), width: 1.5),
+  void _howToPlay(BuildContext ctx) => showDialog(
+    context: ctx,
+    builder: (_) => Dialog(
+      backgroundColor: kColorPanel,
+      child: SizedBox(
+        width: 520,
+        height: 380,
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '📜 HOW TO PLAY',
+                style: TextStyle(
+                  color: kColorGold,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-              child: Row(
-                children: [
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(
-                      Icons.arrow_back_ios_new_rounded,
-                      color: Color(0xFFFFD700),
-                      size: 18,
-                    ),
-                    tooltip: 'Back to Menu',
-                  ),
-                  const SizedBox(width: 12),
-                  const Text(
-                    'COMMAND CENTER',
+              const SizedBox(height: 14),
+              const Expanded(
+                child: SingleChildScrollView(
+                  child: Text(
+                    '🌍 Build a nation from a Settlement to a Global Capital.\n\n'
+                    '🏗️ BUILD: Open the left panel → pick category → tap territory to place.\n\n'
+                    '⚔️ TRAIN: Tap a military building → choose a unit from bottom panel.\n\n'
+                    '🗺️ MOVE: Tap a unit → green tiles = move · red tiles = attack.\n\n'
+                    '🔬 RESEARCH: Top bar flask icon → select a technology to research.\n\n'
+                    '🌐 EXPAND: Move units to unclaimed tiles to claim territory.\n\n'
+                    '🏆 VICTORY:\n'
+                    '  ⚔️  Military — Destroy all enemy capitals\n'
+                    '  💰  Economic — Top economy for 5 min\n'
+                    '  🗺️  Territorial — Control 75% of map\n'
+                    '  🔬  Tech — Complete Future Age research\n'
+                    '  🤝  Diplomatic — 3+ alliances + top influence',
                     style: TextStyle(
-                      color: Color(0xFFFFD700),
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 2,
-                      fontSize: 18,
+                      color: kColorText,
+                      height: 1.7,
+                      fontSize: 11,
                     ),
                   ),
-                  const Spacer(),
-                  _ResourceChip(
-                    icon: Icons.grain_rounded,
-                    label: '1,200',
-                    color: const Color(0xFFFFD700),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerRight,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Got it!'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+class _MBtn extends StatelessWidget {
+  final String icon, label;
+  final VoidCallback onTap;
+  final bool secondary;
+  const _MBtn({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.secondary = false,
+  });
+  @override
+  Widget build(BuildContext context) => InkWell(
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(6),
+    child: Container(
+      padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 18),
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: secondary ? kColorBorder : kColorGoldDark,
+          width: secondary ? 1 : 1.5,
+        ),
+        borderRadius: BorderRadius.circular(6),
+        color: secondary
+            ? Colors.transparent
+            : kColorGoldDark.withOpacity(0.15),
+      ),
+      child: Row(
+        children: [
+          Text(icon, style: const TextStyle(fontSize: 17)),
+          const SizedBox(width: 10),
+          Text(
+            label,
+            style: TextStyle(
+              color: secondary ? kColorMuted : kColorGold,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 2,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _GridBgPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = Paint()
+      ..color = kColorBorder.withOpacity(0.25)
+      ..strokeWidth = 0.5
+      ..style = PaintingStyle.stroke;
+    for (double x = 0; x < size.width; x += 40)
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), p);
+    for (double y = 0; y < size.height; y += 40)
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), p);
+  }
+
+  @override
+  bool shouldRepaint(_) => false;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SECTION 16 ▸ SINGLE PLAYER SETUP
+// ══════════════════════════════════════════════════════════════════════════════
+
+class SinglePlayerSetupScreen extends StatefulWidget {
+  final GameState game;
+  const SinglePlayerSetupScreen({super.key, required this.game});
+  @override
+  State<SinglePlayerSetupScreen> createState() => _SinglePlayerSetupState();
+}
+
+class _SinglePlayerSetupState extends State<SinglePlayerSetupScreen> {
+  String _nationName = 'My Empire';
+  int _colorIdx = 0, _aiCount = 3, _difficulty = 1;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    body: Row(
+      children: [
+        Container(
+          width: 300,
+          color: kColorPanel,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 16),
+              const Text(
+                'SINGLE PLAYER',
+                style: TextStyle(
+                  color: kColorGold,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 3,
+                ),
+              ),
+              const SizedBox(height: 28),
+              const Text(
+                'NATION NAME',
+                style: TextStyle(
+                  color: kColorMuted,
+                  fontSize: 9,
+                  letterSpacing: 2,
+                ),
+              ),
+              const SizedBox(height: 6),
+              TextFormField(
+                initialValue: _nationName,
+                style: const TextStyle(color: kColorText),
+                decoration: const InputDecoration(hintText: 'Enter name...'),
+                onChanged: (v) => setState(() => _nationName = v),
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'NATION COLOR',
+                style: TextStyle(
+                  color: kColorMuted,
+                  fontSize: 9,
+                  letterSpacing: 2,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: List.generate(
+                  8,
+                  (i) => GestureDetector(
+                    onTap: () => setState(() => _colorIdx = i),
+                    child: Container(
+                      width: 30,
+                      height: 30,
+                      decoration: BoxDecoration(
+                        color: kNationColors[i],
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: _colorIdx == i
+                              ? Colors.white
+                              : Colors.transparent,
+                          width: 2,
+                        ),
+                      ),
+                    ),
                   ),
-                  const SizedBox(width: 18),
-                  _ResourceChip(
-                    icon: Icons.people_rounded,
-                    label: '850',
-                    color: const Color(0xFF4FC3F7),
+                ),
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'AI OPPONENTS',
+                style: TextStyle(
+                  color: kColorMuted,
+                  fontSize: 9,
+                  letterSpacing: 2,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [1, 3, 5, 7]
+                    .map(
+                      (n) => Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: _Chip(
+                          label: '$n',
+                          sel: _aiCount == n,
+                          onTap: () => setState(() => _aiCount = n),
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'DIFFICULTY',
+                style: TextStyle(
+                  color: kColorMuted,
+                  fontSize: 9,
+                  letterSpacing: 2,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  _Chip(
+                    label: 'Easy',
+                    sel: _difficulty == 0,
+                    onTap: () => setState(() => _difficulty = 0),
                   ),
-                  const SizedBox(width: 18),
-                  _ResourceChip(
-                    icon: Icons.shield_rounded,
-                    label: '300',
-                    color: const Color(0xFFEF9A9A),
+                  const SizedBox(width: 8),
+                  _Chip(
+                    label: 'Normal',
+                    sel: _difficulty == 1,
+                    onTap: () => setState(() => _difficulty = 1),
+                  ),
+                  const SizedBox(width: 8),
+                  _Chip(
+                    label: 'Hard',
+                    sel: _difficulty == 2,
+                    onTap: () => setState(() => _difficulty = 2),
                   ),
                 ],
               ),
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 22,
-                  vertical: 24,
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              const Spacer(),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: kColorBorder),
+                        foregroundColor: kColorMuted,
+                      ),
+                      child: const Text('BACK'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton(
+                      onPressed: _start,
+                      child: const Text('▶  START'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: Stack(
+            children: [
+              CustomPaint(painter: _GridBgPainter()),
+              Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Expanded(
-                      flex: 3,
-                      child: Column(
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        color: kNationColors[_colorIdx].withOpacity(0.2),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: kNationColors[_colorIdx],
+                          width: 2,
+                        ),
+                      ),
+                      child: const Center(
+                        child: Text('🏛️', style: TextStyle(fontSize: 36)),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      _nationName.isEmpty ? 'My Empire' : _nationName,
+                      style: TextStyle(
+                        color: kNationColors[_colorIdx],
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 2,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '$_aiCount AI opponents · ${["Easy", "Normal", "Hard"][_difficulty]} difficulty',
+                      style: const TextStyle(color: kColorMuted, fontSize: 11),
+                    ),
+                    const SizedBox(height: 20),
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: kColorBorder),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'OMEGA DIVISION',
+                          Text(
+                            'Starting resources:',
                             style: TextStyle(
-                              color: Color(0xFFC9B96A),
-                              letterSpacing: 2.4,
-                              fontSize: 12,
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          const Text(
-                            'Global Strategy Dashboard',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 34,
+                              color: kColorGold,
+                              fontSize: 10,
                               fontWeight: FontWeight.bold,
-                              letterSpacing: 1.1,
                             ),
                           ),
-                          const SizedBox(height: 16),
-                          const Text(
-                            'Monitor territory control, manage elite units, and deploy battle plans from the command center. Your nation’s strategic priority board is live.',
-                            style: TextStyle(
-                              color: Color(0xFFB0B7C5),
-                              fontSize: 16,
-                              height: 1.85,
-                            ),
+                          SizedBox(height: 6),
+                          Text(
+                            '💰 200 Gold   🌾 100 Food',
+                            style: TextStyle(color: kColorText, fontSize: 10),
                           ),
-                          const SizedBox(height: 30),
-                          Row(
-                            children: [
-                              _DashboardCard(
-                                title: 'Territories',
-                                value:
-                                    context
-                                        .watch<GameManager>()
-                                        .state?['profile']?['power_level']
-                                        ?.toString() ??
-                                    '16 / 24',
-                                accent: Color(0xFFFFD700),
-                                subtitle: 'Current Power Level',
-                              ),
-                              const SizedBox(width: 18),
-                              _DashboardCard(
-                                title: 'Nation',
-                                value:
-                                    context
-                                        .watch<GameManager>()
-                                        .state?['profile']?['country'] ??
-                                    'USA',
-                                accent: Color(0xFF4FC3F7),
-                                subtitle: 'Strategic Alignment',
-                              ),
-                            ],
+                          Text(
+                            '🪵 80 Wood    🪨 60 Stone',
+                            style: TextStyle(color: kColorText, fontSize: 10),
                           ),
-                          const SizedBox(height: 24),
-                          const Text(
-                            'Mission Briefing',
-                            style: TextStyle(
-                              color: Color(0xFFF4E19C),
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 1.5,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Container(
-                            padding: const EdgeInsets.all(18),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF0F1620),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: const Color(0xFF1E2A3A),
-                              ),
-                            ),
-                            child: const Text(
-                              'Enemy forces are concentrated on the eastern front. Deploy recon sweeps and prepare armored units for the next wave. Maintain supply lines and secure key ports before dusk.',
-                              style: TextStyle(
-                                color: Color(0xFFCAD3E0),
-                                fontSize: 15,
-                                height: 1.75,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 26),
-                          Row(
-                            children: [
-                              _ActionButton(
-                                label: 'Deploy Army',
-                                color: const Color(0xFFFFD700),
-                                onPressed: () {
-                                  Navigator.of(context).push(
-                                    PageRouteBuilder(
-                                      pageBuilder: (_, _, _) =>
-                                          const DeployArmyScreen(),
-                                      transitionsBuilder: (_, anim, _, child) =>
-                                          FadeTransition(
-                                            opacity: anim,
-                                            child: child,
-                                          ),
-                                    ),
-                                  );
-                                },
-                              ),
-                              const SizedBox(width: 16),
-                              _ActionButton(
-                                label: 'Open World Map',
-                                color: const Color(0xFF4FC3F7),
-                                onPressed: () {
-                                  Navigator.of(context).push(
-                                    PageRouteBuilder(
-                                      pageBuilder: (_, _, _) =>
-                                          const WorldMapScreen(),
-                                      transitionsBuilder: (_, anim, _, child) =>
-                                          FadeTransition(
-                                            opacity: anim,
-                                            child: child,
-                                          ),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ],
+                          SizedBox(height: 6),
+                          Text(
+                            'Units: 3x Builder, 1x Spearman',
+                            style: TextStyle(color: kColorMuted, fontSize: 9),
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(width: 24),
-                    Expanded(
-                      flex: 2,
-                      child: Column(
-                        children: [
-                          Expanded(
-                            child: Container(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(28),
-                                gradient: const LinearGradient(
-                                  colors: [
-                                    Color(0xFF101C29),
-                                    Color(0xFF071018),
-                                  ],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+
+  void _start() {
+    widget.game.initSinglePlayer(
+      aiCount: _aiCount,
+      difficulty: _difficulty,
+      seed: math.Random().nextInt(99999),
+      playerNationName: _nationName.isEmpty ? 'My Empire' : _nationName,
+      playerColor: kNationColors[_colorIdx],
+    );
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => GameScreen(game: widget.game)),
+    );
+  }
+}
+
+class _Chip extends StatelessWidget {
+  final String label;
+  final bool sel;
+  final VoidCallback onTap;
+  const _Chip({required this.label, required this.sel, required this.onTap});
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
+      decoration: BoxDecoration(
+        color: sel ? kColorGoldDark : Colors.transparent,
+        border: Border.all(color: sel ? kColorGold : kColorBorder),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: sel ? kColorGold : kColorMuted,
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    ),
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SECTION 17 ▸ MULTIPLAYER MENU
+// ══════════════════════════════════════════════════════════════════════════════
+
+class MultiplayerMenuScreen extends StatefulWidget {
+  final GameState game;
+  const MultiplayerMenuScreen({super.key, required this.game});
+  @override
+  State<MultiplayerMenuScreen> createState() => _MultiplayerMenuState();
+}
+
+class _MultiplayerMenuState extends State<MultiplayerMenuScreen> {
+  final _nameCtrl = TextEditingController(text: 'Commander');
+  final _nationCtrl = TextEditingController(text: 'My Empire');
+  final _codeCtrl = TextEditingController();
+  final _roomCtrl = TextEditingController(text: 'War Room 1');
+  bool _connecting = false;
+  String? _error;
+  int _tab = 0, _colorIdx = 0;
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _nationCtrl.dispose();
+    _codeCtrl.dispose();
+    _roomCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      title: const Text(
+        '🌐  MULTIPLAYER',
+        style: TextStyle(color: kColorGold, letterSpacing: 3, fontSize: 13),
+      ),
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back, color: kColorGold),
+        onPressed: () => Navigator.pop(context),
+      ),
+    ),
+    body: Row(
+      children: [
+        Container(
+          width: 330,
+          color: kColorPanel,
+          padding: const EdgeInsets.all(22),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'PLAYER INFO',
+                style: TextStyle(
+                  color: kColorMuted,
+                  fontSize: 9,
+                  letterSpacing: 2,
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _nameCtrl,
+                style: const TextStyle(color: kColorText),
+                decoration: const InputDecoration(labelText: 'Your Name'),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _nationCtrl,
+                style: const TextStyle(color: kColorText),
+                decoration: const InputDecoration(labelText: 'Nation Name'),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 7,
+                runSpacing: 7,
+                children: List.generate(
+                  kNationColors.length,
+                  (i) => GestureDetector(
+                    onTap: () => setState(() => _colorIdx = i),
+                    child: Container(
+                      width: 26,
+                      height: 26,
+                      decoration: BoxDecoration(
+                        color: kNationColors[i],
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: _colorIdx == i
+                              ? Colors.white
+                              : Colors.transparent,
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: _TabBtn(
+                      label: '🔗 JOIN',
+                      sel: _tab == 0,
+                      onTap: () => setState(() => _tab = 0),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _TabBtn(
+                      label: '➕ CREATE',
+                      sel: _tab == 1,
+                      onTap: () => setState(() => _tab = 1),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              if (_tab == 0)
+                TextField(
+                  controller: _codeCtrl,
+                  style: const TextStyle(
+                    color: kColorText,
+                    fontSize: 18,
+                    letterSpacing: 4,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  decoration: const InputDecoration(labelText: 'Room Code'),
+                  textCapitalization: TextCapitalization.characters,
+                )
+              else
+                TextField(
+                  controller: _roomCtrl,
+                  style: const TextStyle(color: kColorText),
+                  decoration: const InputDecoration(labelText: 'Room Name'),
+                ),
+              if (_error != null) ...[
+                const SizedBox(height: 10),
+                Text(
+                  _error!,
+                  style: const TextStyle(color: kColorAccent, fontSize: 10),
+                ),
+              ],
+              const Spacer(),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _connecting ? null : _connect,
+                  child: _connecting
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: kColorGold,
+                          ),
+                        )
+                      : Text(_tab == 0 ? '▶  JOIN GAME' : '▶  CREATE ROOM'),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: Stack(
+            children: [
+              CustomPaint(painter: _GridBgPainter()),
+              Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text('🌐', style: TextStyle(fontSize: 56)),
+                    const SizedBox(height: 14),
+                    const Text(
+                      'ONLINE MULTIPLAYER',
+                      style: TextStyle(
+                        color: kColorGold,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 3,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      '2–16 Players · Real-Time Strategy',
+                      style: TextStyle(color: kColorMuted, fontSize: 11),
+                    ),
+                    const SizedBox(height: 28),
+                    ...[
+                      ('⚔️', 'Free-for-All', 'Every nation for itself'),
+                      ('🤝', 'Team Battles', 'Allies vs enemies'),
+                      ('🏆', 'Ranked Mode', 'Compete globally'),
+                      ('🎮', 'Casual Mode', 'Just for fun'),
+                    ].map(
+                      (r) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 5),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(r.$1, style: const TextStyle(fontSize: 18)),
+                            const SizedBox(width: 12),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  r.$2,
+                                  style: const TextStyle(
+                                    color: kColorText,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
-                                border: Border.all(
-                                  color: const Color(0xFF1F2B38),
+                                Text(
+                                  r.$3,
+                                  style: const TextStyle(
+                                    color: kColorMuted,
+                                    fontSize: 9,
+                                  ),
                                 ),
-                              ),
-                              child: Stack(
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: kColorBorder),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        'Server: ${MultiplayerService.instance.serverUrl}',
+                        style: const TextStyle(color: kColorMuted, fontSize: 9),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Future<void> _connect() async {
+    setState(() {
+      _connecting = true;
+      _error = null;
+    });
+    final mp = MultiplayerService.instance;
+    final ok = await mp.connect();
+    if (!ok) {
+      setState(() {
+        _connecting = false;
+        _error = '❌ Cannot connect. Check server URL in Settings.';
+      });
+      return;
+    }
+    if (_tab == 1) {
+      mp.createRoom(
+        roomName: _roomCtrl.text.isEmpty ? 'War Room' : _roomCtrl.text,
+        playerName: _nameCtrl.text.isEmpty ? 'Commander' : _nameCtrl.text,
+        nationName: _nationCtrl.text.isEmpty ? 'My Empire' : _nationCtrl.text,
+        nationColorValue: kNationColors[_colorIdx].value,
+      );
+    } else {
+      if (_codeCtrl.text.isEmpty) {
+        setState(() {
+          _connecting = false;
+          _error = '❌ Enter a room code.';
+        });
+        return;
+      }
+      mp.joinRoom(
+        code: _codeCtrl.text.toUpperCase(),
+        playerName: _nameCtrl.text.isEmpty ? 'Commander' : _nameCtrl.text,
+        nationName: _nationCtrl.text.isEmpty ? 'My Empire' : _nationCtrl.text,
+        nationColorValue: kNationColors[_colorIdx].value,
+      );
+    }
+    setState(() => _connecting = false);
+    if (mounted)
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => LobbyScreen(game: widget.game)),
+      );
+  }
+}
+
+class _TabBtn extends StatelessWidget {
+  final String label;
+  final bool sel;
+  final VoidCallback onTap;
+  const _TabBtn({required this.label, required this.sel, required this.onTap});
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.symmetric(vertical: 9),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: sel ? kColorGoldDark : Colors.transparent,
+        border: Border.all(color: sel ? kColorGold : kColorBorder),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: sel ? kColorGold : kColorMuted,
+          fontWeight: FontWeight.bold,
+          fontSize: 11,
+        ),
+      ),
+    ),
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SECTION 18 ▸ LOBBY SCREEN
+// ══════════════════════════════════════════════════════════════════════════════
+
+// LobbyPlayer defined in Section 9
+
+class LobbyScreen extends StatefulWidget {
+  final GameState game;
+  const LobbyScreen({super.key, required this.game});
+  @override
+  State<LobbyScreen> createState() => _LobbyScreenState();
+}
+
+class _LobbyScreenState extends State<LobbyScreen> {
+  final List<LobbyPlayer> _players = [];
+  bool _ready = false, _isHost = false;
+  String _code = '------';
+  StreamSubscription? _sub;
+
+  @override
+  void initState() {
+    super.initState();
+    _sub = MultiplayerService.instance.events.listen(_onEvent);
+    Future.delayed(const Duration(milliseconds: 600), () {
+      if (mounted)
+        setState(() {
+          _code = 'GD${math.Random().nextInt(9000) + 1000}';
+          _isHost = true;
+        });
+    });
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
+  }
+
+  void _onEvent(Map<String, dynamic> msg) {
+    if (!mounted) return;
+    switch (msg['type']) {
+      case 'room_created':
+        setState(() {
+          _code = msg['data']['code'] ?? _code;
+          _isHost = true;
+        });
+        break;
+      case 'room_joined':
+        setState(() {
+          _code = msg['data']['code'] ?? _code;
+        });
+        break;
+      case 'player_joined':
+        setState(() => _players.add(LobbyPlayer.fromJson(msg['data'])));
+        break;
+      case 'player_left':
+        final id = msg['data']['playerId'] as String;
+        setState(() => _players.removeWhere((p) => p.id == id));
+        break;
+      case 'player_ready':
+        final id = msg['data']['playerId'] as String;
+        setState(() {
+          final i = _players.indexWhere((p) => p.id == id);
+          if (i >= 0) _players[i].ready = msg['data']['ready'] ?? false;
+        });
+        break;
+      case 'game_started':
+        if (msg['data']['gameState'] != null)
+          widget.game.loadFromJson(msg['data']['gameState']);
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => GameScreen(game: widget.game)),
+        );
+        break;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      title: Text(
+        '🏛️  LOBBY — $_code',
+        style: const TextStyle(
+          color: kColorGold,
+          letterSpacing: 2,
+          fontSize: 13,
+        ),
+      ),
+      actions: [
+        if (_isHost)
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: ElevatedButton(
+              onPressed: _start,
+              child: const Text('▶  START GAME'),
+            ),
+          ),
+      ],
+    ),
+    body: Row(
+      children: [
+        Expanded(
+          flex: 2,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(18),
+                child: Row(
+                  children: [
+                    const Text(
+                      'PLAYERS',
+                      style: TextStyle(
+                        color: kColorGold,
+                        fontSize: 11,
+                        letterSpacing: 3,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      '${_players.length + 1} / 8',
+                      style: const TextStyle(color: kColorMuted, fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  children: [
+                    _PRow(
+                      name: 'You',
+                      nationName: 'My Empire',
+                      color: kNationColors[0],
+                      ready: _ready,
+                      isHost: _isHost,
+                    ),
+                    ..._players.map(
+                      (p) => _PRow(
+                        name: p.name,
+                        nationName: p.nationName,
+                        color: p.nationColor,
+                        ready: p.ready,
+                        isHost: false,
+                      ),
+                    ),
+                    ...List.generate(
+                      math.max(0, 7 - _players.length),
+                      (_) => _EmptyRow(),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        Container(width: 1, color: kColorBorder),
+        SizedBox(
+          width: 270,
+          child: Padding(
+            padding: const EdgeInsets.all(22),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'ROOM INFO',
+                  style: TextStyle(
+                    color: kColorGold,
+                    fontSize: 11,
+                    letterSpacing: 3,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _IR('Code', _code, hi: true),
+                _IR('Mode', 'Free-for-All'),
+                _IR('Map', '30 × 20'),
+                _IR('Players', 'Max 8'),
+                const SizedBox(height: 20),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: kColorGoldDark),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Column(
+                    children: [
+                      const Text(
+                        'Share Code',
+                        style: TextStyle(color: kColorMuted, fontSize: 10),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        _code,
+                        style: const TextStyle(
+                          color: kColorGold,
+                          fontSize: 26,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Spacer(),
+                if (!_isHost) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        setState(() => _ready = !_ready);
+                        MultiplayerService.instance.setReady(_ready);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _ready
+                            ? kColorSuccess.withOpacity(0.2)
+                            : kColorGoldDark,
+                      ),
+                      child: Text(_ready ? '✅ READY' : '⬜ MARK READY'),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: () {
+                      MultiplayerService.instance.leaveRoom();
+                      Navigator.pop(context);
+                    },
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: kColorAccent),
+                      foregroundColor: kColorAccent,
+                    ),
+                    child: const Text('LEAVE ROOM'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  void _start() {
+    MultiplayerService.instance.startGame();
+    widget.game.initSinglePlayer(
+      aiCount: _players.isEmpty ? 3 : _players.length,
+      difficulty: 1,
+      seed: math.Random().nextInt(99999),
+      playerNationName: 'My Empire',
+      playerColor: kNationColors[0],
+    );
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => GameScreen(game: widget.game)),
+    );
+  }
+}
+
+class _PRow extends StatelessWidget {
+  final String name, nationName;
+  final Color color;
+  final bool ready, isHost;
+  const _PRow({
+    required this.name,
+    required this.nationName,
+    required this.color,
+    required this.ready,
+    required this.isHost,
+  });
+  @override
+  Widget build(BuildContext context) => Container(
+    margin: const EdgeInsets.only(bottom: 7),
+    padding: const EdgeInsets.all(11),
+    decoration: BoxDecoration(
+      border: Border.all(
+        color: ready ? kColorSuccess.withOpacity(0.5) : kColorBorder,
+      ),
+      borderRadius: BorderRadius.circular(6),
+      color: kColorPanel,
+    ),
+    child: Row(
+      children: [
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.2),
+            shape: BoxShape.circle,
+            border: Border.all(color: color, width: 1.5),
+          ),
+          child: const Center(
+            child: Text('🏛️', style: TextStyle(fontSize: 17)),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    name,
+                    style: const TextStyle(
+                      color: kColorText,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                  if (isHost)
+                    const Padding(
+                      padding: EdgeInsets.only(left: 5),
+                      child: Text('👑', style: TextStyle(fontSize: 10)),
+                    ),
+                ],
+              ),
+              Text(nationName, style: TextStyle(color: color, fontSize: 9)),
+            ],
+          ),
+        ),
+        Text(ready ? '✅' : '⏳', style: const TextStyle(fontSize: 14)),
+      ],
+    ),
+  );
+}
+
+class _EmptyRow extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) => Container(
+    margin: const EdgeInsets.only(bottom: 7),
+    padding: const EdgeInsets.all(11),
+    decoration: BoxDecoration(
+      border: Border.all(color: kColorBorder.withOpacity(0.35)),
+      borderRadius: BorderRadius.circular(6),
+    ),
+    child: const Row(
+      children: [
+        SizedBox(
+          width: 34,
+          height: 34,
+          child: Center(
+            child: Text(
+              '···',
+              style: TextStyle(color: kColorBorder, fontSize: 14),
+            ),
+          ),
+        ),
+        SizedBox(width: 10),
+        Text(
+          'Waiting for player...',
+          style: TextStyle(color: kColorBorder, fontSize: 11),
+        ),
+      ],
+    ),
+  );
+}
+
+class _IR extends StatelessWidget {
+  final String l, v;
+  final bool hi;
+  const _IR(this.l, this.v, {this.hi = false});
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: Row(
+      children: [
+        Text('$l:', style: const TextStyle(color: kColorMuted, fontSize: 10)),
+        const SizedBox(width: 8),
+        Text(
+          v,
+          style: TextStyle(
+            color: hi ? kColorGold : kColorText,
+            fontSize: 10,
+            fontWeight: hi ? FontWeight.bold : FontWeight.normal,
+            letterSpacing: hi ? 2 : 0,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SECTION 19 ▸ GAME SCREEN
+// ══════════════════════════════════════════════════════════════════════════════
+
+class GameScreen extends StatefulWidget {
+  final GameState game;
+  const GameScreen({super.key, required this.game});
+  @override
+  State<GameScreen> createState() => _GameScreenState();
+}
+
+class _GameScreenState extends State<GameScreen> {
+  Timer? _tick, _ai;
+  bool _leftOpen = false, _rightOpen = false;
+  int _buildCat = 0;
+  bool _victoryShown = false;
+  StreamSubscription? _mpSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _tick = Timer.periodic(Duration(milliseconds: kTickMs), (_) {
+      if (widget.game.phase == GamePhase.playing) {
+        widget.game.processTick();
+        if (!_victoryShown && widget.game.phase == GamePhase.ended) {
+          _victoryShown = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) => _showVictory());
+        }
+      }
+    });
+    _ai = Timer.periodic(Duration(milliseconds: kAiTickMs), (_) {
+      if (widget.game.phase != GamePhase.playing) return;
+      for (final n in widget.game.nations.values) {
+        if (n.isAI && n.isAlive) AIEngine(widget.game, n).processTick();
+      }
+    });
+    if (MultiplayerService.instance.connected) {
+      _mpSub = MultiplayerService.instance.events.listen((msg) {
+        if (!mounted) return;
+        if (msg['type'] == 'game_state') widget.game.loadFromJson(msg['data']);
+        if (msg['type'] == 'chat_msg') {
+          widget.game.addChatMessage(
+            msg['data']['sender'] ?? '?',
+            msg['data']['message'] ?? '',
+          );
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _tick?.cancel();
+    _ai?.cancel();
+    _mpSub?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: widget.game,
+    builder: (_, __) => Scaffold(
+      body: Column(
+        children: [
+          TopBar(
+            game: widget.game,
+            onLeft: () => setState(() => _leftOpen = !_leftOpen),
+            onRight: () => setState(() => _rightOpen = !_rightOpen),
+            onTech: _showTech,
+            onDipl: _showDipl,
+          ),
+          Expanded(
+            child: Row(
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 220),
+                  width: _leftOpen ? 256 : 0,
+                  child: OverflowBox(
+                    maxWidth: 256,
+                    alignment: Alignment.centerLeft,
+                    child: BuildPanel(
+                      game: widget.game,
+                      cat: _buildCat,
+                      onCat: (c) => setState(() => _buildCat = c),
+                    ),
+                  ),
+                ),
+                Expanded(child: GameMapWidget(game: widget.game)),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 220),
+                  width: _rightOpen ? 238 : 0,
+                  child: OverflowBox(
+                    maxWidth: 238,
+                    alignment: Alignment.centerRight,
+                    child: NationPanel(game: widget.game),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SelectionPanel(game: widget.game),
+        ],
+      ),
+    ),
+  );
+
+  void _showVictory() => showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => VictoryDialog(
+      game: widget.game,
+      onExit: () {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => MainMenuScreen(game: widget.game)),
+          (_) => false,
+        );
+      },
+    ),
+  );
+  void _showTech() => showDialog(
+    context: context,
+    builder: (_) => TechDialog(game: widget.game),
+  );
+  void _showDipl() => showDialog(
+    context: context,
+    builder: (_) => DiplomacyDialog(game: widget.game),
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SECTION 20 ▸ TOP RESOURCE BAR
+// ══════════════════════════════════════════════════════════════════════════════
+
+class TopBar extends StatelessWidget {
+  final GameState game;
+  final VoidCallback onLeft, onRight, onTech, onDipl;
+  const TopBar({
+    super.key,
+    required this.game,
+    required this.onLeft,
+    required this.onRight,
+    required this.onTech,
+    required this.onDipl,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final r = game.playerNation?.resources;
+    final n = game.playerNation;
+    return Container(
+      height: 46,
+      color: kColorPanel,
+      child: Row(
+        children: [
+          _IB('🏗️', onLeft, 'Build'),
+          Container(width: 1, height: 30, color: kColorBorder),
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _R('💰', r?.gold.floor() ?? 0),
+                  _R('🌾', r?.food.floor() ?? 0),
+                  _R('🪵', r?.wood.floor() ?? 0),
+                  _R('🪨', r?.stone.floor() ?? 0),
+                  _R('⚙️', r?.iron.floor() ?? 0),
+                  _R('🛢️', r?.oil.floor() ?? 0),
+                  _R('👥', r?.population ?? 0, max: r?.populationCap),
+                  _R('🔬', r?.researchPoints ?? 0),
+                  const SizedBox(width: 8),
+                  if (n != null)
+                    GestureDetector(
+                      onTap: () => game.advanceAge(game.playerNationId!),
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: kColorGoldDark),
+                          borderRadius: BorderRadius.circular(3),
+                          color: kColorGoldDark.withOpacity(0.2),
+                        ),
+                        child: Text(
+                          '${n.tier.label} · ${n.currentAge.label} ⬆',
+                          style: const TextStyle(
+                            color: kColorGold,
+                            fontSize: 8,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          Container(width: 1, height: 30, color: kColorBorder),
+          _IB('🔬', onTech, 'Tech Tree'),
+          _IB('🤝', onDipl, 'Diplomacy'),
+          _IB('📊', onRight, 'Nations'),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Text(
+              'T:${game.tick}',
+              style: const TextStyle(color: kColorMuted, fontSize: 9),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static Widget _R(String icon, int val, {int? max}) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 5),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(icon, style: const TextStyle(fontSize: 12)),
+        const SizedBox(width: 3),
+        Text(
+          max != null ? '$val/$max' : _f(val),
+          style: TextStyle(
+            color: max != null && val >= max ? kColorAccent : kColorText,
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    ),
+  );
+
+  static String _f(int v) {
+    if (v >= 1000000) return '${(v / 1000000).toStringAsFixed(1)}M';
+    if (v >= 1000) return '${(v / 1000).toStringAsFixed(1)}K';
+    return '$v';
+  }
+
+  static Widget _IB(String icon, VoidCallback cb, String tip) => Tooltip(
+    message: tip,
+    child: InkWell(
+      onTap: cb,
+      child: SizedBox(
+        width: 38,
+        height: 46,
+        child: Center(child: Text(icon, style: const TextStyle(fontSize: 17))),
+      ),
+    ),
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SECTION 21 ▸ GAME MAP
+// ══════════════════════════════════════════════════════════════════════════════
+
+class GameMapWidget extends StatefulWidget {
+  final GameState game;
+  const GameMapWidget({super.key, required this.game});
+  @override
+  State<GameMapWidget> createState() => _GameMapWidgetState();
+}
+
+class _GameMapWidgetState extends State<GameMapWidget> {
+  final TransformationController _tc = TransformationController();
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final s = MediaQuery.of(context).size;
+      final sc =
+          math.min(
+            s.width / (kMapW * kTileSize),
+            (s.height - 140) / (kMapH * kTileSize),
+          ) *
+          0.88;
+      _tc.value = Matrix4.identity()..scale(sc);
+    });
+  }
+
+  @override
+  void dispose() {
+    _tc.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: const Color(0xFF020810),
+      child: InteractiveViewer(
+        transformationController: _tc,
+        minScale: 0.18,
+        maxScale: 5.0,
+        constrained: false,
+        child: GestureDetector(
+          onTapUp: (d) {
+            final pos = _tc.toScene(d.localPosition);
+            final tx = (pos.dx / kTileSize).floor(),
+                ty = (pos.dy / kTileSize).floor();
+            if (widget.game.map.isValid(tx, ty))
+              widget.game.handleTileAction(tx, ty);
+          },
+          child: SizedBox(
+            width: kMapW * kTileSize,
+            height: kMapH * kTileSize,
+            child: ListenableBuilder(
+              listenable: widget.game,
+              builder: (_, __) => CustomPaint(
+                painter: MapPainter(game: widget.game),
+                size: Size(kMapW * kTileSize, kMapH * kTileSize),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class MapPainter extends CustomPainter {
+  final GameState game;
+  MapPainter({required this.game});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    _tiles(canvas);
+    _grid(canvas);
+    _borders(canvas);
+    _buildings(canvas);
+    _units(canvas);
+    _highlights(canvas);
+    _selection(canvas);
+  }
+
+  void _tiles(Canvas c) {
+    final p = Paint();
+    for (int y = 0; y < kMapH; y++)
+      for (int x = 0; x < kMapW; x++) {
+        final t = game.map.at(x, y);
+        final r = Rect.fromLTWH(
+          x * kTileSize,
+          y * kTileSize,
+          kTileSize,
+          kTileSize,
+        );
+        p.color = t.baseColor;
+        c.drawRect(r, p);
+        if (t.ownerNationId != null) {
+          p.color = (game.nations[t.ownerNationId!]?.color ?? Colors.grey)
+              .withOpacity(0.2);
+          c.drawRect(r, p);
+        }
+      }
+  }
+
+  void _grid(Canvas c) {
+    final p = Paint()
+      ..color = Colors.black.withOpacity(0.2)
+      ..strokeWidth = 0.4
+      ..style = PaintingStyle.stroke;
+    for (int x = 0; x <= kMapW; x++)
+      c.drawLine(
+        Offset(x * kTileSize, 0),
+        Offset(x * kTileSize, kMapH * kTileSize),
+        p,
+      );
+    for (int y = 0; y <= kMapH; y++)
+      c.drawLine(
+        Offset(0, y * kTileSize),
+        Offset(kMapW * kTileSize, y * kTileSize),
+        p,
+      );
+  }
+
+  void _borders(Canvas c) {
+    for (int y = 0; y < kMapH; y++)
+      for (int x = 0; x < kMapW; x++) {
+        final t = game.map.at(x, y);
+        if (t.ownerNationId == null) continue;
+        final col = game.nations[t.ownerNationId!]?.color ?? Colors.grey;
+        final p = Paint()
+          ..color = col.withOpacity(0.65)
+          ..strokeWidth = 1.8
+          ..style = PaintingStyle.stroke;
+        final ns = [
+          [-1, 0],
+          [1, 0],
+          [0, -1],
+          [0, 1],
+        ];
+        final sides = [
+          [
+            Offset(x * kTileSize, y * kTileSize),
+            Offset(x * kTileSize, (y + 1) * kTileSize),
+          ],
+          [
+            Offset((x + 1) * kTileSize, y * kTileSize),
+            Offset((x + 1) * kTileSize, (y + 1) * kTileSize),
+          ],
+          [
+            Offset(x * kTileSize, y * kTileSize),
+            Offset((x + 1) * kTileSize, y * kTileSize),
+          ],
+          [
+            Offset(x * kTileSize, (y + 1) * kTileSize),
+            Offset((x + 1) * kTileSize, (y + 1) * kTileSize),
+          ],
+        ];
+        for (int i = 0; i < 4; i++) {
+          final nx = x + ns[i][0], ny = y + ns[i][1];
+          final no = game.map.isValid(nx, ny)
+              ? game.map.at(nx, ny).ownerNationId
+              : null;
+          if (no != t.ownerNationId) c.drawLine(sides[i][0], sides[i][1], p);
+        }
+      }
+  }
+
+  void _buildings(Canvas c) {
+    final tp = TextPainter(textDirection: TextDirection.ltr);
+    for (final b in game.buildings.values) {
+      final cx = b.x * kTileSize + kTileSize / 2,
+          cy = b.y * kTileSize + kTileSize / 2;
+      tp.text = TextSpan(
+        text: b.def.emoji,
+        style: TextStyle(fontSize: kTileSize * 0.5),
+      );
+      tp.layout();
+      tp.paint(c, Offset(cx - tp.width / 2, cy - tp.height / 2 - 2));
+      final hp = b.health / b.maxHealth, bw = kTileSize - 8;
+      final bg = Paint()..color = Colors.black.withOpacity(0.5);
+      c.drawRect(
+        Rect.fromLTWH(
+          b.x * kTileSize + 4,
+          b.y * kTileSize + kTileSize - 6,
+          bw,
+          4,
+        ),
+        bg,
+      );
+      final fg = Paint()..color = hp > 0.5 ? kColorSuccess : kColorAccent;
+      c.drawRect(
+        Rect.fromLTWH(
+          b.x * kTileSize + 4,
+          b.y * kTileSize + kTileSize - 6,
+          bw * hp,
+          4,
+        ),
+        fg,
+      );
+      if (b.isConstructing) {
+        final ov = Paint()..color = Colors.yellow.withOpacity(0.18);
+        c.drawRect(
+          Rect.fromLTWH(b.x * kTileSize, b.y * kTileSize, kTileSize, kTileSize),
+          ov,
+        );
+      }
+    }
+  }
+
+  void _units(Canvas c) {
+    final tp = TextPainter(textDirection: TextDirection.ltr);
+    for (final u in game.units.values) {
+      final cx = u.x * kTileSize + kTileSize / 2,
+          cy = u.y * kTileSize + kTileSize / 2;
+      final col = game.nations[u.nationId]?.color ?? Colors.grey;
+      c.drawCircle(
+        Offset(cx, cy - 3),
+        (kTileSize * 0.3).clamp(10, 20),
+        Paint()..color = col.withOpacity(0.55),
+      );
+      tp.text = TextSpan(
+        text: u.def.emoji,
+        style: TextStyle(fontSize: kTileSize * 0.38),
+      );
+      tp.layout();
+      tp.paint(c, Offset(cx - tp.width / 2, cy - tp.height / 2 - 3));
+      final hp = u.health / u.maxHealth, bw = kTileSize - 10;
+      c.drawRect(
+        Rect.fromLTWH(
+          u.x * kTileSize + 5,
+          u.y * kTileSize + kTileSize - 7,
+          bw,
+          4,
+        ),
+        Paint()..color = Colors.black.withOpacity(0.55),
+      );
+      c.drawRect(
+        Rect.fromLTWH(
+          u.x * kTileSize + 5,
+          u.y * kTileSize + kTileSize - 7,
+          bw * hp,
+          4,
+        ),
+        Paint()..color = hp > 0.5 ? kColorSuccess : kColorAccent,
+      );
+      if (u.hasMoved && u.hasAttacked) {
+        c.drawRect(
+          Rect.fromLTWH(u.x * kTileSize, u.y * kTileSize, kTileSize, kTileSize),
+          Paint()..color = Colors.black.withOpacity(0.38),
+        );
+      }
+    }
+  }
+
+  void _highlights(Canvas c) {
+    final mp = Paint()..color = kColorSuccess.withOpacity(0.28);
+    final mb = Paint()
+      ..color = kColorSuccess.withOpacity(0.8)
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke;
+    for (final h in game.moveHighlights) {
+      final r = Rect.fromLTWH(
+        h[0] * kTileSize,
+        h[1] * kTileSize,
+        kTileSize,
+        kTileSize,
+      );
+      c.drawRect(r, mp);
+      c.drawRect(r, mb);
+    }
+    final ap = Paint()..color = kColorAccent.withOpacity(0.32);
+    final ab = Paint()
+      ..color = kColorAccent.withOpacity(0.85)
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke;
+    for (final h in game.attackHighlights) {
+      final r = Rect.fromLTWH(
+        h[0] * kTileSize,
+        h[1] * kTileSize,
+        kTileSize,
+        kTileSize,
+      );
+      c.drawRect(r, ap);
+      c.drawRect(r, ab);
+    }
+  }
+
+  void _selection(Canvas c) {
+    if (game.selX == null || game.selY == null) return;
+    final r = Rect.fromLTWH(
+      game.selX! * kTileSize,
+      game.selY! * kTileSize,
+      kTileSize,
+      kTileSize,
+    );
+    final sp = Paint()
+      ..color = kColorGold
+      ..strokeWidth = 2.5
+      ..style = PaintingStyle.stroke;
+    c.drawRect(r, sp);
+    const L = 7.0;
+    void corner(Offset o, List<Offset> ends) {
+      for (final e in ends) c.drawLine(o, e, sp..strokeWidth = 3);
+    }
+
+    corner(r.topLeft, [Offset(r.left + L, r.top), Offset(r.left, r.top + L)]);
+    corner(r.topRight, [
+      Offset(r.right - L, r.top),
+      Offset(r.right, r.top + L),
+    ]);
+    corner(r.bottomLeft, [
+      Offset(r.left + L, r.bottom),
+      Offset(r.left, r.bottom - L),
+    ]);
+    corner(r.bottomRight, [
+      Offset(r.right - L, r.bottom),
+      Offset(r.right, r.bottom - L),
+    ]);
+  }
+
+  @override
+  bool shouldRepaint(_) => true;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SECTION 22 ▸ BUILD PANEL (LEFT)
+// ══════════════════════════════════════════════════════════════════════════════
+
+class BuildPanel extends StatelessWidget {
+  final GameState game;
+  final int cat;
+  final ValueChanged<int> onCat;
+  const BuildPanel({
+    super.key,
+    required this.game,
+    required this.cat,
+    required this.onCat,
+  });
+
+  static const _cats = ['💰', '⚔️', '🛡️', '🔬', '⭐'];
+  static const _labs = ['Eco', 'Mil', 'Def', 'Tech', 'Spec'];
+  static const _types = [
+    BuildingCat.economic,
+    BuildingCat.military,
+    BuildingCat.defensive,
+    BuildingCat.technology,
+    BuildingCat.special,
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final n = game.playerNation;
+    final defs = kBuildingDefs.values
+        .where((d) => d.category == _types[cat])
+        .toList();
+    return Container(
+      width: 256,
+      color: kColorPanel,
+      child: Column(
+        children: [
+          Container(
+            height: 38,
+            color: kColorBg,
+            child: Row(
+              children: List.generate(
+                5,
+                (i) => Expanded(
+                  child: GestureDetector(
+                    onTap: () => onCat(i),
+                    child: Container(
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        border: Border(
+                          bottom: BorderSide(
+                            color: cat == i ? kColorGold : Colors.transparent,
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                      child: Text(
+                        '${_cats[i]}\n${_labs[i]}',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: cat == i ? kColorGold : kColorMuted,
+                          fontSize: 7,
+                          height: 1.2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.all(7),
+              itemCount: defs.length,
+              itemBuilder: (_, i) {
+                final d = defs[i];
+                final afford = n?.resources.canAfford(d.cost) == true;
+                final ageOk =
+                    d.requiredAge.index2 <= (n?.currentAge.index2 ?? 0);
+                final sel = game.pendingBuildDefId == d.id;
+                return GestureDetector(
+                  onTap: () {
+                    if (!ageOk) {
+                      game.addEvent(
+                        '❌ Requires ${d.requiredAge.label}!',
+                        color: kColorAccent,
+                      );
+                      return;
+                    }
+                    game.pendingBuildDefId = d.id;
+                    game.addEvent(
+                      '👆 Tap territory to place ${d.name}',
+                      color: kColorGold,
+                    );
+                    game.rebuild();
+                  },
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 5),
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      color: sel ? kColorGoldDark.withOpacity(0.28) : kColorBg,
+                      border: Border.all(
+                        color: sel
+                            ? kColorGold
+                            : !ageOk
+                            ? kColorBorder.withOpacity(0.25)
+                            : afford
+                            ? kColorBorder
+                            : kColorAccent.withOpacity(0.25),
+                      ),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(d.emoji, style: const TextStyle(fontSize: 16)),
+                            const SizedBox(width: 7),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Positioned.fill(
-                                    child: Opacity(
-                                      opacity: 0.12,
-                                      child: Container(
-                                        decoration: const BoxDecoration(
-                                          image: DecorationImage(
-                                            image: AssetImage(
-                                              'assets/images/global_dominion.png',
-                                            ),
-                                            fit: BoxFit.cover,
-                                          ),
-                                        ),
-                                      ),
+                                  Text(
+                                    d.name,
+                                    style: TextStyle(
+                                      color: !ageOk
+                                          ? kColorMuted
+                                          : afford
+                                          ? kColorText
+                                          : kColorAccent,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
                                     ),
                                   ),
-                                  Padding(
-                                    padding: const EdgeInsets.all(20),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        const Text(
-                                          'Active Battle Zones',
-                                          style: TextStyle(
-                                            color: Color(0xFFF4E19C),
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 16,
-                                            letterSpacing: 1.2,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 12),
-                                        Expanded(
-                                          child: Row(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.stretch,
-                                            children: [
-                                              _MapRegionBadge(
-                                                label: 'Northern Front',
-                                                status: 'Engaged',
-                                              ),
-                                              const SizedBox(width: 12),
-                                              _MapRegionBadge(
-                                                label: 'Coastal Port',
-                                                status: 'Reinforce',
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
+                                  Text(
+                                    !ageOk
+                                        ? '🔒 ${d.requiredAge.label}'
+                                        : '🕐${d.buildTicks}t ❤️${d.health}',
+                                    style: const TextStyle(
+                                      color: kColorMuted,
+                                      fontSize: 8,
                                     ),
                                   ),
                                 ],
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 22),
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(18),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF0F1620),
-                              borderRadius: BorderRadius.circular(24),
-                              border: Border.all(
-                                color: const Color(0xFF1E2A3A),
-                              ),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: const [
-                                Text(
-                                  'Intel Feed',
-                                  style: TextStyle(
-                                    color: Color(0xFFF4E19C),
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: 1.4,
-                                  ),
-                                ),
-                                SizedBox(height: 14),
-                                Text(
-                                  'Air surveillance detected increased movement near the western border.',
-                                  style: TextStyle(
-                                    color: Color(0xFFB0B7C5),
-                                    height: 1.7,
-                                  ),
-                                ),
-                                SizedBox(height: 12),
-                                Text(
-                                  'Naval convoys are ready for port deployment within 12 hours.',
-                                  style: TextStyle(
-                                    color: Color(0xFFB0B7C5),
-                                    height: 1.7,
-                                  ),
-                                ),
-                              ],
+                          ],
+                        ),
+                        if (d.cost.isNotEmpty) const SizedBox(height: 3),
+                        if (d.cost.isNotEmpty)
+                          _CostLine(cost: d.cost, nation: n),
+                        if (d.production.isNotEmpty)
+                          Text(
+                            '+${d.production.entries.map((e) => '${e.value.toInt()}${e.key}').join(' ')}',
+                            style: const TextStyle(
+                              color: kColorSuccess,
+                              fontSize: 8,
                             ),
                           ),
-                        ],
-                      ),
+                      ],
                     ),
-                  ],
+                  ),
+                );
+              },
+            ),
+          ),
+          if (game.pendingBuildDefId != null)
+            GestureDetector(
+              onTap: () {
+                game.pendingBuildDefId = null;
+                game.rebuild();
+              },
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(9),
+                color: kColorAccent.withOpacity(0.18),
+                child: const Text(
+                  '✖ Cancel Placement',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: kColorAccent,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CostLine extends StatelessWidget {
+  final Map<String, double> cost;
+  final Nation? nation;
+  const _CostLine({required this.cost, required this.nation});
+  static const _e = {
+    'gold': '💰',
+    'food': '🌾',
+    'wood': '🪵',
+    'stone': '🪨',
+    'iron': '⚙️',
+    'oil': '🛢️',
+  };
+  double _get(String k) {
+    if (nation == null) return 0;
+    switch (k) {
+      case 'gold':
+        return nation!.resources.gold;
+      case 'food':
+        return nation!.resources.food;
+      case 'wood':
+        return nation!.resources.wood;
+      case 'stone':
+        return nation!.resources.stone;
+      case 'iron':
+        return nation!.resources.iron;
+      case 'oil':
+        return nation!.resources.oil;
+      default:
+        return 0;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Wrap(
+    spacing: 5,
+    children: cost.entries.map((e) {
+      final ok = _get(e.key) >= e.value;
+      return Text(
+        '${_e[e.key] ?? '?'}${e.value.toInt()}',
+        style: TextStyle(color: ok ? kColorMuted : kColorAccent, fontSize: 8),
+      );
+    }).toList(),
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SECTION 23 ▸ BOTTOM SELECTION PANEL
+// ══════════════════════════════════════════════════════════════════════════════
+
+class SelectionPanel extends StatelessWidget {
+  final GameState game;
+  const SelectionPanel({super.key, required this.game});
+
+  @override
+  Widget build(BuildContext context) {
+    final unit = game.selUnitId != null ? game.units[game.selUnitId!] : null;
+    final building = game.selBuildingId != null
+        ? game.buildings[game.selBuildingId!]
+        : null;
+    final tile = (game.selX != null && game.selY != null)
+        ? game.map.at(game.selX!, game.selY!)
+        : null;
+
+    return Container(
+      height: 94,
+      color: kColorPanel,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: unit != null
+          ? _UnitPanel(unit: unit, game: game)
+          : building != null
+          ? _BldgPanel(building: building, game: game)
+          : tile != null
+          ? _TilePanel(tile: tile, game: game)
+          : _DefaultPanel(game: game),
+    );
+  }
+}
+
+class _UnitPanel extends StatelessWidget {
+  final GameUnit unit;
+  final GameState game;
+  const _UnitPanel({required this.unit, required this.game});
+  @override
+  Widget build(BuildContext context) {
+    final d = unit.def;
+    final n = game.nations[unit.nationId];
+    return Row(
+      children: [
+        Container(
+          width: 72,
+          height: 72,
+          decoration: BoxDecoration(
+            color: (n?.color ?? Colors.grey).withOpacity(0.18),
+            border: Border.all(color: n?.color ?? Colors.grey),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Center(
+            child: Text(d.emoji, style: const TextStyle(fontSize: 34)),
+          ),
+        ),
+        const SizedBox(width: 11),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                d.name,
+                style: TextStyle(
+                  color: n?.color ?? kColorText,
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(
+                n?.name ?? '',
+                style: const TextStyle(color: kColorMuted, fontSize: 9),
+              ),
+              const SizedBox(height: 3),
+              Row(
+                children: [
+                  const Text(
+                    'HP ',
+                    style: TextStyle(color: kColorMuted, fontSize: 9),
+                  ),
+                  Expanded(
+                    child: LinearProgressIndicator(
+                      value: unit.health / unit.maxHealth,
+                      backgroundColor: kColorBorder,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        unit.health > unit.maxHealth * 0.5
+                            ? kColorSuccess
+                            : kColorAccent,
+                      ),
+                      minHeight: 5,
+                    ),
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    '${unit.health}/${unit.maxHealth}',
+                    style: const TextStyle(color: kColorText, fontSize: 8),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 10),
+        Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _S('⚔️', 'ATK', d.attack),
+            _S('🛡️', 'DEF', d.defense),
+            _S('🏃', 'SPD', d.speed),
+            _S('🎯', 'RNG', d.range),
+          ],
+        ),
+        const SizedBox(width: 10),
+        Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              unit.hasMoved ? '✅ Moved' : '🏃 Can Move',
+              style: TextStyle(
+                color: unit.hasMoved ? kColorMuted : kColorSuccess,
+                fontSize: 9,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              unit.hasAttacked ? '✅ Attacked' : '⚔️ Can Atk',
+              style: TextStyle(
+                color: unit.hasAttacked ? kColorMuted : kColorAccent,
+                fontSize: 9,
+              ),
+            ),
+            const SizedBox(height: 6),
+            GestureDetector(
+              onTap: game.clearSelection,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                decoration: BoxDecoration(
+                  border: Border.all(color: kColorBorder),
+                  borderRadius: BorderRadius.circular(3),
+                ),
+                child: const Text(
+                  '✖ Desel',
+                  style: TextStyle(color: kColorMuted, fontSize: 8),
                 ),
               ),
             ),
           ],
         ),
-      ),
+      ],
     );
   }
+
+  Widget _S(String ic, String l, int v) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 1),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(ic, style: const TextStyle(fontSize: 10)),
+        const SizedBox(width: 3),
+        Text('$l:$v', style: const TextStyle(color: kColorText, fontSize: 9)),
+      ],
+    ),
+  );
 }
 
-class _DashboardCard extends StatelessWidget {
-  final String title;
-  final String value;
-  final Color accent;
-  final String subtitle;
-
-  const _DashboardCard({
-    required this.title,
-    required this.value,
-    required this.accent,
-    required this.subtitle,
-  });
-
+class _BldgPanel extends StatelessWidget {
+  final Building building;
+  final GameState game;
+  const _BldgPanel({required this.building, required this.game});
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
-          color: const Color(0xFF0F1620),
-          border: Border.all(color: const Color(0xFF1E2A3A)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(
-                color: Color(0xFF92A1C2),
-                fontSize: 12,
-                letterSpacing: 1.5,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              value,
-              style: TextStyle(
-                color: accent,
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              subtitle,
-              style: const TextStyle(
-                color: Color(0xFFB0B7C5),
-                fontSize: 13,
-                height: 1.6,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ActionButton extends StatelessWidget {
-  final String label;
-  final Color color;
-  final VoidCallback onPressed;
-
-  const _ActionButton({
-    required this.label,
-    required this.color,
-    required this.onPressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: color,
-          foregroundColor: const Color(0xFF061010),
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
+    final d = building.def;
+    final n = game.nations[building.nationId];
+    final isPlayer = building.nationId == game.playerNationId;
+    return Row(
+      children: [
+        Container(
+          width: 72,
+          height: 72,
+          decoration: BoxDecoration(
+            color: (n?.color ?? Colors.grey).withOpacity(0.18),
+            border: Border.all(color: n?.color ?? Colors.grey),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Center(
+            child: Text(d.emoji, style: const TextStyle(fontSize: 34)),
           ),
         ),
-        onPressed: onPressed,
-        child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
-      ),
+        const SizedBox(width: 11),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                d.name,
+                style: const TextStyle(
+                  color: kColorText,
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(
+                n?.name ?? '',
+                style: const TextStyle(color: kColorMuted, fontSize: 9),
+              ),
+              const SizedBox(height: 3),
+              Row(
+                children: [
+                  const Text(
+                    'HP ',
+                    style: TextStyle(color: kColorMuted, fontSize: 9),
+                  ),
+                  Expanded(
+                    child: LinearProgressIndicator(
+                      value: building.health / building.maxHealth,
+                      backgroundColor: kColorBorder,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        building.health > building.maxHealth * 0.5
+                            ? kColorSuccess
+                            : kColorAccent,
+                      ),
+                      minHeight: 5,
+                    ),
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    '${building.health}/${building.maxHealth}',
+                    style: const TextStyle(color: kColorText, fontSize: 8),
+                  ),
+                ],
+              ),
+              if (building.isConstructing)
+                Text(
+                  '⏳ Building: ${building.buildTicksLeft}t',
+                  style: const TextStyle(color: kColorGold, fontSize: 8),
+                ),
+              if (building.trainingUnitDefId != null)
+                Text(
+                  '🎯 Training ${kUnitDefs[building.trainingUnitDefId!]?.name}: ${building.trainingTicksLeft}t',
+                  style: const TextStyle(color: kColorGold, fontSize: 8),
+                ),
+            ],
+          ),
+        ),
+        if (isPlayer && d.unlocks.isNotEmpty && !building.isConstructing) ...[
+          const SizedBox(width: 10),
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text(
+                'TRAIN',
+                style: TextStyle(
+                  color: kColorMuted,
+                  fontSize: 8,
+                  letterSpacing: 1,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Wrap(
+                spacing: 4,
+                children: d.unlocks.map((uid) {
+                  final ud = kUnitDefs[uid];
+                  if (ud == null) return const SizedBox.shrink();
+                  final ok = n?.resources.canAfford(ud.cost) ?? false;
+                  return GestureDetector(
+                    onTap: () {
+                      if (building.trainingUnitDefId != null) {
+                        game.addEvent(
+                          '❌ Already training!',
+                          color: kColorAccent,
+                        );
+                        return;
+                      }
+                      game.trainUnit(game.playerNationId!, building.id, uid);
+                    },
+                    child: Tooltip(
+                      message:
+                          '${ud.name}\n${ud.cost.entries.map((e) => '${e.key}:${e.value.toInt()}').join(', ')}',
+                      child: Container(
+                        padding: const EdgeInsets.all(5),
+                        decoration: BoxDecoration(
+                          border: Border.all(
+                            color: ok ? kColorGoldDark : kColorBorder,
+                          ),
+                          borderRadius: BorderRadius.circular(3),
+                          color: ok
+                              ? kColorGoldDark.withOpacity(0.12)
+                              : Colors.transparent,
+                        ),
+                        child: Text(
+                          ud.emoji,
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+        ],
+      ],
     );
   }
 }
 
-class _DeploymentStat extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _DeploymentStat({required this.label, required this.value});
-
+class _TilePanel extends StatelessWidget {
+  final MapTile tile;
+  final GameState game;
+  const _TilePanel({required this.tile, required this.game});
   @override
   Widget build(BuildContext context) {
+    final owner = tile.ownerNationId != null
+        ? game.nations[tile.ownerNationId!]
+        : null;
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          label,
-          style: const TextStyle(color: Color(0xFFB0B7C5), fontSize: 14),
+        Container(
+          width: 72,
+          height: 72,
+          decoration: BoxDecoration(
+            color: tile.baseColor.withOpacity(0.4),
+            border: Border.all(color: kColorBorder),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Center(
+            child: Text(tile.emoji, style: const TextStyle(fontSize: 30)),
+          ),
         ),
-        Text(
-          value,
-          style: const TextStyle(
-            color: Color(0xFFFFD700),
-            fontWeight: FontWeight.bold,
-            fontSize: 14,
+        const SizedBox(width: 11),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              tile.terrain.name.toUpperCase(),
+              style: const TextStyle(
+                color: kColorText,
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 2,
+              ),
+            ),
+            Text(
+              'Pos: (${tile.x},${tile.y})',
+              style: const TextStyle(color: kColorMuted, fontSize: 9),
+            ),
+            if (owner != null)
+              Text(
+                'Owner: ${owner.name}',
+                style: TextStyle(color: owner.color, fontSize: 10),
+              ),
+            if (owner == null)
+              const Text(
+                'Unclaimed',
+                style: TextStyle(color: kColorMuted, fontSize: 10),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _DefaultPanel extends StatelessWidget {
+  final GameState game;
+  const _DefaultPanel({required this.game});
+  @override
+  Widget build(BuildContext context) {
+    final n = game.playerNation;
+    return Row(
+      children: [
+        if (n != null) ...[
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              color: n.color.withOpacity(0.18),
+              border: Border.all(color: n.color),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: const Center(
+              child: Text('🏛️', style: TextStyle(fontSize: 34)),
+            ),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  n.name,
+                  style: TextStyle(
+                    color: n.color,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  '${n.tier.label} · ${n.currentAge.label}',
+                  style: const TextStyle(color: kColorMuted, fontSize: 9),
+                ),
+                Text(
+                  '🗺️${n.ownedTiles.length} tiles · 🏗️${n.buildingIds.length} bldgs · ⚔️${n.unitIds.length} units',
+                  style: const TextStyle(color: kColorText, fontSize: 9),
+                ),
+              ],
+            ),
+          ),
+        ],
+        const Expanded(
+          child: Center(
+            child: Text(
+              '👆 Tap the map to select',
+              style: TextStyle(color: kColorMuted, fontSize: 11),
+              textAlign: TextAlign.center,
+            ),
           ),
         ),
       ],
@@ -2789,1039 +5957,778 @@ class _DeploymentStat extends StatelessWidget {
   }
 }
 
-class DeployArmyScreen extends StatelessWidget {
-  const DeployArmyScreen({super.key});
+// ══════════════════════════════════════════════════════════════════════════════
+// SECTION 24 ▸ RIGHT NATION PANEL
+// ══════════════════════════════════════════════════════════════════════════════
+
+class NationPanel extends StatelessWidget {
+  final GameState game;
+  const NationPanel({super.key, required this.game});
 
   @override
   Widget build(BuildContext context) {
-    final gameManager = context.watch<GameManager>();
-    final territories = gameManager.state?['territories'] as List<dynamic>?;
-    // For simplicity, we'll attack the first neutral territory found
-    final targetTerritory = territories?.firstWhere(
-      (t) => t['controlling_country'] == 'Neutral',
-      orElse: () => null,
-    );
-
-    return Scaffold(
-      backgroundColor: const Color(0xFF05070E),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF090D13),
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: Color(0xFFFFD700),
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'Deploy Army',
-          style: TextStyle(
-            color: Color(0xFFFFD700),
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Deployment Command',
+    final alive = game.aliveNations;
+    final total = kMapW * kMapH;
+    return Container(
+      width: 238,
+      color: kColorPanel,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(12, 12, 12, 8),
+            child: Text(
+              'NATIONS',
               style: TextStyle(
-                color: Colors.white,
-                fontSize: 28,
+                color: kColorGold,
+                fontSize: 10,
                 fontWeight: FontWeight.bold,
+                letterSpacing: 3,
               ),
             ),
-            const SizedBox(height: 10),
-            Text(
-              targetTerritory != null
-                  ? 'Targeting: ${targetTerritory['name']}. Prepare for assault.'
-                  : 'All sectors secured or contested by allies. Monitor world map for intel.',
-              style: const TextStyle(
-                color: Color(0xFFB0B7C5),
-                fontSize: 16,
-                height: 1.7,
-              ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              itemCount: alive.length,
+              itemBuilder: (_, i) {
+                final n = alive[i];
+                final isP = n.id == game.playerNationId;
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 7),
+                  padding: const EdgeInsets.all(9),
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: isP ? n.color : kColorBorder,
+                      width: isP ? 1.5 : 1,
+                    ),
+                    borderRadius: BorderRadius.circular(5),
+                    color: isP ? n.color.withOpacity(0.07) : Colors.transparent,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 9,
+                            height: 9,
+                            decoration: BoxDecoration(
+                              color: n.color,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 5),
+                          Expanded(
+                            child: Text(
+                              n.name,
+                              style: TextStyle(
+                                color: n.color,
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          if (isP)
+                            const Text(
+                              'YOU',
+                              style: TextStyle(color: kColorGold, fontSize: 7),
+                            ),
+                          if (n.isAI)
+                            const Text(
+                              'AI',
+                              style: TextStyle(color: kColorMuted, fontSize: 7),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '${n.tier.label} · ${n.currentAge.label}',
+                        style: const TextStyle(color: kColorMuted, fontSize: 7),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          const Text('🗺️ ', style: TextStyle(fontSize: 8)),
+                          Expanded(
+                            child: LinearProgressIndicator(
+                              value: n.ownedTiles.length / total,
+                              backgroundColor: kColorBorder,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                n.color,
+                              ),
+                              minHeight: 3,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${n.ownedTiles.length}',
+                            style: const TextStyle(
+                              color: kColorMuted,
+                              fontSize: 7,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          _NS('⚔️', n.militaryScore),
+                          const Spacer(),
+                          _NS('💰', n.economyScore),
+                          const Spacer(),
+                          _NS('🤝', n.influenceScore),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
-            const SizedBox(height: 24),
-            Expanded(
+          ),
+          Padding(
+            padding: const EdgeInsets.all(8),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: TerrainType.values.map((t) {
+                final tile = MapTile(x: 0, y: 0, terrain: t);
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(tile.emoji, style: const TextStyle(fontSize: 9)),
+                    const SizedBox(width: 2),
+                    Text(
+                      t.name,
+                      style: const TextStyle(color: kColorMuted, fontSize: 7),
+                    ),
+                  ],
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NS extends StatelessWidget {
+  final String icon;
+  final int val;
+  const _NS(this.icon, this.val);
+  static String _f(int v) {
+    if (v >= 1000) return '${(v / 1000).toStringAsFixed(0)}k';
+    return '$v';
+  }
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Text(icon, style: const TextStyle(fontSize: 9)),
+      Text(_f(val), style: const TextStyle(color: kColorText, fontSize: 8)),
+    ],
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SECTION 25 ▸ TECH DIALOG
+// ══════════════════════════════════════════════════════════════════════════════
+
+class TechDialog extends StatefulWidget {
+  final GameState game;
+  const TechDialog({super.key, required this.game});
+  @override
+  State<TechDialog> createState() => _TechDialogState();
+}
+
+class _TechDialogState extends State<TechDialog> {
+  Age _age = Age.ancient;
+  @override
+  Widget build(BuildContext context) {
+    final n = widget.game.playerNation;
+    final techs = kTechDefs.values.where((t) => t.era == _age).toList();
+    return Dialog(
+      backgroundColor: kColorBg,
+      child: SizedBox(
+        width: 660,
+        height: 480,
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(14),
+              color: kColorPanel,
               child: Row(
                 children: [
-                  Expanded(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0F1620),
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: const Color(0xFF1E2A3A)),
-                      ),
-                      padding: const EdgeInsets.all(18),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Armored Division',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          const Text(
-                            'Heavy tanks and mechanized infantry ready for frontal assault.',
-                            style: TextStyle(
-                              color: Color(0xFFB0B7C5),
-                              height: 1.6,
-                            ),
-                          ),
-                          const SizedBox(height: 18),
-                          _DeploymentStat(label: 'Strength', value: '89%'),
-                          const SizedBox(height: 10),
-                          _DeploymentStat(label: 'Speed', value: '57 km/h'),
-                          const SizedBox(height: 10),
-                          _DeploymentStat(label: 'Supplies', value: '94%'),
-                          const Spacer(),
-                          ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFFFD700),
-                              foregroundColor: const Color(0xFF0B0B0B),
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(18),
-                              ),
-                            ),
-                            onPressed: targetTerritory == null
-                                ? null
-                                : () async {
-                                    try {
-                                      final result = await gameManager.attack(
-                                        targetTerritory['id'],
-                                      );
-                                      if (context.mounted) {
-                                        showDialog(
-                                          context: context,
-                                          builder: (_) => AlertDialog(
-                                            title: Text(
-                                              result['battle_won']
-                                                  ? 'VICTORY'
-                                                  : 'DEFEAT',
-                                            ),
-                                            content: Text(result['message']),
-                                            actions: [
-                                              TextButton(
-                                                onPressed: () =>
-                                                    Navigator.pop(context),
-                                                child: const Text('OK'),
-                                              ),
-                                            ],
-                                          ),
-                                        );
-                                      }
-                                    } catch (e) {
-                                      if (context.mounted) {
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          SnackBar(content: Text('Error: $e')),
-                                        );
-                                      }
-                                    }
-                                  },
-                            child: const Text(
-                              'DEPLOY NOW',
-                              style: TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                        ],
-                      ),
+                  const Text(
+                    '🔬 TECH TREE',
+                    style: TextStyle(
+                      color: kColorGold,
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 3,
                     ),
                   ),
-                  const SizedBox(width: 18),
-                  Expanded(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0F1620),
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: const Color(0xFF1E2A3A)),
-                      ),
-                      padding: const EdgeInsets.all(18),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Recon Squadron',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          const Text(
-                            'Light airborne units prepared to survey enemy positions and relay battlefield intel.',
-                            style: TextStyle(
-                              color: Color(0xFFB0B7C5),
-                              height: 1.6,
-                            ),
-                          ),
-                          const SizedBox(height: 18),
-                          _DeploymentStat(label: 'Range', value: '420 km'),
-                          const SizedBox(height: 10),
-                          _DeploymentStat(label: 'Detection', value: 'High'),
-                          const SizedBox(height: 10),
-                          _DeploymentStat(label: 'Stealth', value: '79%'),
-                          const Spacer(),
-                          ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF4FC3F7),
-                              foregroundColor: const Color(0xFF061010),
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(18),
-                              ),
-                            ),
-                            onPressed: () {},
-                            child: const Text(
-                              'LAUNCH RECON',
-                              style: TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                        ],
-                      ),
+                  const SizedBox(width: 14),
+                  if (n?.activeResearchId != null)
+                    Text(
+                      'Researching: ${kTechDefs[n!.activeResearchId!]?.name ?? '?'}',
+                      style: const TextStyle(color: kColorGold, fontSize: 10),
+                    ),
+                  const Spacer(),
+                  Text(
+                    '🔬 ${n?.resources.researchPoints ?? 0} RP',
+                    style: const TextStyle(color: kColorText, fontSize: 11),
+                  ),
+                  const SizedBox(width: 14),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: const Text(
+                      '✖',
+                      style: TextStyle(color: kColorMuted, fontSize: 17),
                     ),
                   ),
                 ],
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class WorldMapScreen extends StatelessWidget {
-  const WorldMapScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF05070E),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF090D13),
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: Color(0xFFFFD700),
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'World Map',
-          style: TextStyle(
-            color: Color(0xFFFFD700),
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Global Tactical Map',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              'Review contested zones, track allied movements, and plan your next continental push.',
-              style: TextStyle(
-                color: Color(0xFFB0B7C5),
-                fontSize: 16,
-                height: 1.7,
-              ),
-            ),
-            const SizedBox(height: 22),
-            Expanded(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(26),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    Image.asset(
-                      'assets/images/global_dominion.png',
-                      fit: BoxFit.cover,
-                    ),
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.black.withValues(alpha: 0.2),
-                            Colors.black.withValues(alpha: 0.6),
-                          ],
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      left: 26,
-                      top: 26,
-                      right: 26,
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.45),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Text(
-                          'Enemy forces are most active in the northern front. Dispatch strike teams or redirect reserves as needed.',
-                          style: TextStyle(
-                            color: Colors.white70,
-                            fontSize: 14,
-                            height: 1.7,
-                          ),
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      left: 24,
-                      bottom: 24,
-                      child: _MapIndicator(
-                        label: 'Northern Front',
-                        status: 'Engaged',
-                        color: const Color(0xFFFFD700),
-                      ),
-                    ),
-                    Positioned(
-                      right: 24,
-                      bottom: 24,
-                      child: _MapIndicator(
-                        label: 'Coastal Port',
-                        status: 'Reinforce',
-                        color: const Color(0xFF4FC3F7),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0F1620),
-                      borderRadius: BorderRadius.circular(22),
-                      border: Border.all(color: const Color(0xFF1E2A3A)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
-                        Text(
-                          'Allied Presence',
-                          style: TextStyle(
-                            color: Color(0xFFF4E19C),
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        SizedBox(height: 12),
-                        Text(
-                          'Three allied fleets are positioned along the southern coast.',
-                          style: TextStyle(
-                            color: Color(0xFFB0B7C5),
-                            height: 1.6,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0F1620),
-                      borderRadius: BorderRadius.circular(22),
-                      border: Border.all(color: const Color(0xFF1E2A3A)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
-                        Text(
-                          'Resource Flow',
-                          style: TextStyle(
-                            color: Color(0xFFF4E19C),
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        SizedBox(height: 12),
-                        Text(
-                          'Supply lines are stable for 18 hours. Continue advancing before reserves are depleted.',
-                          style: TextStyle(
-                            color: Color(0xFFB0B7C5),
-                            height: 1.6,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _MapIndicator extends StatelessWidget {
-  final String label;
-  final String status;
-  final Color color;
-
-  const _MapIndicator({
-    required this.label,
-    required this.status,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF121E29),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: color.withValues(alpha: 0.5)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            status,
-            style: TextStyle(color: color, fontWeight: FontWeight.bold),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MapRegionBadge extends StatelessWidget {
-  final String label;
-  final String status;
-
-  const _MapRegionBadge({required this.label, required this.status});
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: const Color(0xFF111827),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFF1E2A3A)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 15,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              status,
-              style: const TextStyle(
-                color: Color(0xFFF4E19C),
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const Spacer(),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1E293B),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Text(
-                'ENGAGED',
-                style: TextStyle(
-                  color: Color(0xFFD4B86F),
-                  fontSize: 12,
-                  letterSpacing: 1.2,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────
-// ADMIN PANEL SCREEN
-// ─────────────────────────────────────────────
-class AdminPanelScreen extends StatefulWidget {
-  const AdminPanelScreen({super.key});
-
-  @override
-  State<AdminPanelScreen> createState() => _AdminPanelScreenState();
-}
-
-class _AdminPanelScreenState extends State<AdminPanelScreen> {
-  final _targetUsernameController = TextEditingController();
-  final _quantityController = TextEditingController(text: '1');
-  String _selectedItem = 'Gold';
-  String _selectedWeather = 'Clear';
-
-  final List<String> _items = const [
-    'Gold',
-    'Supplies',
-    'Crystals',
-    'Health Potion',
-    'Shield Boost',
-    'Speed Boost',
-    'Mystery Crate',
-  ];
-
-  final List<_WeatherOption> _weatherOptions = const [
-    _WeatherOption('Clear', Icons.wb_sunny_rounded, Color(0xFFFFD700)),
-    _WeatherOption('Rain', Icons.water_drop_rounded, Color(0xFF4FC3F7)),
-    _WeatherOption('Storm', Icons.flash_on_rounded, Color(0xFF7C8AA8)),
-    _WeatherOption('Snow', Icons.ac_unit_rounded, Color(0xFFE0F2F7)),
-    _WeatherOption('Fog', Icons.cloud_rounded, Color(0xFFB0B7C5)),
-    _WeatherOption(
-      'Heatwave',
-      Icons.local_fire_department_rounded,
-      Color(0xFFEF5350),
-    ),
-  ];
-
-  @override
-  void dispose() {
-    _targetUsernameController.dispose();
-    _quantityController.dispose();
-    super.dispose();
-  }
-
-  void _giveItem() {
-    final username = _targetUsernameController.text.trim();
-    final quantity = int.tryParse(_quantityController.text.trim()) ?? 0;
-
-    if (username.isEmpty) {
-      _showSnack('Enter a username to give items to.', isError: true);
-      return;
-    }
-    if (quantity <= 0) {
-      _showSnack('Quantity must be greater than zero.', isError: true);
-      return;
-    }
-
-    context.read<GameManager>().adminGiveItem(
-      username,
-      _selectedItem,
-      quantity,
-    );
-    _showSnack('Gave $quantity x $_selectedItem to $username.');
-    _targetUsernameController.clear();
-  }
-
-  void _applyWeather() {
-    context.read<GameManager>().adminSetWeather(_selectedWeather);
-    _showSnack('Weather event set to $_selectedWeather.');
-  }
-
-  void _showSnack(String message, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: isError
-            ? const Color(0xFFAA3300)
-            : const Color(0xFF1A1208),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final gameManager = context.watch<GameManager>();
-
-    if (!gameManager.isAdmin) {
-      return Scaffold(
-        backgroundColor: const Color(0xFF0D0D0D),
-        body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.lock_rounded,
-                color: Color(0xFFAA3300),
-                size: 48,
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'ACCESS DENIED',
-                style: TextStyle(
-                  color: Color(0xFFAA3300),
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 3,
-                  fontSize: 18,
-                ),
-              ),
-              const SizedBox(height: 20),
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text(
-                  'GO BACK',
-                  style: TextStyle(color: Color(0xFFFFD700)),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return Scaffold(
-      backgroundColor: const Color(0xFF0D0D0D),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF1A1208), Color(0xFF0D0D0D)],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              // Header
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 16,
-                ),
-                decoration: const BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(color: Color(0xFF3A2800), width: 1),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(
-                        Icons.arrow_back_ios_new_rounded,
-                        color: Color(0xFFFFD700),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    const Text(
-                      'ADMIN PANEL',
-                      style: TextStyle(
-                        color: Color(0xFFFFD700),
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 3,
-                      ),
-                    ),
-                    const Spacer(),
-                    Container(
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: Age.values.map((age) {
+                  final ok = age.index2 <= (n?.currentAge.index2 ?? 0);
+                  return GestureDetector(
+                    onTap: () => setState(() => _age = age),
+                    child: Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
+                        horizontal: 14,
+                        vertical: 9,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFAA3300).withValues(alpha: 0.25),
-                        border: Border.all(color: const Color(0xFFAA3300)),
-                        borderRadius: BorderRadius.circular(4),
+                        border: Border(
+                          bottom: BorderSide(
+                            color: _age == age
+                                ? kColorGold
+                                : Colors.transparent,
+                            width: 2,
+                          ),
+                        ),
+                        color: _age == age ? kColorPanel : Colors.transparent,
                       ),
-                      child: const Text(
-                        'COMMANDER ACCESS',
+                      child: Text(
+                        age.label.replaceAll(' Age', ''),
                         style: TextStyle(
-                          color: Color(0xFFFF8A65),
-                          fontSize: 11,
-                          letterSpacing: 1.5,
+                          color: !ok
+                              ? kColorMuted
+                              : _age == age
+                              ? kColorGold
+                              : kColorText,
+                          fontSize: 9,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
-                  ],
-                ),
+                  );
+                }).toList(),
               ),
-              // Body
-              Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.all(32),
-                  children: [
-                    // GIVE ITEMS SECTION
-                    GameCard(
+            ),
+            Expanded(
+              child: GridView.builder(
+                padding: const EdgeInsets.all(14),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  mainAxisSpacing: 7,
+                  crossAxisSpacing: 7,
+                  childAspectRatio: 1.85,
+                ),
+                itemCount: techs.length,
+                itemBuilder: (_, i) {
+                  final t = techs[i];
+                  final done = n?.hasCompletedTech(t.id) == true;
+                  final busy = n?.activeResearchId == t.id;
+                  final prog = n?.research[t.id]?.progress ?? 0.0;
+                  final prereq = t.prerequisites.every(
+                    (p) => n?.hasCompletedTech(p) == true,
+                  );
+                  final ageOk = t.era.index2 <= (n?.currentAge.index2 ?? 0);
+                  final can = ageOk && prereq && !done && !busy;
+                  return GestureDetector(
+                    onTap: can
+                        ? () {
+                            widget.game.startResearch(
+                              widget.game.playerNationId!,
+                              t.id,
+                            );
+                            setState(() {});
+                          }
+                        : null,
+                    child: Container(
+                      padding: const EdgeInsets.all(9),
+                      decoration: BoxDecoration(
+                        color: done
+                            ? kColorSuccess.withOpacity(0.08)
+                            : busy
+                            ? kColorGoldDark.withOpacity(0.18)
+                            : kColorPanel,
+                        border: Border.all(
+                          color: done
+                              ? kColorSuccess.withOpacity(0.45)
+                              : busy
+                              ? kColorGold
+                              : !ageOk || !prereq
+                              ? kColorBorder.withOpacity(0.3)
+                              : kColorBorder,
+                        ),
+                        borderRadius: BorderRadius.circular(5),
+                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Row(
-                            children: [
-                              Icon(
-                                Icons.card_giftcard_rounded,
-                                color: Color(0xFFFFD700),
-                              ),
-                              SizedBox(width: 10),
-                              Text(
-                                'GIVE ITEMS TO PLAYER',
-                                style: TextStyle(
-                                  color: Color(0xFFF4E19C),
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 1.5,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 20),
-                          TacticalInput(
-                            controller: _targetUsernameController,
-                            label: 'Target Username',
-                          ),
                           Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
+                              Text(
+                                t.emoji,
+                                style: const TextStyle(fontSize: 15),
+                              ),
+                              const SizedBox(width: 5),
                               Expanded(
-                                flex: 2,
-                                child: _AdminDropdown(
-                                  label: 'Item',
-                                  value: _selectedItem,
-                                  options: _items,
-                                  onChanged: (v) =>
-                                      setState(() => _selectedItem = v),
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: TacticalInput(
-                                  controller: _quantityController,
-                                  label: 'Quantity',
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          TacticalButton(
-                            label: 'Give Item',
-                            onPressed: _giveItem,
-                          ),
-                          if (gameManager.itemGrants.isNotEmpty) ...[
-                            const SizedBox(height: 24),
-                            const Text(
-                              'RECENT GRANTS',
-                              style: TextStyle(
-                                color: Color(0xFFAA8820),
-                                fontSize: 12,
-                                letterSpacing: 2,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            ...gameManager.itemGrants
-                                .take(5)
-                                .map(
-                                  (grant) => Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 4,
-                                    ),
-                                    child: Text(
-                                      '${grant.quantity}x ${grant.item} \u2192 ${grant.username}',
-                                      style: const TextStyle(
-                                        color: Colors.white70,
-                                        fontSize: 13,
-                                      ),
-                                    ),
+                                child: Text(
+                                  t.name,
+                                  style: TextStyle(
+                                    color: done ? kColorSuccess : kColorText,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                          ],
+                              ),
+                              if (done)
+                                const Text(
+                                  '✓',
+                                  style: TextStyle(
+                                    color: kColorSuccess,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                            ],
+                          ),
+                          Expanded(
+                            child: Text(
+                              t.description,
+                              style: const TextStyle(
+                                color: kColorMuted,
+                                fontSize: 7,
+                              ),
+                            ),
+                          ),
+                          Row(
+                            children: [
+                              Text(
+                                '${t.cost} RP',
+                                style: TextStyle(
+                                  color: !ageOk ? kColorBorder : kColorGold,
+                                  fontSize: 8,
+                                ),
+                              ),
+                              const Spacer(),
+                              if (busy)
+                                Text(
+                                  '${(prog * 100).toInt()}%',
+                                  style: const TextStyle(
+                                    color: kColorGold,
+                                    fontSize: 8,
+                                  ),
+                                ),
+                            ],
+                          ),
+                          if (busy)
+                            LinearProgressIndicator(
+                              value: prog,
+                              backgroundColor: kColorBorder,
+                              valueColor: const AlwaysStoppedAnimation<Color>(
+                                kColorGold,
+                              ),
+                              minHeight: 3,
+                            ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 28),
-                    // WEATHER CONTROL SECTION
-                    GameCard(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Row(
-                            children: [
-                              Icon(
-                                Icons.cloud_rounded,
-                                color: Color(0xFF4FC3F7),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SECTION 26 ▸ DIPLOMACY DIALOG
+// ══════════════════════════════════════════════════════════════════════════════
+
+class DiplomacyDialog extends StatelessWidget {
+  final GameState game;
+  const DiplomacyDialog({super.key, required this.game});
+  @override
+  Widget build(BuildContext context) {
+    final pn = game.playerNation;
+    final others = game.aliveNations
+        .where((n) => n.id != game.playerNationId)
+        .toList();
+    return Dialog(
+      backgroundColor: kColorBg,
+      child: SizedBox(
+        width: 540,
+        height: 400,
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(14),
+              color: kColorPanel,
+              child: Row(
+                children: [
+                  const Text(
+                    '🤝 DIPLOMACY',
+                    style: TextStyle(
+                      color: kColorGold,
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 3,
+                    ),
+                  ),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: const Text(
+                      '✖',
+                      style: TextStyle(color: kColorMuted, fontSize: 17),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (pn != null)
+              Expanded(
+                child: others.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'No other nations.',
+                          style: TextStyle(color: kColorMuted),
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(14),
+                        itemCount: others.length,
+                        itemBuilder: (_, i) {
+                          final o = others[i];
+                          final rel = pn.diplomacy[o.id];
+                          final ally = rel?.isAllied == true;
+                          final war = rel?.atWar == true;
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.all(11),
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: war
+                                    ? kColorAccent.withOpacity(0.4)
+                                    : ally
+                                    ? kColorSuccess.withOpacity(0.4)
+                                    : kColorBorder,
                               ),
-                              SizedBox(width: 10),
-                              Text(
-                                'WEATHER CONTROL',
-                                style: TextStyle(
-                                  color: Color(0xFFF4E19C),
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 1.5,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            'Current event: ${gameManager.currentWeather}',
-                            style: const TextStyle(
-                              color: Colors.white54,
-                              fontSize: 13,
+                              borderRadius: BorderRadius.circular(5),
                             ),
-                          ),
-                          const SizedBox(height: 18),
-                          Wrap(
-                            spacing: 10,
-                            runSpacing: 10,
-                            children: _weatherOptions.map((opt) {
-                              final isSelected = _selectedWeather == opt.label;
-                              return GestureDetector(
-                                onTap: () => setState(
-                                  () => _selectedWeather = opt.label,
-                                ),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 10,
-                                  ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 38,
+                                  height: 38,
                                   decoration: BoxDecoration(
-                                    color: isSelected
-                                        ? opt.color.withValues(alpha: 0.25)
-                                        : const Color(0xFF1A1208),
-                                    border: Border.all(
-                                      color: isSelected
-                                          ? opt.color
-                                          : const Color(0xFF3A2800),
-                                      width: isSelected ? 2 : 1,
-                                    ),
-                                    borderRadius: BorderRadius.circular(4),
+                                    color: o.color.withOpacity(0.18),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: o.color),
                                   ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
+                                  child: const Center(
+                                    child: Text(
+                                      '🏛️',
+                                      style: TextStyle(fontSize: 18),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      Icon(
-                                        opt.icon,
-                                        color: opt.color,
-                                        size: 18,
-                                      ),
-                                      const SizedBox(width: 8),
                                       Text(
-                                        opt.label,
+                                        o.name,
                                         style: TextStyle(
-                                          color: isSelected
-                                              ? opt.color
-                                              : Colors.white70,
-                                          fontWeight: FontWeight.w600,
+                                          color: o.color,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      Text(
+                                        '${o.tier.label}',
+                                        style: const TextStyle(
+                                          color: kColorMuted,
+                                          fontSize: 8,
+                                        ),
+                                      ),
+                                      Text(
+                                        war
+                                            ? '⚔️ At War'
+                                            : ally
+                                            ? '🤝 Allied'
+                                            : '😐 Neutral',
+                                        style: TextStyle(
+                                          color: war
+                                              ? kColorAccent
+                                              : ally
+                                              ? kColorSuccess
+                                              : kColorMuted,
+                                          fontSize: 8,
                                         ),
                                       ),
                                     ],
                                   ),
                                 ),
-                              );
-                            }).toList(),
-                          ),
-                          const SizedBox(height: 20),
-                          TacticalButton(
-                            label: 'Apply Weather Event',
-                            color: const Color(0xFF4FC3F7),
-                            onPressed: _applyWeather,
-                          ),
-                        ],
+                                Row(
+                                  children: [
+                                    if (!ally && !war)
+                                      _DB('🤝 Ally', kColorSuccess, () {
+                                        game.performDiplomacy(
+                                          game.playerNationId!,
+                                          o.id,
+                                          DiplomacyAction.ally,
+                                        );
+                                        Navigator.pop(context);
+                                      }),
+                                    if (!ally && !war) const SizedBox(width: 5),
+                                    if (!war)
+                                      _DB('⚔️ War', kColorAccent, () {
+                                        game.performDiplomacy(
+                                          game.playerNationId!,
+                                          o.id,
+                                          DiplomacyAction.declareWar,
+                                        );
+                                        Navigator.pop(context);
+                                      }),
+                                    if (war)
+                                      _DB('🕊️ Peace', kColorText, () {
+                                        game.performDiplomacy(
+                                          game.playerNationId!,
+                                          o.id,
+                                          DiplomacyAction.makePeace,
+                                        );
+                                        Navigator.pop(context);
+                                      }),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          );
+                        },
                       ),
-                    ),
-                  ],
-                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DB extends StatelessWidget {
+  final String l;
+  final Color c;
+  final VoidCallback t;
+  const _DB(this.l, this.c, this.t);
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: t,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        border: Border.all(color: c.withOpacity(0.6)),
+        borderRadius: BorderRadius.circular(3),
+        color: c.withOpacity(0.1),
+      ),
+      child: Text(
+        l,
+        style: TextStyle(color: c, fontSize: 9, fontWeight: FontWeight.bold),
+      ),
+    ),
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SECTION 27 ▸ VICTORY DIALOG
+// ══════════════════════════════════════════════════════════════════════════════
+
+class VictoryDialog extends StatefulWidget {
+  final GameState game;
+  final VoidCallback onExit;
+  const VictoryDialog({super.key, required this.game, required this.onExit});
+  @override
+  State<VictoryDialog> createState() => _VictoryState();
+}
+
+class _VictoryState extends State<VictoryDialog>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _c;
+  late Animation<double> _sc;
+  @override
+  void initState() {
+    super.initState();
+    _c = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 750),
+    );
+    _sc = Tween<double>(
+      begin: 0.5,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _c, curve: Curves.elasticOut));
+    _c.forward();
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final winner = widget.game.winnerNationId != null
+        ? widget.game.nations[widget.game.winnerNationId!]
+        : null;
+    final isP = winner?.id == widget.game.playerNationId;
+    const vl = {
+      VictoryType.military: ('⚔️', 'Military Conquest'),
+      VictoryType.economic: ('💰', 'Economic Dominance'),
+      VictoryType.territorial: ('🗺️', 'Territorial Control'),
+      VictoryType.technological: ('🔬', 'Technological Ascension'),
+      VictoryType.diplomatic: ('🤝', 'Diplomatic Victory'),
+    };
+    final vt = vl[widget.game.victoryType] ?? ('🏆', 'Victory');
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      child: ScaleTransition(
+        scale: _sc,
+        child: Container(
+          width: 440,
+          padding: const EdgeInsets.all(30),
+          decoration: BoxDecoration(
+            color: kColorBg,
+            border: Border.all(
+              color: isP ? kColorGold : kColorAccent,
+              width: 2,
+            ),
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: [
+              BoxShadow(
+                color: (isP ? kColorGold : kColorAccent).withOpacity(0.28),
+                blurRadius: 36,
+                spreadRadius: 8,
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _WeatherOption {
-  final String label;
-  final IconData icon;
-  final Color color;
-
-  const _WeatherOption(this.label, this.icon, this.color);
-}
-
-class _AdminDropdown extends StatelessWidget {
-  final String label;
-  final String value;
-  final List<String> options;
-  final ValueChanged<String> onChanged;
-
-  const _AdminDropdown({
-    required this.label,
-    required this.value,
-    required this.options,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF2A1E12).withValues(alpha: 0.7),
-        border: Border.all(color: const Color(0xFF5C4008)),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: value,
-          isExpanded: true,
-          dropdownColor: const Color(0xFF1A1208),
-          style: const TextStyle(color: Colors.white),
-          icon: const Icon(Icons.arrow_drop_down, color: Color(0xFFAA8820)),
-          items: options
-              .map((o) => DropdownMenuItem(value: o, child: Text(o)))
-              .toList(),
-          onChanged: (v) {
-            if (v != null) onChanged(v);
-          },
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────
-// SETTINGS SCREEN
-// ─────────────────────────────────────────────
-class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
-
-  @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
-}
-
-class _SettingsScreenState extends State<SettingsScreen> {
-  double _musicVol = 0.7;
-  double _sfxVol = 0.9;
-  bool _fullscreen = true;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0D0D0D),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF1A1208), Color(0xFF0D0D0D)],
-          ),
-        ),
-        child: SafeArea(
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              // Header
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 16,
+              Text(isP ? '🏆' : '💀', style: const TextStyle(fontSize: 60)),
+              const SizedBox(height: 10),
+              Text(
+                isP ? 'VICTORY!' : 'DEFEATED',
+                style: TextStyle(
+                  color: isP ? kColorGold : kColorAccent,
+                  fontSize: 30,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 5,
                 ),
-                decoration: const BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(color: Color(0xFF3A2800), width: 1),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '${vt.$1} ${vt.$2}',
+                style: const TextStyle(
+                  color: kColorText,
+                  fontSize: 13,
+                  letterSpacing: 2,
+                ),
+              ),
+              if (winner != null) ...[
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: winner.color.withOpacity(0.45)),
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 22,
+                        height: 22,
+                        decoration: BoxDecoration(
+                          color: winner.color,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 9),
+                      Text(
+                        winner.name,
+                        style: TextStyle(
+                          color: winner.color,
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
+              ],
+              const SizedBox(height: 18),
+              Container(
+                padding: const EdgeInsets.all(11),
+                decoration: BoxDecoration(
+                  color: kColorPanel,
+                  borderRadius: BorderRadius.circular(5),
+                ),
                 child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(
-                        Icons.arrow_back_ios_new_rounded,
-                        color: Color(0xFFFFD700),
-                      ),
+                    _VS('⏱️', 'Turns', '${widget.game.tick}'),
+                    _VS(
+                      '🗺️',
+                      'Territory',
+                      '${winner?.ownedTiles.length ?? 0}',
                     ),
-                    const SizedBox(width: 8),
-                    const Text(
-                      'SETTINGS',
-                      style: TextStyle(
-                        color: Color(0xFFFFD700),
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 3,
-                      ),
+                    _VS(
+                      '🏗️',
+                      'Buildings',
+                      '${winner?.buildingIds.length ?? 0}',
                     ),
+                    _VS('💰', 'Economy', '${winner?.economyScore ?? 0}'),
                   ],
                 ),
               ),
-              // Settings body
-              Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.all(32),
-                  children: [
-                    _SettingsSection(
-                      title: 'AUDIO',
-                      children: [
-                        _SliderSetting(
-                          label: 'Music Volume',
-                          icon: Icons.music_note_rounded,
-                          value: _musicVol,
-                          onChanged: (v) => setState(() => _musicVol = v),
-                        ),
-                        _SliderSetting(
-                          label: 'SFX Volume',
-                          icon: Icons.surround_sound_rounded,
-                          value: _sfxVol,
-                          onChanged: (v) => setState(() => _sfxVol = v),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 32),
-                    _SettingsSection(
-                      title: 'DISPLAY',
-                      children: [
-                        _ToggleSetting(
-                          label: 'Fullscreen Mode',
-                          icon: Icons.fullscreen_rounded,
-                          value: _fullscreen,
-                          onChanged: (v) => setState(() => _fullscreen = v),
-                        ),
-                      ],
-                    ),
-                  ],
+              const SizedBox(height: 22),
+              ElevatedButton(
+                onPressed: widget.onExit,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isP
+                      ? kColorGoldDark
+                      : kColorAccent.withOpacity(0.3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 30,
+                    vertical: 13,
+                  ),
+                ),
+                child: const Text(
+                  'RETURN TO MENU',
+                  style: TextStyle(letterSpacing: 2),
                 ),
               ),
             ],
@@ -3832,118 +6739,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 }
 
-class _SettingsSection extends StatelessWidget {
-  final String title;
-  final List<Widget> children;
-
-  const _SettingsSection({required this.title, required this.children});
-
+class _VS extends StatelessWidget {
+  final String icon, label, val;
+  const _VS(this.icon, this.label, this.val);
   @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: const TextStyle(
-            color: Color(0xFFAA8820),
-            fontSize: 12,
-            letterSpacing: 3,
-            fontWeight: FontWeight.w600,
-          ),
+  Widget build(BuildContext context) => Column(
+    children: [
+      Text(icon, style: const TextStyle(fontSize: 17)),
+      Text(
+        val,
+        style: const TextStyle(
+          color: kColorGold,
+          fontSize: 13,
+          fontWeight: FontWeight.bold,
         ),
-        const SizedBox(height: 12),
-        Container(
-          decoration: BoxDecoration(
-            color: const Color(0xFF1A1208),
-            border: Border.all(color: const Color(0xFF3A2800)),
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Column(children: children),
-        ),
-      ],
-    );
-  }
-}
-
-class _SliderSetting extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final double value;
-  final ValueChanged<double> onChanged;
-
-  const _SliderSetting({
-    required this.label,
-    required this.icon,
-    required this.value,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-      child: Row(
-        children: [
-          Icon(icon, color: const Color(0xFFFFD700), size: 20),
-          const SizedBox(width: 14),
-          SizedBox(
-            width: 120,
-            child: Text(label, style: const TextStyle(color: Colors.white70)),
-          ),
-          Expanded(
-            child: SliderTheme(
-              data: SliderTheme.of(context).copyWith(
-                activeTrackColor: const Color(0xFFFFD700),
-                inactiveTrackColor: const Color(0xFF3A2800),
-                thumbColor: const Color(0xFFFFD700),
-                overlayColor: const Color(0x33FFD700),
-              ),
-              child: Slider(value: value, onChanged: onChanged),
-            ),
-          ),
-          Text(
-            '${(value * 100).round()}%',
-            style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12),
-          ),
-        ],
       ),
-    );
-  }
-}
-
-class _ToggleSetting extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  const _ToggleSetting({
-    required this.label,
-    required this.icon,
-    required this.value,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-      child: Row(
-        children: [
-          Icon(icon, color: const Color(0xFFFFD700), size: 20),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Text(label, style: const TextStyle(color: Colors.white70)),
-          ),
-          Switch(
-            value: value,
-            onChanged: onChanged,
-            activeThumbColor: const Color(0xFFFFD700),
-            activeTrackColor: const Color(0xFF3A2800),
-          ),
-        ],
-      ),
-    );
-  }
+      Text(label, style: const TextStyle(color: kColorMuted, fontSize: 8)),
+    ],
+  );
 }

@@ -1852,18 +1852,26 @@ def register():
                 return jsonify({"success": False, "message": "Username or Email already exists."}), 400
             return render_template_string(REGISTER_HTML, error="Username or Email already exists.")
 
-        hashed = generate_password_hash(password, method='pbkdf2:sha256')
-        new_user = User(username=username, email=email, password_hash=hashed)  # type: ignore[call-arg]
-        db.session.add(new_user)
-        db.session.commit()
+        try:
+            hashed = generate_password_hash(password, method='pbkdf2:sha256')
+            new_user = User(username=username, email=email, password_hash=hashed)  # type: ignore[call-arg]
+            db.session.add(new_user)
+            db.session.commit()
 
-        new_research = Research(user_id=new_user.id)  # type: ignore[call-arg]
-        db.session.add(new_research)
-        
-        for utype in ['Infantry', 'Vehicle', 'Aircraft', 'Special']:
-            db.session.add(Unit(user_id=new_user.id, unit_type=utype, quantity=0, level=1))  # type: ignore[call-arg]
-        
-        db.session.commit()
+            new_research = Research(user_id=new_user.id)  # type: ignore[call-arg]
+            db.session.add(new_research)
+
+            for utype in ['Infantry', 'Vehicle', 'Aircraft', 'Special']:
+                db.session.add(Unit(user_id=new_user.id, unit_type=utype, quantity=0, level=1))  # type: ignore[call-arg]
+
+            db.session.commit()
+        except Exception as reg_error:
+            db.session.rollback()
+            app.logger.error(f"Registration failed for '{username}': {reg_error}")
+            if request.is_json:
+                return jsonify({"success": False, "message": f"Registration failed: {reg_error}"}), 500
+            return render_template_string(REGISTER_HTML, error=f"Registration failed: {reg_error}")
+
         session['user_id'] = new_user.id
         if request.is_json:
             return jsonify({"success": True, "message": "Registration successful."})
