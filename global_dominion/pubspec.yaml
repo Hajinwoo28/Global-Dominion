@@ -41,6 +41,9 @@ dev_dependencies:
   # --- ADDED: MSIX installer generator for Windows ---
   msix: ^3.16.0
 
+  # --- ADDED: generates app icons for every platform from one source image ---
+  flutter_launcher_icons: ^0.14.3
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
@@ -50,6 +53,17 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/images/war_map.jpg
+
+# --- ADDED: flutter_launcher_icons config — generates Android/iOS/Windows icons from one source image ---
+flutter_icons:
+  android: true
+  ios: true
+  windows:
+    generate: true
+  image_path: "assets/images/global_dominion_icon.png"
+  adaptive_icon_background: "#191C21"
+  adaptive_icon_foreground: "assets/images/global_dominion_icon.png"
 
 # --- ADDED: MSIX Installer Configurations ---
 # You can customize these fields for your installer setup

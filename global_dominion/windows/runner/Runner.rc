@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "global_dominion" "\0"
+            VALUE "CompanyName", "The Swordsman" "\0"
+            VALUE "FileDescription", "Global Dominion" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "global_dominion" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.example. All rights reserved." "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 The Swordsman: Jacob and Adolf. All rights reserved" "\0"
             VALUE "OriginalFilename", "global_dominion.exe" "\0"
-            VALUE "ProductName", "global_dominion" "\0"
+            VALUE "ProductName", "Global Dominion" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
