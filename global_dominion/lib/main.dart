@@ -270,7 +270,7 @@ class _RankingsScreenState extends State<RankingsScreen>
                       ),
                     ),
                     const SizedBox(height: 10),
-                    Image.asset('assets/images/game_logo.png', width: 150),
+                    Image.asset('assets/images/world_map.png', width: 150),
                   ],
                 ),
               ),
@@ -764,6 +764,79 @@ class _TacticalButtonPainter extends CustomPainter {
   bool shouldRepaint(CustomPainter oldDelegate) => false;
 }
 
+// ─────────────────────────────────────────────
+// ORNATE FRAME PAINTER — decorative gold border for SplashScreen
+// ─────────────────────────────────────────────
+class _OrnateFramePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    const gold = Color(0xFFAA8820);
+    const brightGold = Color(0xFFD4A818);
+    const dimGold = Color(0xFF5C4008);
+
+    final w = size.width;
+    final h = size.height;
+
+    // ── Outer border ──
+    final outerPaint = Paint()
+      ..color = gold
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5;
+    const o = 9.0;
+    canvas.drawRect(Rect.fromLTWH(o, o, w - o * 2, h - o * 2), outerPaint);
+
+    // ── Inner border ──
+    final innerPaint = Paint()
+      ..color = dimGold
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+    const i = 17.0;
+    canvas.drawRect(Rect.fromLTWH(i, i, w - i * 2, h - i * 2), innerPaint);
+
+    // ── Corner L-brackets (bright gold, thicker) ──
+    final bracketPaint = Paint()
+      ..color = brightGold
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.0
+      ..strokeCap = StrokeCap.square;
+
+    const cl = 44.0; // corner leg length
+
+    void drawL(double cx, double cy, double dx, double dy) {
+      canvas.drawLine(Offset(cx + dx * cl, cy), Offset(cx, cy), bracketPaint);
+      canvas.drawLine(Offset(cx, cy), Offset(cx, cy + dy * cl), bracketPaint);
+    }
+
+    drawL(o, o, 1, 1);           // top-left
+    drawL(w - o, o, -1, 1);     // top-right
+    drawL(o, h - o, 1, -1);     // bottom-left
+    drawL(w - o, h - o, -1, -1); // bottom-right
+
+    // ── Diamond accents at mid-edge ──
+    final diamondPaint = Paint()
+      ..color = gold
+      ..style = PaintingStyle.fill;
+
+    void drawDiamond(double cx, double cy, double r) {
+      final path = Path()
+        ..moveTo(cx, cy - r)
+        ..lineTo(cx + r, cy)
+        ..lineTo(cx, cy + r)
+        ..lineTo(cx - r, cy)
+        ..close();
+      canvas.drawPath(path, diamondPaint);
+    }
+
+    drawDiamond(w / 2, o, 5.5);      // top center
+    drawDiamond(w / 2, h - o, 5.5);  // bottom center
+    drawDiamond(o, h / 2, 4.0);      // left center
+    drawDiamond(w - o, h / 2, 4.0);  // right center
+  }
+
+  @override
+  bool shouldRepaint(_OrnateFramePainter old) => false;
+}
+
 class TacticalInput extends StatelessWidget {
   final TextEditingController controller;
   final String label;
@@ -868,19 +941,6 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
           ),
-          // Page Title
-          const Positioned(
-            top: 40,
-            left: 40,
-            child: Text(
-              'Login Page',
-              style: TextStyle(
-                color: Color(0xFFF4E19C),
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
           // Center Card
           Center(
             child: GameCard(
@@ -888,7 +948,7 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Image.asset('assets/images/game_logo.png', width: 120),
+                  Image.asset('assets/images/world_map.png', width: 120),
                   const SizedBox(height: 30),
                   TacticalInput(
                     controller: _identifierController,
@@ -1054,19 +1114,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
             ),
           ),
-          // Page Title
-          const Positioned(
-            top: 40,
-            left: 40,
-            child: Text(
-              'Register Page',
-              style: TextStyle(
-                color: Color(0xFFF4E19C),
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
           // Center Card
           Center(
             child: SingleChildScrollView(
@@ -1076,7 +1123,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Image.asset('assets/images/game_logo.png', width: 100),
+                    // Close button
+                    Align(
+                      alignment: Alignment.topRight,
+                      child: GestureDetector(
+                        onTap: () => Navigator.of(context).pop(),
+                        child: Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color: Colors.black26,
+                            border: Border.all(color: const Color(0xFF5C4008), width: 1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Icon(Icons.close, color: Colors.white54, size: 16),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Image.asset('assets/images/world_map.png', width: 100),
                     const SizedBox(height: 20),
                     TacticalInput(
                       controller: _usernameController,
@@ -1500,7 +1565,7 @@ class _SplashScreenState extends State<SplashScreen>
                   fit: BoxFit.cover,
                 ),
               ),
-              // Overlay
+              // Overlay — dark vignette toward edges
               Positioned.fill(
                 child: Container(
                   decoration: BoxDecoration(
@@ -1514,17 +1579,23 @@ class _SplashScreenState extends State<SplashScreen>
                   ),
                 ),
               ),
+              // Ornate gold frame over everything
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: CustomPaint(painter: _OrnateFramePainter()),
+                ),
+              ),
               // Logo and Title
               Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Image.asset('assets/images/game_logo.png', width: 450),
+                    Image.asset('assets/images/world_map.png', width: 450),
                     const SizedBox(height: 20),
                   ],
                 ),
               ),
-              // Press Any Key
+              // Press Any Key — pulsing
               Positioned(
                 bottom: 80,
                 left: 0,
@@ -1544,49 +1615,119 @@ class _SplashScreenState extends State<SplashScreen>
                   ),
                 ),
               ),
-              // Bottom Right Links
+              // Bottom-right — login link + gear + blue compass
               Positioned(
-                bottom: 40,
-                right: 40,
+                bottom: 22,
+                right: 22,
                 child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    TextButton(
-                      onPressed: _navigateToLogin,
+                    GestureDetector(
+                      onTap: _navigateToLogin,
                       child: const Text(
                         'LOGIN / CREATE ACCOUNT',
                         style: TextStyle(
                           color: Colors.white60,
-                          fontSize: 12,
+                          fontSize: 11,
                           letterSpacing: 1,
                         ),
                       ),
                     ),
                     const SizedBox(width: 10),
-                    const Icon(Icons.settings, color: Colors.white30, size: 20),
+                    GestureDetector(
+                      onTap: () => Navigator.of(context).pushNamed('/settings'),
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1A1208).withValues(alpha: 0.75),
+                          border: Border.all(
+                            color: const Color(0xFF5C4008),
+                            width: 1,
+                          ),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Icon(
+                          Icons.settings,
+                          color: Color(0xFFAA8820),
+                          size: 18,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: _navigateToLogin,
+                      child: Container(
+                        width: 46,
+                        height: 46,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: const Color(0xFF0E3A60),
+                          border: Border.all(
+                            color: const Color(0xFF4A90C0),
+                            width: 2,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF4A90C0).withValues(alpha: 0.45),
+                              blurRadius: 14,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.navigation,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
-              // Decorative Corners
-              const Positioned(
-                top: 20,
-                right: 20,
-                child: Icon(Icons.close, color: Color(0xFF8B0000), size: 30),
-              ),
+              // Top-right — styled close/exit button
               Positioned(
-                bottom: 20,
-                left: 20,
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    border: Border.all(
-                      color: const Color(0xFFAA8820),
-                      width: 1,
+                top: 22,
+                right: 22,
+                child: GestureDetector(
+                  onTap: () => SystemNavigator.pop(),
+                  child: Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF8B0000).withValues(alpha: 0.85),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                        color: Colors.red.withValues(alpha: 0.4),
+                        width: 1,
+                      ),
                     ),
+                    child: const Icon(Icons.close, color: Colors.white, size: 16),
+                  ),
+                ),
+              ),
+              // Bottom-left — ornate castle emblem
+              Positioned(
+                bottom: 22,
+                left: 22,
+                child: Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1A1208).withValues(alpha: 0.88),
+                    border: Border.all(color: const Color(0xFFAA8820), width: 2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFFFD700).withValues(alpha: 0.25),
+                        blurRadius: 16,
+                        spreadRadius: 2,
+                      ),
+                    ],
                   ),
                   child: const Icon(
                     Icons.castle,
                     color: Color(0xFFFFD700),
-                    size: 32,
+                    size: 30,
                   ),
                 ),
               ),
@@ -1978,7 +2119,7 @@ class _GameScreenState extends State<GameScreen>
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Image.asset(
-                          'assets/images/game_logo.png',
+                          'assets/images/world_map.png',
                           width: 120,
                           height: 120,
                         ),
