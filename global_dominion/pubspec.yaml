@@ -53,7 +53,7 @@ flutter:
 
   assets:
     - assets/images/
-    - assets/images/war_map.jpg
+    - assets/images/world_map.png
 
 # --- ADDED: flutter_launcher_icons config — generates Android/iOS/Windows icons from one source image ---
 flutter_icons:

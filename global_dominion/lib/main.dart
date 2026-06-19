@@ -26,11 +26,43 @@ class GameManager extends ChangeNotifier {
   final ApiService apiService;
   Map<String, dynamic>? _state;
   bool _isLoading = false;
+  bool _isAdmin = false;
+  String _currentWeather = 'Clear';
+  final List<AdminItemGrant> _itemGrants = [];
+
+  // Hardcoded admin commander account — grants access to the Admin Panel.
+  static const String _adminUsername = 'Hajinwoo';
+  static const String _adminPassword = 'BuunjaxPuccaV2';
 
   GameManager({required this.apiService});
 
   Map<String, dynamic>? get state => _state;
   bool get isLoading => _isLoading;
+  bool get isAdmin => _isAdmin;
+  String get currentWeather => _currentWeather;
+  List<AdminItemGrant> get itemGrants => List.unmodifiable(_itemGrants);
+
+  /// Grants [quantity] of [item] to [username]. Admin-only action.
+  void adminGiveItem(String username, String item, int quantity) {
+    if (!_isAdmin) return;
+    _itemGrants.insert(
+      0,
+      AdminItemGrant(
+        username: username,
+        item: item,
+        quantity: quantity,
+        timestamp: DateTime.now(),
+      ),
+    );
+    notifyListeners();
+  }
+
+  /// Changes the active world weather event. Admin-only action.
+  void adminSetWeather(String weather) {
+    if (!_isAdmin) return;
+    _currentWeather = weather;
+    notifyListeners();
+  }
 
   Future<void> refreshState() async {
     _isLoading = true;
@@ -49,6 +81,22 @@ class GameManager extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
     try {
+      // Admin commander shortcut — bypasses the regular backend login.
+      if (identifier.trim() == _adminUsername && password == _adminPassword) {
+        _isAdmin = true;
+        _state = {
+          'profile': {
+            'username': _adminUsername,
+            'country': 'GLOBAL COMMAND',
+            'gold': 999999,
+            'supplies': 999999,
+            'crystals': 999999,
+            'power_level': 9999,
+          },
+        };
+        return true;
+      }
+
       final success = await apiService.login(identifier, password);
       if (success) {
         await refreshState();
@@ -61,11 +109,11 @@ class GameManager extends ChangeNotifier {
   }
 
   Future<bool> register(
-    String username,
-    String email,
-    String password,
-    String confirmPassword,
-  ) async {
+      String username,
+      String email,
+      String password,
+      String confirmPassword,
+      ) async {
     _isLoading = true;
     notifyListeners();
     try {
@@ -87,6 +135,21 @@ class GameManager extends ChangeNotifier {
     await refreshState();
     return result;
   }
+}
+
+/// A record of an item grant issued by the admin.
+class AdminItemGrant {
+  final String username;
+  final String item;
+  final int quantity;
+  final DateTime timestamp;
+
+  AdminItemGrant({
+    required this.username,
+    required this.item,
+    required this.quantity,
+    required this.timestamp,
+  });
 }
 
 class GlobalDominion extends StatelessWidget {
@@ -135,6 +198,7 @@ class GlobalDominion extends StatelessWidget {
         '/game': (context) => const GameScreen(),
         '/settings': (context) => const SettingsScreen(),
         '/rankings': (context) => const RankingsScreen(),
+        '/admin': (context) => const AdminPanelScreen(),
       },
     );
   }
@@ -414,9 +478,9 @@ class _RankTableRow extends StatelessWidget {
             child: isTop3
                 ? Icon(Icons.workspace_premium, color: colors[index], size: 20)
                 : Text(
-                    '${index + 1}',
-                    style: const TextStyle(color: Colors.white70),
-                  ),
+              '${index + 1}',
+              style: const TextStyle(color: Colors.white70),
+            ),
           ),
           Expanded(
             child: Row(
@@ -766,8 +830,8 @@ class _LoginScreenState extends State<LoginScreen> {
         final state = gameManager.state;
         final hasCountry =
             state != null &&
-            state['profile'] != null &&
-            state['profile']['country'] != null;
+                state['profile'] != null &&
+                state['profile']['country'] != null;
         if (hasCountry) {
           Navigator.of(context).pushReplacementNamed('/home');
         } else {
@@ -879,8 +943,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   isLoading
                       ? const CircularProgressIndicator(
-                          color: Color(0xFFFFD700),
-                        )
+                    color: Color(0xFFFFD700),
+                  )
                       : TacticalButton(label: 'LOGIN', onPressed: _login),
                   const SizedBox(height: 16),
                   TextButton(
@@ -1031,7 +1095,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           color: const Color(0xFF8B6914),
                         ),
                         onPressed: () => setState(
-                          () => _obscurePassword = !_obscurePassword,
+                              () => _obscurePassword = !_obscurePassword,
                         ),
                       ),
                     ),
@@ -1047,8 +1111,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           color: const Color(0xFF8B6914),
                         ),
                         onPressed: () => setState(
-                          () => _obscureConfirmPassword =
-                              !_obscureConfirmPassword,
+                              () => _obscureConfirmPassword =
+                          !_obscureConfirmPassword,
                         ),
                       ),
                     ),
@@ -1077,8 +1141,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           items: _countries
                               .map(
                                 (c) =>
-                                    DropdownMenuItem(value: c, child: Text(c)),
-                              )
+                                DropdownMenuItem(value: c, child: Text(c)),
+                          )
                               .toList(),
                           onChanged: (v) =>
                               setState(() => _selectedCountry = v),
@@ -1111,12 +1175,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                     isLoading
                         ? const CircularProgressIndicator(
-                            color: Color(0xFFFFD700),
-                          )
+                      color: Color(0xFFFFD700),
+                    )
                         : TacticalButton(
-                            label: 'REGISTER',
-                            onPressed: _register,
-                          ),
+                      label: 'REGISTER',
+                      onPressed: _register,
+                    ),
                     const SizedBox(height: 16),
                     TextButton(
                       onPressed: () => Navigator.of(context).pop(),
@@ -1266,10 +1330,10 @@ class CountrySelectionScreen extends StatelessWidget {
   }
 
   Widget _buildCountryColumn(
-    BuildContext context,
-    List<Map<String, String>> top,
-    List<Map<String, String>> bottom,
-  ) {
+      BuildContext context,
+      List<Map<String, String>> top,
+      List<Map<String, String>> bottom,
+      ) {
     return Expanded(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -1548,24 +1612,32 @@ class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _menuController;
   late List<Animation<Offset>> _slideAnimations;
-
-  final List<_MenuItem> _menuItems = [
-    _MenuItem(label: 'START GAME', icon: Icons.flag_rounded, route: '/game'),
-    _MenuItem(
-      label: 'SETTINGS',
-      icon: Icons.settings_rounded,
-      route: '/settings',
-    ),
-    _MenuItem(
-      label: 'QUIT',
-      icon: Icons.power_settings_new_rounded,
-      route: null,
-    ),
-  ];
+  late List<_MenuItem> _menuItems;
 
   @override
   void initState() {
     super.initState();
+    final isAdmin = context.read<GameManager>().isAdmin;
+    _menuItems = [
+      _MenuItem(label: 'START GAME', icon: Icons.flag_rounded, route: '/game'),
+      if (isAdmin)
+        _MenuItem(
+          label: 'ADMIN PANEL',
+          icon: Icons.admin_panel_settings_rounded,
+          route: '/admin',
+        ),
+      _MenuItem(
+        label: 'SETTINGS',
+        icon: Icons.settings_rounded,
+        route: '/settings',
+      ),
+      _MenuItem(
+        label: 'QUIT',
+        icon: Icons.power_settings_new_rounded,
+        route: null,
+      ),
+    ];
+
     _menuController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 900),
@@ -1604,9 +1676,16 @@ class _HomeScreenState extends State<HomeScreen>
     } else {
       Navigator.of(context).push(
         PageRouteBuilder(
-          pageBuilder: (_, _, _) => item.route == '/game'
-              ? const GameScreen()
-              : const SettingsScreen(),
+          pageBuilder: (_, _, _) {
+            switch (item.route) {
+              case '/game':
+                return const GameScreen();
+              case '/admin':
+                return const AdminPanelScreen();
+              default:
+                return const SettingsScreen();
+            }
+          },
           transitionsBuilder: (_, anim, _, child) => FadeTransition(
             opacity: anim,
             child: SlideTransition(
@@ -1767,15 +1846,15 @@ class _MenuButtonWidgetState extends State<_MenuButtonWidget> {
             gradient: LinearGradient(
               colors: _hovered
                   ? [
-                      const Color(0xFFB8860B),
-                      const Color(0xFFFFD700),
-                      const Color(0xFFB8860B),
-                    ]
+                const Color(0xFFB8860B),
+                const Color(0xFFFFD700),
+                const Color(0xFFB8860B),
+              ]
                   : [
-                      const Color(0xFF5C4008),
-                      const Color(0xFF9A6F0A),
-                      const Color(0xFF5C4008),
-                    ],
+                const Color(0xFF5C4008),
+                const Color(0xFF9A6F0A),
+                const Color(0xFF5C4008),
+              ],
             ),
             border: Border.all(
               color: _hovered
@@ -1786,18 +1865,18 @@ class _MenuButtonWidgetState extends State<_MenuButtonWidget> {
             borderRadius: BorderRadius.circular(3),
             boxShadow: _hovered
                 ? [
-                    BoxShadow(
-                      color: const Color(0xFFFFD700).withValues(alpha: 0.45),
-                      blurRadius: 18,
-                      spreadRadius: 2,
-                    ),
-                  ]
+              BoxShadow(
+                color: const Color(0xFFFFD700).withValues(alpha: 0.45),
+                blurRadius: 18,
+                spreadRadius: 2,
+              ),
+            ]
                 : [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.5),
-                      blurRadius: 8,
-                    ),
-                  ],
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.5),
+                blurRadius: 8,
+              ),
+            ],
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -1845,21 +1924,21 @@ class _GameScreenState extends State<GameScreen>
   void initState() {
     super.initState();
     _progressController =
-        AnimationController(vsync: this, duration: const Duration(seconds: 6))
-          ..addListener(() {
-            setState(() {
-              final progress = _progressController.value;
-              if (progress < 0.25) {
-                _status = 'Booting satellite network...';
-              } else if (progress < 0.55) {
-                _status = 'Deploying reconnaissance teams...';
-              } else if (progress < 0.85) {
-                _status = 'Activating command protocols...';
-              } else {
-                _status = 'Ready for global engagement.';
-              }
-            });
-          });
+    AnimationController(vsync: this, duration: const Duration(seconds: 6))
+      ..addListener(() {
+        setState(() {
+          final progress = _progressController.value;
+          if (progress < 0.25) {
+            _status = 'Booting satellite network...';
+          } else if (progress < 0.55) {
+            _status = 'Deploying reconnaissance teams...';
+          } else if (progress < 0.85) {
+            _status = 'Activating command protocols...';
+          } else {
+            _status = 'Ready for global engagement.';
+          }
+        });
+      });
     _progressController.forward();
   }
 
@@ -1974,7 +2053,7 @@ class _GameScreenState extends State<GameScreen>
                               Navigator.of(context).pushReplacement(
                                 PageRouteBuilder(
                                   pageBuilder: (_, _, _) =>
-                                      const CommandCenterScreen(),
+                                  const CommandCenterScreen(),
                                   transitionsBuilder: (_, anim, _, child) =>
                                       FadeTransition(
                                         opacity: anim,
@@ -2206,10 +2285,10 @@ class CommandCenterScreen extends StatelessWidget {
                               _DashboardCard(
                                 title: 'Territories',
                                 value:
-                                    context
-                                        .watch<GameManager>()
-                                        .state?['profile']?['power_level']
-                                        ?.toString() ??
+                                context
+                                    .watch<GameManager>()
+                                    .state?['profile']?['power_level']
+                                    ?.toString() ??
                                     '16 / 24',
                                 accent: Color(0xFFFFD700),
                                 subtitle: 'Current Power Level',
@@ -2218,9 +2297,9 @@ class CommandCenterScreen extends StatelessWidget {
                               _DashboardCard(
                                 title: 'Nation',
                                 value:
-                                    context
-                                        .watch<GameManager>()
-                                        .state?['profile']?['country'] ??
+                                context
+                                    .watch<GameManager>()
+                                    .state?['profile']?['country'] ??
                                     'USA',
                                 accent: Color(0xFF4FC3F7),
                                 subtitle: 'Strategic Alignment',
@@ -2266,7 +2345,7 @@ class CommandCenterScreen extends StatelessWidget {
                                   Navigator.of(context).push(
                                     PageRouteBuilder(
                                       pageBuilder: (_, _, _) =>
-                                          const DeployArmyScreen(),
+                                      const DeployArmyScreen(),
                                       transitionsBuilder: (_, anim, _, child) =>
                                           FadeTransition(
                                             opacity: anim,
@@ -2284,7 +2363,7 @@ class CommandCenterScreen extends StatelessWidget {
                                   Navigator.of(context).push(
                                     PageRouteBuilder(
                                       pageBuilder: (_, _, _) =>
-                                          const WorldMapScreen(),
+                                      const WorldMapScreen(),
                                       transitionsBuilder: (_, anim, _, child) =>
                                           FadeTransition(
                                             opacity: anim,
@@ -2341,7 +2420,7 @@ class CommandCenterScreen extends StatelessWidget {
                                     padding: const EdgeInsets.all(20),
                                     child: Column(
                                       crossAxisAlignment:
-                                          CrossAxisAlignment.start,
+                                      CrossAxisAlignment.start,
                                       children: [
                                         const Text(
                                           'Active Battle Zones',
@@ -2356,7 +2435,7 @@ class CommandCenterScreen extends StatelessWidget {
                                         Expanded(
                                           child: Row(
                                             crossAxisAlignment:
-                                                CrossAxisAlignment.stretch,
+                                            CrossAxisAlignment.stretch,
                                             children: [
                                               _MapRegionBadge(
                                                 label: 'Northern Front',
@@ -2558,7 +2637,7 @@ class DeployArmyScreen extends StatelessWidget {
     final territories = gameManager.state?['territories'] as List<dynamic>?;
     // For simplicity, we'll attack the first neutral territory found
     final targetTerritory = territories?.firstWhere(
-      (t) => t['controlling_country'] == 'Neutral',
+          (t) => t['controlling_country'] == 'Neutral',
       orElse: () => null,
     );
 
@@ -2656,40 +2735,40 @@ class DeployArmyScreen extends StatelessWidget {
                             onPressed: targetTerritory == null
                                 ? null
                                 : () async {
-                                    try {
-                                      final result = await gameManager.attack(
-                                        targetTerritory['id'],
-                                      );
-                                      if (context.mounted) {
-                                        showDialog(
-                                          context: context,
-                                          builder: (_) => AlertDialog(
-                                            title: Text(
-                                              result['battle_won']
-                                                  ? 'VICTORY'
-                                                  : 'DEFEAT',
-                                            ),
-                                            content: Text(result['message']),
-                                            actions: [
-                                              TextButton(
-                                                onPressed: () =>
-                                                    Navigator.pop(context),
-                                                child: const Text('OK'),
-                                              ),
-                                            ],
-                                          ),
-                                        );
-                                      }
-                                    } catch (e) {
-                                      if (context.mounted) {
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          SnackBar(content: Text('Error: $e')),
-                                        );
-                                      }
-                                    }
-                                  },
+                              try {
+                                final result = await gameManager.attack(
+                                  targetTerritory['id'],
+                                );
+                                if (context.mounted) {
+                                  showDialog(
+                                    context: context,
+                                    builder: (_) => AlertDialog(
+                                      title: Text(
+                                        result['battle_won']
+                                            ? 'VICTORY'
+                                            : 'DEFEAT',
+                                      ),
+                                      content: Text(result['message']),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.pop(context),
+                                          child: const Text('OK'),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(
+                                    context,
+                                  ).showSnackBar(
+                                    SnackBar(content: Text('Error: $e')),
+                                  );
+                                }
+                              }
+                            },
                             child: const Text(
                               'DEPLOY NOW',
                               style: TextStyle(fontWeight: FontWeight.bold),
@@ -3041,6 +3120,429 @@ class _MapRegionBadge extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+// ADMIN PANEL SCREEN
+// ─────────────────────────────────────────────
+class AdminPanelScreen extends StatefulWidget {
+  const AdminPanelScreen({super.key});
+
+  @override
+  State<AdminPanelScreen> createState() => _AdminPanelScreenState();
+}
+
+class _AdminPanelScreenState extends State<AdminPanelScreen> {
+  final _targetUsernameController = TextEditingController();
+  final _quantityController = TextEditingController(text: '1');
+  String _selectedItem = 'Gold';
+  String _selectedWeather = 'Clear';
+
+  final List<String> _items = const [
+    'Gold',
+    'Supplies',
+    'Crystals',
+    'Health Potion',
+    'Shield Boost',
+    'Speed Boost',
+    'Mystery Crate',
+  ];
+
+  final List<_WeatherOption> _weatherOptions = const [
+    _WeatherOption('Clear', Icons.wb_sunny_rounded, Color(0xFFFFD700)),
+    _WeatherOption('Rain', Icons.water_drop_rounded, Color(0xFF4FC3F7)),
+    _WeatherOption('Storm', Icons.flash_on_rounded, Color(0xFF7C8AA8)),
+    _WeatherOption('Snow', Icons.ac_unit_rounded, Color(0xFFE0F2F7)),
+    _WeatherOption('Fog', Icons.cloud_rounded, Color(0xFFB0B7C5)),
+    _WeatherOption(
+      'Heatwave',
+      Icons.local_fire_department_rounded,
+      Color(0xFFEF5350),
+    ),
+  ];
+
+  @override
+  void dispose() {
+    _targetUsernameController.dispose();
+    _quantityController.dispose();
+    super.dispose();
+  }
+
+  void _giveItem() {
+    final username = _targetUsernameController.text.trim();
+    final quantity = int.tryParse(_quantityController.text.trim()) ?? 0;
+
+    if (username.isEmpty) {
+      _showSnack('Enter a username to give items to.', isError: true);
+      return;
+    }
+    if (quantity <= 0) {
+      _showSnack('Quantity must be greater than zero.', isError: true);
+      return;
+    }
+
+    context.read<GameManager>().adminGiveItem(
+      username,
+      _selectedItem,
+      quantity,
+    );
+    _showSnack('Gave $quantity x $_selectedItem to $username.');
+    _targetUsernameController.clear();
+  }
+
+  void _applyWeather() {
+    context.read<GameManager>().adminSetWeather(_selectedWeather);
+    _showSnack('Weather event set to $_selectedWeather.');
+  }
+
+  void _showSnack(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError
+            ? const Color(0xFFAA3300)
+            : const Color(0xFF1A1208),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final gameManager = context.watch<GameManager>();
+
+    if (!gameManager.isAdmin) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF0D0D0D),
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.lock_rounded, color: Color(0xFFAA3300), size: 48),
+              const SizedBox(height: 16),
+              const Text(
+                'ACCESS DENIED',
+                style: TextStyle(
+                  color: Color(0xFFAA3300),
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 3,
+                  fontSize: 18,
+                ),
+              ),
+              const SizedBox(height: 20),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text(
+                  'GO BACK',
+                  style: TextStyle(color: Color(0xFFFFD700)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF0D0D0D),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF1A1208), Color(0xFF0D0D0D)],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              // Header
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
+                decoration: const BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(color: Color(0xFF3A2800), width: 1),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(
+                        Icons.arrow_back_ios_new_rounded,
+                        color: Color(0xFFFFD700),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'ADMIN PANEL',
+                      style: TextStyle(
+                        color: Color(0xFFFFD700),
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 3,
+                      ),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFAA3300).withValues(alpha: 0.25),
+                        border: Border.all(color: const Color(0xFFAA3300)),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Text(
+                        'COMMANDER ACCESS',
+                        style: TextStyle(
+                          color: Color(0xFFFF8A65),
+                          fontSize: 11,
+                          letterSpacing: 1.5,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Body
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.all(32),
+                  children: [
+                    // GIVE ITEMS SECTION
+                    GameCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(
+                                Icons.card_giftcard_rounded,
+                                color: Color(0xFFFFD700),
+                              ),
+                              SizedBox(width: 10),
+                              Text(
+                                'GIVE ITEMS TO PLAYER',
+                                style: TextStyle(
+                                  color: Color(0xFFF4E19C),
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1.5,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          TacticalInput(
+                            controller: _targetUsernameController,
+                            label: 'Target Username',
+                          ),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                flex: 2,
+                                child: _AdminDropdown(
+                                  label: 'Item',
+                                  value: _selectedItem,
+                                  options: _items,
+                                  onChanged: (v) =>
+                                      setState(() => _selectedItem = v),
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: TacticalInput(
+                                  controller: _quantityController,
+                                  label: 'Quantity',
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          TacticalButton(
+                            label: 'Give Item',
+                            onPressed: _giveItem,
+                          ),
+                          if (gameManager.itemGrants.isNotEmpty) ...[
+                            const SizedBox(height: 24),
+                            const Text(
+                              'RECENT GRANTS',
+                              style: TextStyle(
+                                color: Color(0xFFAA8820),
+                                fontSize: 12,
+                                letterSpacing: 2,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            ...gameManager.itemGrants.take(5).map(
+                                  (grant) => Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 4,
+                                ),
+                                child: Text(
+                                  '${grant.quantity}x ${grant.item} \u2192 ${grant.username}',
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+                    // WEATHER CONTROL SECTION
+                    GameCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.cloud_rounded, color: Color(0xFF4FC3F7)),
+                              SizedBox(width: 10),
+                              Text(
+                                'WEATHER CONTROL',
+                                style: TextStyle(
+                                  color: Color(0xFFF4E19C),
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1.5,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Current event: ${gameManager.currentWeather}',
+                            style: const TextStyle(
+                              color: Colors.white54,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          Wrap(
+                            spacing: 10,
+                            runSpacing: 10,
+                            children: _weatherOptions.map((opt) {
+                              final isSelected = _selectedWeather == opt.label;
+                              return GestureDetector(
+                                onTap: () =>
+                                    setState(() => _selectedWeather = opt.label),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 10,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? opt.color.withValues(alpha: 0.25)
+                                        : const Color(0xFF1A1208),
+                                    border: Border.all(
+                                      color: isSelected
+                                          ? opt.color
+                                          : const Color(0xFF3A2800),
+                                      width: isSelected ? 2 : 1,
+                                    ),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(opt.icon, color: opt.color, size: 18),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        opt.label,
+                                        style: TextStyle(
+                                          color: isSelected
+                                              ? opt.color
+                                              : Colors.white70,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                          const SizedBox(height: 20),
+                          TacticalButton(
+                            label: 'Apply Weather Event',
+                            color: const Color(0xFF4FC3F7),
+                            onPressed: _applyWeather,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WeatherOption {
+  final String label;
+  final IconData icon;
+  final Color color;
+
+  const _WeatherOption(this.label, this.icon, this.color);
+}
+
+class _AdminDropdown extends StatelessWidget {
+  final String label;
+  final String value;
+  final List<String> options;
+  final ValueChanged<String> onChanged;
+
+  const _AdminDropdown({
+    required this.label,
+    required this.value,
+    required this.options,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2A1E12).withValues(alpha: 0.7),
+        border: Border.all(color: const Color(0xFF5C4008)),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: value,
+          isExpanded: true,
+          dropdownColor: const Color(0xFF1A1208),
+          style: const TextStyle(color: Colors.white),
+          icon: const Icon(Icons.arrow_drop_down, color: Color(0xFFAA8820)),
+          items: options
+              .map((o) => DropdownMenuItem(value: o, child: Text(o)))
+              .toList(),
+          onChanged: (v) {
+            if (v != null) onChanged(v);
+          },
         ),
       ),
     );
