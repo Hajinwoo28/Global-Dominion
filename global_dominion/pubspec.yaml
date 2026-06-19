@@ -61,7 +61,7 @@ flutter_icons:
   ios: true
   windows:
     generate: true
-  image_path: "assets/images/world_map.png"
+  image_path: "assets/images/global_dominion_icon.png"
   adaptive_icon_background: "#191C21"
   adaptive_icon_foreground: "assets/images/global_dominion_icon.png"
 
