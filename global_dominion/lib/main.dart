@@ -109,11 +109,11 @@ class GameManager extends ChangeNotifier {
   }
 
   Future<bool> register(
-      String username,
-      String email,
-      String password,
-      String confirmPassword,
-      ) async {
+    String username,
+    String email,
+    String password,
+    String confirmPassword,
+  ) async {
     _isLoading = true;
     notifyListeners();
     try {
@@ -237,7 +237,7 @@ class _RankingsScreenState extends State<RankingsScreen>
             child: Opacity(
               opacity: 0.5,
               child: Image.asset(
-                'assets/images/world_map.jpg',
+                'assets/images/global_dominion.png',
                 fit: BoxFit.cover,
               ),
             ),
@@ -478,9 +478,9 @@ class _RankTableRow extends StatelessWidget {
             child: isTop3
                 ? Icon(Icons.workspace_premium, color: colors[index], size: 20)
                 : Text(
-              '${index + 1}',
-              style: const TextStyle(color: Colors.white70),
-            ),
+                    '${index + 1}',
+                    style: const TextStyle(color: Colors.white70),
+                  ),
           ),
           Expanded(
             child: Row(
@@ -807,9 +807,9 @@ class _OrnateFramePainter extends CustomPainter {
       canvas.drawLine(Offset(cx, cy), Offset(cx, cy + dy * cl), bracketPaint);
     }
 
-    drawL(o, o, 1, 1);           // top-left
-    drawL(w - o, o, -1, 1);     // top-right
-    drawL(o, h - o, 1, -1);     // bottom-left
+    drawL(o, o, 1, 1); // top-left
+    drawL(w - o, o, -1, 1); // top-right
+    drawL(o, h - o, 1, -1); // bottom-left
     drawL(w - o, h - o, -1, -1); // bottom-right
 
     // ── Diamond accents at mid-edge ──
@@ -827,10 +827,10 @@ class _OrnateFramePainter extends CustomPainter {
       canvas.drawPath(path, diamondPaint);
     }
 
-    drawDiamond(w / 2, o, 5.5);      // top center
-    drawDiamond(w / 2, h - o, 5.5);  // bottom center
-    drawDiamond(o, h / 2, 4.0);      // left center
-    drawDiamond(w - o, h / 2, 4.0);  // right center
+    drawDiamond(w / 2, o, 5.5); // top center
+    drawDiamond(w / 2, h - o, 5.5); // bottom center
+    drawDiamond(o, h / 2, 4.0); // left center
+    drawDiamond(w - o, h / 2, 4.0); // right center
   }
 
   @override
@@ -903,8 +903,8 @@ class _LoginScreenState extends State<LoginScreen> {
         final state = gameManager.state;
         final hasCountry =
             state != null &&
-                state['profile'] != null &&
-                state['profile']['country'] != null;
+            state['profile'] != null &&
+            state['profile']['country'] != null;
         if (hasCountry) {
           Navigator.of(context).pushReplacementNamed('/home');
         } else {
@@ -928,7 +928,7 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Opacity(
               opacity: 0.4,
               child: Image.asset(
-                'assets/images/world_map.jpg',
+                'assets/images/global_dominion.png',
                 fit: BoxFit.cover,
               ),
             ),
@@ -1003,8 +1003,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   isLoading
                       ? const CircularProgressIndicator(
-                    color: Color(0xFFFFD700),
-                  )
+                          color: Color(0xFFFFD700),
+                        )
                       : TacticalButton(label: 'LOGIN', onPressed: _login),
                   const SizedBox(height: 16),
                   TextButton(
@@ -1101,7 +1101,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             child: Opacity(
               opacity: 0.4,
               child: Image.asset(
-                'assets/images/world_map.jpg',
+                'assets/images/global_dominion.png',
                 fit: BoxFit.cover,
               ),
             ),
@@ -1133,10 +1133,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           height: 28,
                           decoration: BoxDecoration(
                             color: Colors.black26,
-                            border: Border.all(color: const Color(0xFF5C4008), width: 1),
+                            border: Border.all(
+                              color: const Color(0xFF5C4008),
+                              width: 1,
+                            ),
                             borderRadius: BorderRadius.circular(4),
                           ),
-                          child: const Icon(Icons.close, color: Colors.white54, size: 16),
+                          child: const Icon(
+                            Icons.close,
+                            color: Colors.white54,
+                            size: 16,
+                          ),
                         ),
                       ),
                     ),
@@ -1160,7 +1167,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           color: const Color(0xFF8B6914),
                         ),
                         onPressed: () => setState(
-                              () => _obscurePassword = !_obscurePassword,
+                          () => _obscurePassword = !_obscurePassword,
                         ),
                       ),
                     ),
@@ -1176,8 +1183,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           color: const Color(0xFF8B6914),
                         ),
                         onPressed: () => setState(
-                              () => _obscureConfirmPassword =
-                          !_obscureConfirmPassword,
+                          () => _obscureConfirmPassword =
+                              !_obscureConfirmPassword,
                         ),
                       ),
                     ),
@@ -1206,8 +1213,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           items: _countries
                               .map(
                                 (c) =>
-                                DropdownMenuItem(value: c, child: Text(c)),
-                          )
+                                    DropdownMenuItem(value: c, child: Text(c)),
+                              )
                               .toList(),
                           onChanged: (v) =>
                               setState(() => _selectedCountry = v),
@@ -1240,12 +1247,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                     isLoading
                         ? const CircularProgressIndicator(
-                      color: Color(0xFFFFD700),
-                    )
+                            color: Color(0xFFFFD700),
+                          )
                         : TacticalButton(
-                      label: 'REGISTER',
-                      onPressed: _register,
-                    ),
+                            label: 'REGISTER',
+                            onPressed: _register,
+                          ),
                     const SizedBox(height: 16),
                     TextButton(
                       onPressed: () => Navigator.of(context).pop(),
@@ -1354,7 +1361,9 @@ class CountrySelectionScreen extends StatelessWidget {
                               ),
                             ],
                             image: const DecorationImage(
-                              image: AssetImage('assets/images/world_map.jpg'),
+                              image: AssetImage(
+                                'assets/images/global_dominion.png',
+                              ),
                               fit: BoxFit.cover,
                             ),
                           ),
@@ -1395,10 +1404,10 @@ class CountrySelectionScreen extends StatelessWidget {
   }
 
   Widget _buildCountryColumn(
-      BuildContext context,
-      List<Map<String, String>> top,
-      List<Map<String, String>> bottom,
-      ) {
+    BuildContext context,
+    List<Map<String, String>> top,
+    List<Map<String, String>> bottom,
+  ) {
     return Expanded(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -1561,7 +1570,7 @@ class _SplashScreenState extends State<SplashScreen>
               // Background
               Positioned.fill(
                 child: Image.asset(
-                  'assets/images/world_map.jpg',
+                  'assets/images/global_dominion.png',
                   fit: BoxFit.cover,
                 ),
               ),
@@ -1640,7 +1649,9 @@ class _SplashScreenState extends State<SplashScreen>
                         width: 32,
                         height: 32,
                         decoration: BoxDecoration(
-                          color: const Color(0xFF1A1208).withValues(alpha: 0.75),
+                          color: const Color(
+                            0xFF1A1208,
+                          ).withValues(alpha: 0.75),
                           border: Border.all(
                             color: const Color(0xFF5C4008),
                             width: 1,
@@ -1669,7 +1680,9 @@ class _SplashScreenState extends State<SplashScreen>
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF4A90C0).withValues(alpha: 0.45),
+                              color: const Color(
+                                0xFF4A90C0,
+                              ).withValues(alpha: 0.45),
                               blurRadius: 14,
                               spreadRadius: 2,
                             ),
@@ -1702,7 +1715,11 @@ class _SplashScreenState extends State<SplashScreen>
                         width: 1,
                       ),
                     ),
-                    child: const Icon(Icons.close, color: Colors.white, size: 16),
+                    child: const Icon(
+                      Icons.close,
+                      color: Colors.white,
+                      size: 16,
+                    ),
                   ),
                 ),
               ),
@@ -1715,7 +1732,10 @@ class _SplashScreenState extends State<SplashScreen>
                   height: 56,
                   decoration: BoxDecoration(
                     color: const Color(0xFF1A1208).withValues(alpha: 0.88),
-                    border: Border.all(color: const Color(0xFFAA8820), width: 2),
+                    border: Border.all(
+                      color: const Color(0xFFAA8820),
+                      width: 2,
+                    ),
                     boxShadow: [
                       BoxShadow(
                         color: const Color(0xFFFFD700).withValues(alpha: 0.25),
@@ -1898,7 +1918,7 @@ class _HomeScreenState extends State<HomeScreen>
         height: double.infinity,
         decoration: const BoxDecoration(
           image: DecorationImage(
-            image: AssetImage('assets/images/world_map.jpg'),
+            image: AssetImage('assets/images/global_dominion.png'),
             fit: BoxFit.cover,
           ),
         ),
@@ -1987,15 +2007,15 @@ class _MenuButtonWidgetState extends State<_MenuButtonWidget> {
             gradient: LinearGradient(
               colors: _hovered
                   ? [
-                const Color(0xFFB8860B),
-                const Color(0xFFFFD700),
-                const Color(0xFFB8860B),
-              ]
+                      const Color(0xFFB8860B),
+                      const Color(0xFFFFD700),
+                      const Color(0xFFB8860B),
+                    ]
                   : [
-                const Color(0xFF5C4008),
-                const Color(0xFF9A6F0A),
-                const Color(0xFF5C4008),
-              ],
+                      const Color(0xFF5C4008),
+                      const Color(0xFF9A6F0A),
+                      const Color(0xFF5C4008),
+                    ],
             ),
             border: Border.all(
               color: _hovered
@@ -2006,18 +2026,18 @@ class _MenuButtonWidgetState extends State<_MenuButtonWidget> {
             borderRadius: BorderRadius.circular(3),
             boxShadow: _hovered
                 ? [
-              BoxShadow(
-                color: const Color(0xFFFFD700).withValues(alpha: 0.45),
-                blurRadius: 18,
-                spreadRadius: 2,
-              ),
-            ]
+                    BoxShadow(
+                      color: const Color(0xFFFFD700).withValues(alpha: 0.45),
+                      blurRadius: 18,
+                      spreadRadius: 2,
+                    ),
+                  ]
                 : [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.5),
-                blurRadius: 8,
-              ),
-            ],
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.5),
+                      blurRadius: 8,
+                    ),
+                  ],
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -2065,21 +2085,21 @@ class _GameScreenState extends State<GameScreen>
   void initState() {
     super.initState();
     _progressController =
-    AnimationController(vsync: this, duration: const Duration(seconds: 6))
-      ..addListener(() {
-        setState(() {
-          final progress = _progressController.value;
-          if (progress < 0.25) {
-            _status = 'Booting satellite network...';
-          } else if (progress < 0.55) {
-            _status = 'Deploying reconnaissance teams...';
-          } else if (progress < 0.85) {
-            _status = 'Activating command protocols...';
-          } else {
-            _status = 'Ready for global engagement.';
-          }
-        });
-      });
+        AnimationController(vsync: this, duration: const Duration(seconds: 6))
+          ..addListener(() {
+            setState(() {
+              final progress = _progressController.value;
+              if (progress < 0.25) {
+                _status = 'Booting satellite network...';
+              } else if (progress < 0.55) {
+                _status = 'Deploying reconnaissance teams...';
+              } else if (progress < 0.85) {
+                _status = 'Activating command protocols...';
+              } else {
+                _status = 'Ready for global engagement.';
+              }
+            });
+          });
     _progressController.forward();
   }
 
@@ -2194,7 +2214,7 @@ class _GameScreenState extends State<GameScreen>
                               Navigator.of(context).pushReplacement(
                                 PageRouteBuilder(
                                   pageBuilder: (_, _, _) =>
-                                  const CommandCenterScreen(),
+                                      const CommandCenterScreen(),
                                   transitionsBuilder: (_, anim, _, child) =>
                                       FadeTransition(
                                         opacity: anim,
@@ -2426,10 +2446,10 @@ class CommandCenterScreen extends StatelessWidget {
                               _DashboardCard(
                                 title: 'Territories',
                                 value:
-                                context
-                                    .watch<GameManager>()
-                                    .state?['profile']?['power_level']
-                                    ?.toString() ??
+                                    context
+                                        .watch<GameManager>()
+                                        .state?['profile']?['power_level']
+                                        ?.toString() ??
                                     '16 / 24',
                                 accent: Color(0xFFFFD700),
                                 subtitle: 'Current Power Level',
@@ -2438,9 +2458,9 @@ class CommandCenterScreen extends StatelessWidget {
                               _DashboardCard(
                                 title: 'Nation',
                                 value:
-                                context
-                                    .watch<GameManager>()
-                                    .state?['profile']?['country'] ??
+                                    context
+                                        .watch<GameManager>()
+                                        .state?['profile']?['country'] ??
                                     'USA',
                                 accent: Color(0xFF4FC3F7),
                                 subtitle: 'Strategic Alignment',
@@ -2486,7 +2506,7 @@ class CommandCenterScreen extends StatelessWidget {
                                   Navigator.of(context).push(
                                     PageRouteBuilder(
                                       pageBuilder: (_, _, _) =>
-                                      const DeployArmyScreen(),
+                                          const DeployArmyScreen(),
                                       transitionsBuilder: (_, anim, _, child) =>
                                           FadeTransition(
                                             opacity: anim,
@@ -2504,7 +2524,7 @@ class CommandCenterScreen extends StatelessWidget {
                                   Navigator.of(context).push(
                                     PageRouteBuilder(
                                       pageBuilder: (_, _, _) =>
-                                      const WorldMapScreen(),
+                                          const WorldMapScreen(),
                                       transitionsBuilder: (_, anim, _, child) =>
                                           FadeTransition(
                                             opacity: anim,
@@ -2549,7 +2569,7 @@ class CommandCenterScreen extends StatelessWidget {
                                         decoration: const BoxDecoration(
                                           image: DecorationImage(
                                             image: AssetImage(
-                                              'assets/images/world_map.jpg',
+                                              'assets/images/global_dominion.png',
                                             ),
                                             fit: BoxFit.cover,
                                           ),
@@ -2561,7 +2581,7 @@ class CommandCenterScreen extends StatelessWidget {
                                     padding: const EdgeInsets.all(20),
                                     child: Column(
                                       crossAxisAlignment:
-                                      CrossAxisAlignment.start,
+                                          CrossAxisAlignment.start,
                                       children: [
                                         const Text(
                                           'Active Battle Zones',
@@ -2576,7 +2596,7 @@ class CommandCenterScreen extends StatelessWidget {
                                         Expanded(
                                           child: Row(
                                             crossAxisAlignment:
-                                            CrossAxisAlignment.stretch,
+                                                CrossAxisAlignment.stretch,
                                             children: [
                                               _MapRegionBadge(
                                                 label: 'Northern Front',
@@ -2778,7 +2798,7 @@ class DeployArmyScreen extends StatelessWidget {
     final territories = gameManager.state?['territories'] as List<dynamic>?;
     // For simplicity, we'll attack the first neutral territory found
     final targetTerritory = territories?.firstWhere(
-          (t) => t['controlling_country'] == 'Neutral',
+      (t) => t['controlling_country'] == 'Neutral',
       orElse: () => null,
     );
 
@@ -2876,40 +2896,40 @@ class DeployArmyScreen extends StatelessWidget {
                             onPressed: targetTerritory == null
                                 ? null
                                 : () async {
-                              try {
-                                final result = await gameManager.attack(
-                                  targetTerritory['id'],
-                                );
-                                if (context.mounted) {
-                                  showDialog(
-                                    context: context,
-                                    builder: (_) => AlertDialog(
-                                      title: Text(
-                                        result['battle_won']
-                                            ? 'VICTORY'
-                                            : 'DEFEAT',
-                                      ),
-                                      content: Text(result['message']),
-                                      actions: [
-                                        TextButton(
-                                          onPressed: () =>
-                                              Navigator.pop(context),
-                                          child: const Text('OK'),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                }
-                              } catch (e) {
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(
-                                    context,
-                                  ).showSnackBar(
-                                    SnackBar(content: Text('Error: $e')),
-                                  );
-                                }
-                              }
-                            },
+                                    try {
+                                      final result = await gameManager.attack(
+                                        targetTerritory['id'],
+                                      );
+                                      if (context.mounted) {
+                                        showDialog(
+                                          context: context,
+                                          builder: (_) => AlertDialog(
+                                            title: Text(
+                                              result['battle_won']
+                                                  ? 'VICTORY'
+                                                  : 'DEFEAT',
+                                            ),
+                                            content: Text(result['message']),
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () =>
+                                                    Navigator.pop(context),
+                                                child: const Text('OK'),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      }
+                                    } catch (e) {
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(content: Text('Error: $e')),
+                                        );
+                                      }
+                                    }
+                                  },
                             child: const Text(
                               'DEPLOY NOW',
                               style: TextStyle(fontWeight: FontWeight.bold),
@@ -3038,7 +3058,7 @@ class WorldMapScreen extends StatelessWidget {
                   fit: StackFit.expand,
                   children: [
                     Image.asset(
-                      'assets/images/world_map.jpg',
+                      'assets/images/global_dominion.png',
                       fit: BoxFit.cover,
                     ),
                     Container(
@@ -3363,7 +3383,11 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.lock_rounded, color: Color(0xFFAA3300), size: 48),
+              const Icon(
+                Icons.lock_rounded,
+                color: Color(0xFFAA3300),
+                size: 48,
+              ),
               const SizedBox(height: 16),
               const Text(
                 'ACCESS DENIED',
@@ -3527,20 +3551,22 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                               ),
                             ),
                             const SizedBox(height: 10),
-                            ...gameManager.itemGrants.take(5).map(
+                            ...gameManager.itemGrants
+                                .take(5)
+                                .map(
                                   (grant) => Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 4,
-                                ),
-                                child: Text(
-                                  '${grant.quantity}x ${grant.item} \u2192 ${grant.username}',
-                                  style: const TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 13,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 4,
+                                    ),
+                                    child: Text(
+                                      '${grant.quantity}x ${grant.item} \u2192 ${grant.username}',
+                                      style: const TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 13,
+                                      ),
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ),
                           ],
                         ],
                       ),
@@ -3553,7 +3579,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                         children: [
                           const Row(
                             children: [
-                              Icon(Icons.cloud_rounded, color: Color(0xFF4FC3F7)),
+                              Icon(
+                                Icons.cloud_rounded,
+                                color: Color(0xFF4FC3F7),
+                              ),
                               SizedBox(width: 10),
                               Text(
                                 'WEATHER CONTROL',
@@ -3581,8 +3610,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                             children: _weatherOptions.map((opt) {
                               final isSelected = _selectedWeather == opt.label;
                               return GestureDetector(
-                                onTap: () =>
-                                    setState(() => _selectedWeather = opt.label),
+                                onTap: () => setState(
+                                  () => _selectedWeather = opt.label,
+                                ),
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 16,
@@ -3603,7 +3633,11 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Icon(opt.icon, color: opt.color, size: 18),
+                                      Icon(
+                                        opt.icon,
+                                        color: opt.color,
+                                        size: 18,
+                                      ),
                                       const SizedBox(width: 8),
                                       Text(
                                         opt.label,
