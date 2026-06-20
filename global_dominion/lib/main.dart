@@ -1629,7 +1629,7 @@ class Nation {
   Map<String, dynamic> toJson() => {
     'id': id,
     'name': name,
-    'color': color.value,
+    'color': color.toARGB32(),
     'isAI': isAI,
     'isAlive': isAlive,
     'isPlayer': isPlayer,
@@ -1726,7 +1726,7 @@ class LobbyPlayer {
     'id': id,
     'name': name,
     'nationName': nationName,
-    'nationColor': nationColor.value,
+    'nationColor': nationColor.toARGB32(),
     'ready': ready,
   };
 
@@ -1769,6 +1769,23 @@ class GameEvent {
   GameEvent(this.message, {this.color = kColorText}) : time = DateTime.now();
 }
 
+class CombatEffect {
+  final int x, y;
+  final int damage;
+  final bool isCrit;
+  final bool isKill;
+  final Color color;
+  final DateTime spawned;
+  CombatEffect({
+    required this.x,
+    required this.y,
+    required this.damage,
+    this.isCrit = false,
+    this.isKill = false,
+    this.color = kColorAccent,
+  }) : spawned = DateTime.now();
+}
+
 class GameState extends ChangeNotifier {
   // Core data
   String gameId = '';
@@ -1793,6 +1810,15 @@ class GameState extends ChangeNotifier {
   String? pendingBuildDefId;
   List<List<int>> moveHighlights = [];
   List<List<int>> attackHighlights = [];
+
+  // Multi-select
+  Set<String> selectedUnitIds = {};
+
+  // Pathfinding preview
+  List<List<int>> pendingPath = [];
+
+  // Combat effects (floating damage numbers)
+  List<CombatEffect> combatEffects = [];
 
   // Chat & events
   List<GameEvent> events = [];
@@ -1998,17 +2024,21 @@ class GameState extends ChangeNotifier {
       research += (def.production['research'] ?? 0).round();
 
       // Apply research bonuses
-      if (nation.hasCompletedTech('agriculture') && def.id == 'farm')
+      if (nation.hasCompletedTech('agriculture') && def.id == 'farm') {
         food *= 1.3;
+      }
       if (nation.hasCompletedTech('trade_routes') &&
-          (def.id == 'market' || def.id == 'harbor'))
+          (def.id == 'market' || def.id == 'harbor')) {
         gold *= 1.4;
+      }
       if (nation.hasCompletedTech('banking') &&
-          (def.id == 'bank' || def.id == 'market'))
+          (def.id == 'bank' || def.id == 'market')) {
         gold *= 1.6;
+      }
       if (nation.hasCompletedTech('philosophy') ||
-          nation.hasCompletedTech('printing_press'))
+          nation.hasCompletedTech('printing_press')) {
         research = (research * 1.5).round();
+      }
       if (nation.hasCompletedTech('ai_systems')) research *= 2;
       if (nation.hasCompletedTech('fusion_power')) {
         gold *= 2;
@@ -2212,8 +2242,9 @@ class GameState extends ChangeNotifier {
     tile.buildingId = b.id;
 
     // Pop cap bonus
-    if (def.popCapBonus != null)
+    if (def.popCapBonus != null) {
       nation.resources.populationCap += def.popCapBonus!;
+    }
 
     addEvent(
       '🏗️ ${nation.name} is building a ${def.name}!',
@@ -2230,8 +2261,9 @@ class GameState extends ChangeNotifier {
     if (nation == null || building == null || def == null) return false;
     if (!nation.isAlive ||
         building.isConstructing ||
-        building.trainingUnitDefId != null)
+        building.trainingUnitDefId != null) {
       return false;
+    }
 
     if (def.requiredAge.index2 > nation.currentAge.index2) {
       addEvent('❌ Requires ${def.requiredAge.label}!', color: kColorAccent);
@@ -2393,6 +2425,31 @@ class GameState extends ChangeNotifier {
       '⚔️ ${aNation.name}\'s ${a.def.name} → ${dNation.name}\'s ${d.def.name}: -$atkDmg hp',
       color: aNation.color,
     );
+
+    // Emit combat effect for floating damage numbers
+    final dCrit = atkDmg > a.def.attack * 1.3;
+    combatEffects.add(
+      CombatEffect(
+        x: d.x,
+        y: d.y,
+        damage: atkDmg,
+        isCrit: dCrit,
+        isKill: d.health <= 0,
+        color: aNation.color,
+      ),
+    );
+    if (defDmg > 0) {
+      combatEffects.add(
+        CombatEffect(
+          x: a.x,
+          y: a.y,
+          damage: defDmg,
+          isCrit: false,
+          isKill: a.health <= 0,
+          color: dNation.color,
+        ),
+      );
+    }
 
     if (d.health <= 0) _removeUnit(d.id);
     if (a.health <= 0) _removeUnit(a.id);
@@ -2680,8 +2737,9 @@ class GameState extends ChangeNotifier {
         final t = map.at(nx, ny);
         if (t.terrain == TerrainType.water &&
             unit.defId != 'destroyer' &&
-            unit.defId != 'submarine')
+            unit.defId != 'submarine') {
           continue;
+        }
         final hasEnemy = t.unitIds.any(
           (uid) => units[uid]?.nationId != unit.nationId,
         );
@@ -2712,7 +2770,68 @@ class GameState extends ChangeNotifier {
     pendingBuildDefId = null;
     moveHighlights.clear();
     attackHighlights.clear();
+    selectedUnitIds.clear();
+    pendingPath.clear();
     notifyListeners();
+  }
+
+  void clearMultiSelection() {
+    selectedUnitIds.clear();
+    pendingPath.clear();
+    notifyListeners();
+  }
+
+  void selectUnitsInRect(double x1, double y1, double x2, double y2) {
+    selectedUnitIds.clear();
+    final minX = x1 < x2 ? x1 : x2;
+    final maxX = x1 < x2 ? x2 : x1;
+    final minY = y1 < y2 ? y1 : y2;
+    final maxY = y1 < y2 ? y2 : y1;
+    for (final u in units.values) {
+      if (u.nationId != playerNationId) continue;
+      if (u.x >= minX && u.x <= maxX && u.y >= minY && u.y <= maxY) {
+        selectedUnitIds.add(u.id);
+      }
+    }
+    notifyListeners();
+  }
+
+  List<List<int>> computePath(int fromX, int fromY, int toX, int toY) {
+    if (!map.isValid(fromX, fromY) || !map.isValid(toX, toY)) return [];
+    final visited = <String>{};
+    final queue = <List<dynamic>>[
+      [fromX, fromY, <List<int>>[]],
+    ];
+    visited.add('$fromX,$fromY');
+    while (queue.isNotEmpty) {
+      final current = queue.removeAt(0);
+      final cx = current[0] as int;
+      final cy = current[1] as int;
+      final path = current[2] as List<List<int>>;
+      if (cx == toX && cy == toY) return path;
+      for (final d in [
+        [-1, 0],
+        [1, 0],
+        [0, -1],
+        [0, 1],
+      ]) {
+        final nx = cx + d[0], ny = cy + d[1];
+        final key = '$nx,$ny';
+        if (!map.isValid(nx, ny) || visited.contains(key)) continue;
+        final t = map.at(nx, ny);
+        if (t.terrain == TerrainType.water) continue;
+        visited.add(key);
+        queue.add([
+          nx,
+          ny,
+          [
+            ...path,
+            [nx, ny],
+          ],
+        ]);
+      }
+    }
+    return [];
   }
 
   void handleTileAction(int x, int y) {
@@ -3009,8 +3128,9 @@ class AIEngine {
       final t = state.map.at(x, y);
       if (t.buildingId == null &&
           t.terrain != TerrainType.water &&
-          t.terrain != TerrainType.mountain)
+          t.terrain != TerrainType.mountain) {
         return [x, y];
+      }
     }
     return null;
   }
@@ -3019,8 +3139,9 @@ class AIEngine {
     if (nation.aiTick % 4 != 0) return;
     for (final bid in nation.buildingIds) {
       final b = state.buildings[bid];
-      if (b == null || b.isConstructing || b.trainingUnitDefId != null)
+      if (b == null || b.isConstructing || b.trainingUnitDefId != null) {
         continue;
+      }
       final opts = b.def.unlocks.where((uid) {
         final d = kUnitDefs[uid];
         return d != null &&
@@ -3095,8 +3216,9 @@ class AIEngine {
         final nx = unit.x + dx, ny = unit.y + dy;
         if (state.map.isValid(nx, ny)) {
           final t = state.map.at(nx, ny);
-          if (!t.unitIds.any((id) => state.units[id]?.nationId != nation.id))
+          if (!t.unitIds.any((id) => state.units[id]?.nationId != nation.id)) {
             state.moveUnit(uid, nx, ny);
+          }
         }
       }
     }
@@ -3342,10 +3464,11 @@ class _SplashScreenState extends State<SplashScreen>
     ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack));
     _ctrl.forward();
     Future.delayed(const Duration(milliseconds: 3000), () {
-      if (mounted)
+      if (mounted) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => MainMenuScreen(game: widget.game)),
         );
+      }
     });
   }
 
@@ -3452,14 +3575,16 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                   children: [
                     AnimatedBuilder(
                       animation: _g,
-                      builder: (_, __) => Container(
+                      builder: (_, _) => Container(
                         width: 100,
                         height: 100,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: kColorGold.withOpacity(_g.value * 0.5),
+                              color: kColorGold.withValues(
+                                alpha: _g.value * 0.5,
+                              ),
                               blurRadius: 40,
                               spreadRadius: 10,
                             ),
@@ -3682,7 +3807,7 @@ class _MBtn extends StatelessWidget {
         borderRadius: BorderRadius.circular(6),
         color: secondary
             ? Colors.transparent
-            : kColorGoldDark.withOpacity(0.15),
+            : kColorGoldDark.withValues(alpha: 0.15),
       ),
       child: Row(
         children: [
@@ -3707,13 +3832,15 @@ class _GridBgPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final p = Paint()
-      ..color = kColorBorder.withOpacity(0.25)
+      ..color = kColorBorder.withValues(alpha: 0.25)
       ..strokeWidth = 0.5
       ..style = PaintingStyle.stroke;
-    for (double x = 0; x < size.width; x += 40)
+    for (double x = 0; x < size.width; x += 40) {
       canvas.drawLine(Offset(x, 0), Offset(x, size.height), p);
-    for (double y = 0; y < size.height; y += 40)
+    }
+    for (double y = 0; y < size.height; y += 40) {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), p);
+    }
   }
 
   @override
@@ -3899,7 +4026,7 @@ class _SinglePlayerSetupState extends State<SinglePlayerSetupScreen> {
                       width: 80,
                       height: 80,
                       decoration: BoxDecoration(
-                        color: kNationColors[_colorIdx].withOpacity(0.2),
+                        color: kNationColors[_colorIdx].withValues(alpha: 0.2),
                         shape: BoxShape.circle,
                         border: Border.all(
                           color: kNationColors[_colorIdx],
@@ -4278,7 +4405,7 @@ class _MultiplayerMenuState extends State<MultiplayerMenuScreen> {
         roomName: _roomCtrl.text.isEmpty ? 'War Room' : _roomCtrl.text,
         playerName: _nameCtrl.text.isEmpty ? 'Commander' : _nameCtrl.text,
         nationName: _nationCtrl.text.isEmpty ? 'My Empire' : _nationCtrl.text,
-        nationColorValue: kNationColors[_colorIdx].value,
+        nationColorValue: kNationColors[_colorIdx].toARGB32(),
       );
     } else {
       if (_codeCtrl.text.isEmpty) {
@@ -4292,15 +4419,16 @@ class _MultiplayerMenuState extends State<MultiplayerMenuScreen> {
         code: _codeCtrl.text.toUpperCase(),
         playerName: _nameCtrl.text.isEmpty ? 'Commander' : _nameCtrl.text,
         nationName: _nationCtrl.text.isEmpty ? 'My Empire' : _nationCtrl.text,
-        nationColorValue: kNationColors[_colorIdx].value,
+        nationColorValue: kNationColors[_colorIdx].toARGB32(),
       );
     }
     setState(() => _connecting = false);
-    if (mounted)
+    if (mounted) {
       Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => LobbyScreen(game: widget.game)),
       );
+    }
   }
 }
 
@@ -4356,11 +4484,12 @@ class _LobbyScreenState extends State<LobbyScreen> {
     super.initState();
     _sub = MultiplayerService.instance.events.listen(_onEvent);
     Future.delayed(const Duration(milliseconds: 600), () {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _code = 'GD${math.Random().nextInt(9000) + 1000}';
           _isHost = true;
         });
+      }
     });
   }
 
@@ -4399,8 +4528,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
         });
         break;
       case 'game_started':
-        if (msg['data']['gameState'] != null)
+        if (msg['data']['gameState'] != null) {
           widget.game.loadFromJson(msg['data']['gameState']);
+        }
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => GameScreen(game: widget.game)),
         );
@@ -4547,7 +4677,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: _ready
-                            ? kColorSuccess.withOpacity(0.2)
+                            ? kColorSuccess.withValues(alpha: 0.2)
                             : kColorGoldDark,
                       ),
                       child: Text(_ready ? '✅ READY' : '⬜ MARK READY'),
@@ -4609,7 +4739,7 @@ class _PRow extends StatelessWidget {
     padding: const EdgeInsets.all(11),
     decoration: BoxDecoration(
       border: Border.all(
-        color: ready ? kColorSuccess.withOpacity(0.5) : kColorBorder,
+        color: ready ? kColorSuccess.withValues(alpha: 0.5) : kColorBorder,
       ),
       borderRadius: BorderRadius.circular(6),
       color: kColorPanel,
@@ -4620,7 +4750,7 @@ class _PRow extends StatelessWidget {
           width: 34,
           height: 34,
           decoration: BoxDecoration(
-            color: color.withOpacity(0.2),
+            color: color.withValues(alpha: 0.2),
             shape: BoxShape.circle,
             border: Border.all(color: color, width: 1.5),
           ),
@@ -4666,7 +4796,7 @@ class _EmptyRow extends StatelessWidget {
     margin: const EdgeInsets.only(bottom: 7),
     padding: const EdgeInsets.all(11),
     decoration: BoxDecoration(
-      border: Border.all(color: kColorBorder.withOpacity(0.35)),
+      border: Border.all(color: kColorBorder.withValues(alpha: 0.35)),
       borderRadius: BorderRadius.circular(6),
     ),
     child: const Row(
@@ -4729,7 +4859,7 @@ class GameScreen extends StatefulWidget {
 
 class _GameScreenState extends State<GameScreen> {
   Timer? _tick, _ai;
-  bool _leftOpen = false, _rightOpen = false;
+  bool _nationsOpen = false;
   int _buildCat = 0;
   bool _victoryShown = false;
   StreamSubscription? _mpSub;
@@ -4777,46 +4907,67 @@ class _GameScreenState extends State<GameScreen> {
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: widget.game,
-    builder: (_, __) => Scaffold(
-      body: Column(
+    builder: (_, _) => Scaffold(
+      backgroundColor: const Color(0xFF07101B),
+      body: Stack(
         children: [
-          TopBar(
-            game: widget.game,
-            onLeft: () => setState(() => _leftOpen = !_leftOpen),
-            onRight: () => setState(() => _rightOpen = !_rightOpen),
-            onTech: _showTech,
-            onDipl: _showDipl,
-          ),
-          Expanded(
-            child: Row(
-              children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 220),
-                  width: _leftOpen ? 256 : 0,
-                  child: OverflowBox(
-                    maxWidth: 256,
-                    alignment: Alignment.centerLeft,
-                    child: BuildPanel(
-                      game: widget.game,
-                      cat: _buildCat,
-                      onCat: (c) => setState(() => _buildCat = c),
-                    ),
-                  ),
-                ),
-                Expanded(child: GameMapWidget(game: widget.game)),
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 220),
-                  width: _rightOpen ? 238 : 0,
-                  child: OverflowBox(
-                    maxWidth: 238,
-                    alignment: Alignment.centerRight,
-                    child: NationPanel(game: widget.game),
-                  ),
-                ),
-              ],
+          Positioned.fill(child: GameMapWidget(game: widget.game)),
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: TopBar(
+              game: widget.game,
+              onNations: () => setState(() => _nationsOpen = !_nationsOpen),
+              onTech: _showTech,
+              onDipl: _showDipl,
             ),
           ),
-          SelectionPanel(game: widget.game),
+          Positioned(
+            left: 0,
+            top: 48,
+            bottom: 120,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              width: _nationsOpen ? 244 : 0,
+              child: OverflowBox(
+                maxWidth: 244,
+                alignment: Alignment.centerLeft,
+                child: NationPanel(game: widget.game),
+              ),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: BottomToolbar(
+              game: widget.game,
+              cat: _buildCat,
+              onCat: (c) => setState(() => _buildCat = c),
+            ),
+          ),
+          Positioned(
+            right: 14,
+            top: 60,
+            child: _ActionRail(
+              onCenter: () {},
+              onBuild: () =>
+                  setState(() => _buildCat = _buildCat == -1 ? 0 : -1),
+              onTech: _showTech,
+              onDipl: _showDipl,
+              onNations: () => setState(() => _nationsOpen = !_nationsOpen),
+              onCancel: () {
+                widget.game.clearSelection();
+                widget.game.rebuild();
+              },
+            ),
+          ),
+          Positioned(
+            left: 12,
+            bottom: 130,
+            child: _EventLog(game: widget.game),
+          ),
         ],
       ),
     ),
@@ -4845,18 +4996,465 @@ class _GameScreenState extends State<GameScreen> {
   );
 }
 
+// ── Bottom Toolbar (replaces BuildPanel + SelectionPanel) ─────────────────
+
+class BottomToolbar extends StatefulWidget {
+  final GameState game;
+  final int cat;
+  final ValueChanged<int> onCat;
+  const BottomToolbar({
+    super.key,
+    required this.game,
+    required this.cat,
+    required this.onCat,
+  });
+  @override
+  State<BottomToolbar> createState() => _BottomToolbarState();
+}
+
+class _BottomToolbarState extends State<BottomToolbar> {
+  static const _cats = ['💰', '⚔️', '🛡️', '🔬', '⭐'];
+  static const _labs = ['Eco', 'Mil', 'Def', 'Tech', 'Spec'];
+  static const _types = [
+    BuildingCat.economic,
+    BuildingCat.military,
+    BuildingCat.defensive,
+    BuildingCat.technology,
+    BuildingCat.special,
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final game = widget.game;
+    final n = game.playerNation;
+    final unit = game.selUnitId != null ? game.units[game.selUnitId!] : null;
+    final building = game.selBuildingId != null
+        ? game.buildings[game.selBuildingId!]
+        : null;
+    final multiSel = game.selectedUnitIds.isNotEmpty;
+
+    // Selection info overlay
+    Widget? selInfo;
+    if (multiSel) {
+      selInfo = Container(
+        height: 32,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        color: kColorPanel.withValues(alpha: 0.92),
+        child: Row(
+          children: [
+            Text(
+              '⚔️ ${game.selectedUnitIds.length} units selected',
+              style: const TextStyle(
+                color: kColorGold,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const Spacer(),
+            GestureDetector(
+              onTap: () {
+                game.clearMultiSelection();
+                game.rebuild();
+              },
+              child: const Text(
+                '✖ Clear',
+                style: TextStyle(color: kColorMuted, fontSize: 10),
+              ),
+            ),
+          ],
+        ),
+      );
+    } else if (unit != null) {
+      final d = unit.def;
+      selInfo = Container(
+        height: 36,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        color: kColorPanel.withValues(alpha: 0.92),
+        child: Row(
+          children: [
+            Text(d.emoji, style: const TextStyle(fontSize: 18)),
+            const SizedBox(width: 6),
+            Text(
+              d.name,
+              style: const TextStyle(
+                color: kColorText,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'HP:${unit.health}/${unit.maxHealth}',
+              style: const TextStyle(color: kColorMuted, fontSize: 9),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '⚔${d.attack} 🛡${d.defense} 🏃${d.speed}',
+              style: const TextStyle(color: kColorMuted, fontSize: 9),
+            ),
+            const Spacer(),
+            GestureDetector(
+              onTap: () {
+                game.clearSelection();
+                game.rebuild();
+              },
+              child: const Text(
+                '✖ Desel',
+                style: TextStyle(color: kColorMuted, fontSize: 10),
+              ),
+            ),
+          ],
+        ),
+      );
+    } else if (building != null && building.nationId == game.playerNationId) {
+      final d = building.def;
+      selInfo = Container(
+        height: 36,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        color: kColorPanel.withValues(alpha: 0.92),
+        child: Row(
+          children: [
+            Text(d.emoji, style: const TextStyle(fontSize: 18)),
+            const SizedBox(width: 6),
+            Text(
+              d.name,
+              style: const TextStyle(
+                color: kColorText,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'HP:${building.health}/${building.maxHealth}',
+              style: const TextStyle(color: kColorMuted, fontSize: 9),
+            ),
+            if (building.isConstructing) ...[
+              const SizedBox(width: 8),
+              Text(
+                '⏳${building.buildTicksLeft}t',
+                style: const TextStyle(color: kColorGold, fontSize: 9),
+              ),
+            ],
+            if (building.trainingUnitDefId != null) ...[
+              const SizedBox(width: 8),
+              Text(
+                '🎯${kUnitDefs[building.trainingUnitDefId!]?.name ?? '?'}: ${building.trainingTicksLeft}t',
+                style: const TextStyle(color: kColorGold, fontSize: 9),
+              ),
+            ],
+            const Spacer(),
+            // Train buttons
+            if (d.unlocks.isNotEmpty && !building.isConstructing)
+              ...d.unlocks.map((uid) {
+                final ud = kUnitDefs[uid];
+                if (ud == null) return const SizedBox.shrink();
+                final ok = n?.resources.canAfford(ud.cost) ?? false;
+                return GestureDetector(
+                  onTap: () {
+                    if (building.trainingUnitDefId != null) return;
+                    game.trainUnit(game.playerNationId!, building.id, uid);
+                  },
+                  child: Tooltip(
+                    message: '${ud.name}',
+                    child: Container(
+                      margin: const EdgeInsets.only(left: 4),
+                      padding: const EdgeInsets.all(3),
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: ok ? kColorGoldDark : kColorBorder,
+                        ),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                      child: Text(
+                        ud.emoji,
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                    ),
+                  ),
+                );
+              }),
+          ],
+        ),
+      );
+    }
+
+    // Building cards
+    final defs = kBuildingDefs.values
+        .where((d) => d.category == _types[widget.cat])
+        .toList();
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (selInfo != null) selInfo,
+        // Category tabs
+        Container(
+          height: 28,
+          color: kColorBg,
+          child: Row(
+            children: [
+              const SizedBox(width: 8),
+              ...List.generate(
+                5,
+                (i) => GestureDetector(
+                  onTap: () => widget.onCat(i),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    decoration: BoxDecoration(
+                      border: Border(
+                        bottom: BorderSide(
+                          color: widget.cat == i
+                              ? kColorGold
+                              : Colors.transparent,
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                    child: Center(
+                      child: Text(
+                        '${_cats[i]} ${_labs[i]}',
+                        style: TextStyle(
+                          color: widget.cat == i ? kColorGold : kColorMuted,
+                          fontSize: 8,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              if (game.pendingBuildDefId != null)
+                GestureDetector(
+                  onTap: () {
+                    game.pendingBuildDefId = null;
+                    game.rebuild();
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: kColorAccent.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                    child: const Center(
+                      child: Text(
+                        '✖ Cancel',
+                        style: TextStyle(
+                          color: kColorAccent,
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        // Building card row
+        Container(
+          height: 80,
+          color: kColorPanel,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            itemCount: defs.length,
+            itemBuilder: (_, i) {
+              final d = defs[i];
+              final afford = n?.resources.canAfford(d.cost) == true;
+              final ageOk = d.requiredAge.index2 <= (n?.currentAge.index2 ?? 0);
+              final sel = game.pendingBuildDefId == d.id;
+              return GestureDetector(
+                onTap: () {
+                  if (!ageOk) {
+                    game.addEvent(
+                      '❌ Requires ${d.requiredAge.label}!',
+                      color: kColorAccent,
+                    );
+                    return;
+                  }
+                  game.pendingBuildDefId = d.id;
+                  game.addEvent(
+                    '👆 Tap territory to place ${d.name}',
+                    color: kColorGold,
+                  );
+                  game.rebuild();
+                },
+                child: Container(
+                  width: 78,
+                  margin: const EdgeInsets.only(right: 6),
+                  padding: const EdgeInsets.all(5),
+                  decoration: BoxDecoration(
+                    color: sel
+                        ? kColorGoldDark.withValues(alpha: 0.28)
+                        : kColorBg,
+                    border: Border.all(
+                      color: sel
+                          ? kColorGold
+                          : !ageOk
+                          ? kColorBorder.withValues(alpha: 0.25)
+                          : afford
+                          ? kColorBorder
+                          : kColorAccent.withValues(alpha: 0.25),
+                    ),
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(d.emoji, style: const TextStyle(fontSize: 20)),
+                      const SizedBox(height: 2),
+                      Text(
+                        d.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: !ageOk
+                              ? kColorMuted
+                              : afford
+                              ? kColorText
+                              : kColorAccent,
+                          fontSize: 8,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      if (!ageOk)
+                        Text('🔒', style: const TextStyle(fontSize: 7))
+                      else if (d.cost.containsKey('gold'))
+                        Text(
+                          '💰${d.cost['gold']!.toInt()}',
+                          style: TextStyle(
+                            color: afford ? kColorMuted : kColorAccent,
+                            fontSize: 7,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Event Log Overlay ────────────────────────────────────────────────────────
+
+class _EventLog extends StatelessWidget {
+  final GameState game;
+  const _EventLog({required this.game});
+  @override
+  Widget build(BuildContext context) {
+    final recent = game.events.take(5).toList();
+    if (recent.isEmpty) return const SizedBox.shrink();
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 320, maxHeight: 110),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF07101B).withValues(alpha: 0.78),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+      ),
+      child: ListView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: recent.length,
+        itemBuilder: (_, i) {
+          final e = recent[i];
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 2),
+            child: Text(
+              e.message,
+              style: TextStyle(
+                color: e.color.withValues(alpha: 1.0 - i * 0.15),
+                fontSize: 9,
+                height: 1.2,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ── Action Rail (right side) ─────────────────────────────────────────────────
+
+class _ActionRail extends StatelessWidget {
+  final VoidCallback onCenter, onBuild, onTech, onDipl, onNations, onCancel;
+  const _ActionRail({
+    required this.onCenter,
+    required this.onBuild,
+    required this.onTech,
+    required this.onDipl,
+    required this.onNations,
+    required this.onCancel,
+  });
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 54,
+    padding: const EdgeInsets.symmetric(vertical: 8),
+    decoration: BoxDecoration(
+      color: const Color(0xFF4D402D).withValues(alpha: 0.82),
+      borderRadius: BorderRadius.circular(6),
+      border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.35),
+          blurRadius: 16,
+          offset: const Offset(0, 8),
+        ),
+      ],
+    ),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _rail('◎', onCenter, 'Center Camera'),
+        _rail('🏗', onBuild, 'Build'),
+        _rail('✖', onCancel, 'Cancel / Deselect'),
+        _rail('⚔', onTech, 'Research'),
+        _rail('📊', onNations, 'Nations'),
+        _rail('💬', onDipl, 'Diplomacy'),
+      ],
+    ),
+  );
+
+  static Widget _rail(String icon, VoidCallback cb, String tip) => Tooltip(
+    message: tip,
+    child: InkWell(
+      onTap: cb,
+      child: SizedBox(
+        width: 46,
+        height: 46,
+        child: Center(
+          child: Text(
+            icon,
+            style: const TextStyle(
+              color: Color(0xFFEADDC4),
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // SECTION 20 ▸ TOP RESOURCE BAR
 // ══════════════════════════════════════════════════════════════════════════════
 
 class TopBar extends StatelessWidget {
   final GameState game;
-  final VoidCallback onLeft, onRight, onTech, onDipl;
+  final VoidCallback onNations, onTech, onDipl;
   const TopBar({
     super.key,
     required this.game,
-    required this.onLeft,
-    required this.onRight,
+    required this.onNations,
     required this.onTech,
     required this.onDipl,
   });
@@ -4865,12 +5463,22 @@ class TopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final r = game.playerNation?.resources;
     final n = game.playerNation;
+    final col = n?.color ?? kColorGold;
+    final name = n?.name ?? 'Admiral';
     return Container(
-      height: 46,
-      color: kColorPanel,
+      height: 48,
+      decoration: BoxDecoration(
+        color: kColorPanel,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.4),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Row(
         children: [
-          _IB('🏗️', onLeft, 'Build'),
           Container(width: 1, height: 30, color: kColorBorder),
           Expanded(
             child: SingleChildScrollView(
@@ -4898,7 +5506,7 @@ class TopBar extends StatelessWidget {
                         decoration: BoxDecoration(
                           border: Border.all(color: kColorGoldDark),
                           borderRadius: BorderRadius.circular(3),
-                          color: kColorGoldDark.withOpacity(0.2),
+                          color: kColorGoldDark.withValues(alpha: 0.2),
                         ),
                         child: Text(
                           '${n.tier.label} · ${n.currentAge.label} ⬆',
@@ -4917,9 +5525,49 @@ class TopBar extends StatelessWidget {
           Container(width: 1, height: 30, color: kColorBorder),
           _IB('🔬', onTech, 'Tech Tree'),
           _IB('🤝', onDipl, 'Diplomacy'),
-          _IB('📊', onRight, 'Nations'),
+          _IB('📊', onNations, 'Nations'),
+          Container(width: 1, height: 30, color: kColorBorder),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: col.withValues(alpha: 0.22),
+                shape: BoxShape.circle,
+                border: Border.all(color: col.withValues(alpha: 0.7)),
+              ),
+              child: Center(
+                child: Text(
+                  _admiralEmoji(name),
+                  style: const TextStyle(fontSize: 20),
+                ),
+              ),
+            ),
+          ),
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                name,
+                style: TextStyle(
+                  color: col,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              Text(
+                n?.currentAge.label ?? 'Ancient',
+                style: const TextStyle(color: kColorMuted, fontSize: 8),
+              ),
+            ],
+          ),
+          const SizedBox(width: 10),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
             child: Text(
               'T:${game.tick}',
               style: const TextStyle(color: kColorMuted, fontSize: 9),
@@ -4972,6 +5620,16 @@ class TopBar extends StatelessWidget {
 // SECTION 21 ▸ GAME MAP
 // ══════════════════════════════════════════════════════════════════════════════
 
+String _admiralEmoji(String nationName) {
+  final n = nationName.toLowerCase();
+  if (n.contains('azure') || n.contains('british')) return '🧭';
+  if (n.contains('jade') || n.contains('dynasty')) return '🎎';
+  if (n.contains('horde') || n.contains('viking')) return '🪓';
+  if (n.contains('sultan') || n.contains('ottoman')) return '🕌';
+  if (n.contains('crimson') || n.contains('roman')) return '🛡️';
+  return '🧑‍✈️';
+}
+
 class GameMapWidget extends StatefulWidget {
   final GameState game;
   const GameMapWidget({super.key, required this.game});
@@ -4979,8 +5637,23 @@ class GameMapWidget extends StatefulWidget {
   State<GameMapWidget> createState() => _GameMapWidgetState();
 }
 
-class _GameMapWidgetState extends State<GameMapWidget> {
+class _GameMapWidgetState extends State<GameMapWidget>
+    with TickerProviderStateMixin {
   final TransformationController _tc = TransformationController();
+  double _admiralX = kMapW / 2;
+  double _admiralY = kMapH / 2;
+  double _cameraYaw = 0;
+  // Sprint & Jump
+  double _jumpHeight = 0;
+  bool _isSprinting = false;
+  Timer? _animTimer;
+  // Drag-to-attack
+  Offset? _dragStart, _dragCurrent;
+  bool _isDragAttacking = false;
+  // Selection box
+  Offset? _selBoxStart, _selBoxEnd;
+  bool _isSelecting = false;
+
   @override
   void initState() {
     super.initState();
@@ -4991,46 +5664,266 @@ class _GameMapWidgetState extends State<GameMapWidget> {
             s.width / (kMapW * kTileSize),
             (s.height - 140) / (kMapH * kTileSize),
           ) *
-          0.88;
-      _tc.value = Matrix4.identity()..scale(sc);
+          0.72;
+      final matrix = _tc.value.clone()
+        ..setIdentity()
+        ..translate(s.width * 0.34, 34.0)
+        ..scale(sc);
+      _tc.value = matrix;
+    });
+    // Animation timer for jump decay
+    _animTimer = Timer.periodic(const Duration(milliseconds: 16), (_) {
+      if (!mounted) return;
+      bool changed = false;
+      if (_jumpHeight > 0.1) {
+        _jumpHeight *= 0.88;
+        changed = true;
+      } else if (_jumpHeight > 0) {
+        _jumpHeight = 0;
+        changed = true;
+      }
+      // Track sprint state
+      final sprinting = HardwareKeyboard.instance.isShiftPressed;
+      if (sprinting != _isSprinting) {
+        _isSprinting = sprinting;
+        changed = true;
+      }
+      if (changed) setState(() {});
     });
   }
 
   @override
   void dispose() {
     _tc.dispose();
+    _animTimer?.cancel();
     super.dispose();
+  }
+
+  void _handleDragStart(DragStartDetails d) {
+    final pos = _tc.toScene(d.localPosition);
+    final tile = MapPainter.sceneToTile(pos);
+    final isShift = HardwareKeyboard.instance.isShiftPressed;
+    // Check if dragging from a selected unit
+    final selUnit = widget.game.selUnitId != null
+        ? widget.game.units[widget.game.selUnitId!]
+        : null;
+    if (!isShift &&
+        selUnit != null &&
+        (selUnit.x - tile.$1).abs() <= 1 &&
+        (selUnit.y - tile.$2).abs() <= 1) {
+      _isDragAttacking = true;
+      _dragStart = pos;
+      _dragCurrent = pos;
+    } else if (isShift) {
+      _isSelecting = true;
+      _selBoxStart = pos;
+      _selBoxEnd = pos;
+    }
+  }
+
+  void _handleDragUpdate(DragUpdateDetails d) {
+    final pos = _tc.toScene(d.localPosition);
+    setState(() {
+      if (_isDragAttacking) {
+        _dragCurrent = pos;
+      } else if (_isSelecting) {
+        _selBoxEnd = pos;
+      } else if (d.delta.dx.abs() > d.delta.dy.abs()) {
+        _cameraYaw += d.delta.dx * 0.0008;
+      }
+    });
+  }
+
+  void _handleDragEnd(DragEndDetails d) {
+    if (_isDragAttacking && _dragStart != null && _dragCurrent != null) {
+      final endTile = MapPainter.sceneToTile(_dragCurrent!);
+      if (widget.game.map.isValid(endTile.$1, endTile.$2)) {
+        widget.game.handleTileAction(endTile.$1, endTile.$2);
+      }
+    }
+    if (_isSelecting && _selBoxStart != null && _selBoxEnd != null) {
+      final s = MapPainter.sceneToTile(_selBoxStart!);
+      final e = MapPainter.sceneToTile(_selBoxEnd!);
+      widget.game.selectUnitsInRect(
+        s.$1.toDouble(),
+        s.$2.toDouble(),
+        e.$1.toDouble(),
+        e.$2.toDouble(),
+      );
+      widget.game.rebuild();
+    }
+    setState(() {
+      _isDragAttacking = false;
+      _dragStart = null;
+      _dragCurrent = null;
+      _isSelecting = false;
+      _selBoxStart = null;
+      _selBoxEnd = null;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: const Color(0xFF020810),
-      child: InteractiveViewer(
-        transformationController: _tc,
-        minScale: 0.18,
-        maxScale: 5.0,
-        constrained: false,
-        child: GestureDetector(
-          onTapUp: (d) {
-            final pos = _tc.toScene(d.localPosition);
-            final tx = (pos.dx / kTileSize).floor(),
-                ty = (pos.dy / kTileSize).floor();
-            if (widget.game.map.isValid(tx, ty))
-              widget.game.handleTileAction(tx, ty);
-          },
-          child: SizedBox(
-            width: kMapW * kTileSize,
-            height: kMapH * kTileSize,
-            child: ListenableBuilder(
-              listenable: widget.game,
-              builder: (_, __) => CustomPaint(
-                painter: MapPainter(game: widget.game),
-                size: Size(kMapW * kTileSize, kMapH * kTileSize),
-              ),
-            ),
+    return Focus(
+      autofocus: true,
+      onKeyEvent: (_, event) {
+        if (event is! KeyDownEvent) return KeyEventResult.ignored;
+        final key = event.logicalKey;
+        final sprint = HardwareKeyboard.instance.isShiftPressed;
+        final step = sprint ? 0.7 : 0.35;
+        setState(() {
+          if (key == LogicalKeyboardKey.keyW) _admiralY -= step;
+          if (key == LogicalKeyboardKey.keyS) _admiralY += step;
+          if (key == LogicalKeyboardKey.keyA) _admiralX -= step;
+          if (key == LogicalKeyboardKey.keyD) _admiralX += step;
+          if (key == LogicalKeyboardKey.keyQ) _cameraYaw -= 0.04;
+          if (key == LogicalKeyboardKey.keyE) _cameraYaw += 0.04;
+          if (key == LogicalKeyboardKey.space) {
+            _jumpHeight = 35.0;
+          }
+          _admiralX = _admiralX.clamp(1, kMapW - 2);
+          _admiralY = _admiralY.clamp(1, kMapH - 2);
+        });
+        return KeyEventResult.handled;
+      },
+      child: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF76BFE7), Color(0xFF345A44), Color(0xFF07101B)],
           ),
         ),
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: InteractiveViewer(
+                transformationController: _tc,
+                minScale: 0.24,
+                maxScale: 3.8,
+                constrained: false,
+                child: GestureDetector(
+                  onTapUp: (d) {
+                    final pos = _tc.toScene(d.localPosition);
+                    final tile = MapPainter.sceneToTile(pos);
+                    if (widget.game.map.isValid(tile.$1, tile.$2)) {
+                      setState(() {
+                        _admiralX = tile.$1 + 0.5;
+                        _admiralY = tile.$2 + 0.5;
+                      });
+                      widget.game.handleTileAction(tile.$1, tile.$2);
+                    }
+                  },
+                  onPanStart: _handleDragStart,
+                  onPanUpdate: _handleDragUpdate,
+                  onPanEnd: _handleDragEnd,
+                  child: SizedBox(
+                    width: MapPainter.sceneWidth,
+                    height: MapPainter.sceneHeight,
+                    child: ListenableBuilder(
+                      listenable: widget.game,
+                      builder: (_, _) => CustomPaint(
+                        painter: MapPainter(
+                          game: widget.game,
+                          admiralX: _admiralX,
+                          admiralY: _admiralY,
+                          cameraYaw: _cameraYaw,
+                          jumpHeight: _jumpHeight,
+                          dragStart: _dragStart,
+                          dragCurrent: _dragCurrent,
+                          selBoxStart: _selBoxStart,
+                          selBoxEnd: _selBoxEnd,
+                        ),
+                        size: const Size(
+                          MapPainter.sceneWidth,
+                          MapPainter.sceneHeight,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              left: 268,
+              bottom: 120,
+              child: _AdmiralHint(game: widget.game),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AdmiralHint extends StatelessWidget {
+  final GameState game;
+  const _AdmiralHint({required this.game});
+
+  @override
+  Widget build(BuildContext context) {
+    final tile = (game.selX != null && game.selY != null)
+        ? game.map.at(game.selX!, game.selY!)
+        : null;
+    final label = tile == null
+        ? 'Admiral Command'
+        : '${tile.terrain.name.toUpperCase()}  (${tile.x},${tile.y})';
+    final sub = tile?.ownerNationId == null
+        ? 'Unclaimed'
+        : game.nations[tile!.ownerNationId!]?.name ?? 'Controlled';
+    return Container(
+      constraints: const BoxConstraints(minWidth: 210, maxWidth: 300),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF07101B).withValues(alpha: 0.84),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: kColorGoldDark.withValues(alpha: 0.45),
+              borderRadius: BorderRadius.circular(5),
+              border: Border.all(color: kColorGold.withValues(alpha: 0.65)),
+            ),
+            child: const Center(
+              child: Text('🧭', style: TextStyle(fontSize: 25)),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Flexible(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: kColorText,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
+                  ),
+                ),
+                Text(
+                  sub,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: kColorMuted, fontSize: 10),
+                ),
+                const Text(
+                  'WASD move · Q/E rotate · wheel zoom',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: Color(0xFFB7C2CF), fontSize: 9),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -5038,254 +5931,567 @@ class _GameMapWidgetState extends State<GameMapWidget> {
 
 class MapPainter extends CustomPainter {
   final GameState game;
-  MapPainter({required this.game});
+  final double admiralX, admiralY, cameraYaw, jumpHeight;
+  final Offset? dragStart, dragCurrent, selBoxStart, selBoxEnd, hoverTile;
+  MapPainter({
+    required this.game,
+    this.admiralX = kMapW / 2,
+    this.admiralY = kMapH / 2,
+    this.cameraYaw = 0,
+    this.jumpHeight = 0,
+    this.dragStart,
+    this.dragCurrent,
+    this.selBoxStart,
+    this.selBoxEnd,
+    this.hoverTile,
+  });
+
+  static const double tileW = 64;
+  static const double tileH = 34;
+  static const double sceneWidth = 2200;
+  static const double sceneHeight = 1320;
+
+  static Offset tileToScene(num x, num y, [double z = 0]) {
+    final sx = sceneWidth / 2 + (x - y) * tileW / 2;
+    final sy = 150 + (x + y) * tileH / 2 - z;
+    return Offset(sx.toDouble(), sy.toDouble());
+  }
+
+  static (int, int) sceneToTile(Offset p) {
+    final dx = p.dx - sceneWidth / 2;
+    final dy = p.dy - 150;
+    final x = (dy / tileH + dx / tileW).floor();
+    final y = (dy / tileH - dx / tileW).floor();
+    return (x.clamp(0, kMapW - 1), y.clamp(0, kMapH - 1));
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
-    _tiles(canvas);
-    _grid(canvas);
-    _borders(canvas);
-    _buildings(canvas);
-    _units(canvas);
-    _highlights(canvas);
-    _selection(canvas);
+    _sky(canvas, size);
+    canvas.save();
+    canvas.translate(sceneWidth / 2, 690);
+    canvas.rotate(cameraYaw);
+    canvas.translate(-sceneWidth / 2, -690);
+    _isoTerrain(canvas);
+    _isoTerritory(canvas);
+    _isoHighlights(canvas);
+    _isoBuildings(canvas);
+    _isoUnits(canvas);
+    _isoAdmiral(canvas);
+    _isoSelection(canvas);
+    _multiUnitHighlights(canvas);
+    _pathOverlay(canvas);
+    _commandArrow(canvas);
+    _selectionBox(canvas);
+    canvas.restore();
+    _combatEffects(canvas);
   }
 
-  void _tiles(Canvas c) {
-    final p = Paint();
-    for (int y = 0; y < kMapH; y++)
+  double _heightFor(MapTile t) {
+    switch (t.terrain) {
+      case TerrainType.mountain:
+        return 34;
+      case TerrainType.forest:
+        return 12;
+      case TerrainType.tundra:
+        return 10;
+      case TerrainType.desert:
+        return 5;
+      case TerrainType.water:
+        return -8;
+      case TerrainType.plains:
+        return 7;
+    }
+  }
+
+  Path _diamond(num x, num y, [double z = 0]) {
+    final top = tileToScene(x + 0.5, y, z);
+    final right = tileToScene(x + 1, y + 0.5, z);
+    final bottom = tileToScene(x + 0.5, y + 1, z);
+    final left = tileToScene(x, y + 0.5, z);
+    return Path()
+      ..moveTo(top.dx, top.dy)
+      ..lineTo(right.dx, right.dy)
+      ..lineTo(bottom.dx, bottom.dy)
+      ..lineTo(left.dx, left.dy)
+      ..close();
+  }
+
+  Offset _center(num x, num y, [double z = 0]) =>
+      tileToScene(x + 0.5, y + 0.5, z);
+
+  void _sky(Canvas c, Size size) {
+    final haze = Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [Color(0xFFD2F0FF), Color(0xFF7FB86B), Color(0xFF0B141E)],
+      ).createShader(Offset.zero & size);
+    c.drawRect(Offset.zero & size, haze);
+    c.drawCircle(
+      const Offset(sceneWidth - 280, 150),
+      42,
+      Paint()..color = const Color(0xFFFFD274).withValues(alpha: 0.75),
+    );
+  }
+
+  void _isoTerrain(Canvas c) {
+    final stroke = Paint()
+      ..color = Colors.black.withValues(alpha: 0.16)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.9;
+    for (int y = 0; y < kMapH; y++) {
       for (int x = 0; x < kMapW; x++) {
         final t = game.map.at(x, y);
-        final r = Rect.fromLTWH(
-          x * kTileSize,
-          y * kTileSize,
-          kTileSize,
-          kTileSize,
-        );
-        p.color = t.baseColor;
-        c.drawRect(r, p);
-        if (t.ownerNationId != null) {
-          p.color = (game.nations[t.ownerNationId!]?.color ?? Colors.grey)
-              .withOpacity(0.2);
-          c.drawRect(r, p);
-        }
+        final h = _heightFor(t);
+        final tile = _diamond(x, y, h);
+        final base = Paint()..color = _terrainColor(t.terrain);
+        c.drawPath(tile, base);
+        c.drawPath(tile, stroke);
+        if (t.terrain == TerrainType.forest) _treeCluster(c, x, y, h);
+        if (t.terrain == TerrainType.mountain) _mountain(c, x, y, h);
+        if (t.terrain == TerrainType.water) _waterLines(c, x, y, h);
       }
+    }
   }
 
-  void _grid(Canvas c) {
-    final p = Paint()
-      ..color = Colors.black.withOpacity(0.2)
-      ..strokeWidth = 0.4
-      ..style = PaintingStyle.stroke;
-    for (int x = 0; x <= kMapW; x++)
-      c.drawLine(
-        Offset(x * kTileSize, 0),
-        Offset(x * kTileSize, kMapH * kTileSize),
-        p,
-      );
-    for (int y = 0; y <= kMapH; y++)
-      c.drawLine(
-        Offset(0, y * kTileSize),
-        Offset(kMapW * kTileSize, y * kTileSize),
-        p,
-      );
+  Color _terrainColor(TerrainType terrain) {
+    switch (terrain) {
+      case TerrainType.plains:
+        return const Color(0xFF79AF52);
+      case TerrainType.forest:
+        return const Color(0xFF2F7D3B);
+      case TerrainType.mountain:
+        return const Color(0xFF817A6F);
+      case TerrainType.water:
+        return const Color(0xFF2C7DA9);
+      case TerrainType.desert:
+        return const Color(0xFFD9B56A);
+      case TerrainType.tundra:
+        return const Color(0xFFDCE8E7);
+    }
   }
 
-  void _borders(Canvas c) {
-    for (int y = 0; y < kMapH; y++)
+  void _isoTerritory(Canvas c) {
+    for (int y = 0; y < kMapH; y++) {
       for (int x = 0; x < kMapW; x++) {
         final t = game.map.at(x, y);
         if (t.ownerNationId == null) continue;
-        final col = game.nations[t.ownerNationId!]?.color ?? Colors.grey;
-        final p = Paint()
-          ..color = col.withOpacity(0.65)
-          ..strokeWidth = 1.8
-          ..style = PaintingStyle.stroke;
+        final color = game.nations[t.ownerNationId!]?.color ?? Colors.grey;
+        c.drawPath(
+          _diamond(x, y, _heightFor(t) + 1),
+          Paint()..color = color.withValues(alpha: 0.28),
+        );
+        // Nation-colored borders at territory edges
+        final h = _heightFor(t) + 2;
+        final bp = Paint()
+          ..strokeWidth = 2.5
+          ..style = PaintingStyle.stroke
+          ..color = color.withValues(alpha: 0.8);
         final ns = [
           [-1, 0],
           [1, 0],
           [0, -1],
           [0, 1],
         ];
-        final sides = [
-          [
-            Offset(x * kTileSize, y * kTileSize),
-            Offset(x * kTileSize, (y + 1) * kTileSize),
-          ],
-          [
-            Offset((x + 1) * kTileSize, y * kTileSize),
-            Offset((x + 1) * kTileSize, (y + 1) * kTileSize),
-          ],
-          [
-            Offset(x * kTileSize, y * kTileSize),
-            Offset((x + 1) * kTileSize, y * kTileSize),
-          ],
-          [
-            Offset(x * kTileSize, (y + 1) * kTileSize),
-            Offset((x + 1) * kTileSize, (y + 1) * kTileSize),
-          ],
+        final edges = [
+          [tileToScene(x + 0.5, y, h), tileToScene(x, y + 0.5, h)],
+          [tileToScene(x + 1, y + 0.5, h), tileToScene(x + 0.5, y + 1, h)],
+          [tileToScene(x + 0.5, y, h), tileToScene(x + 1, y + 0.5, h)],
+          [tileToScene(x, y + 0.5, h), tileToScene(x + 0.5, y + 1, h)],
         ];
         for (int i = 0; i < 4; i++) {
           final nx = x + ns[i][0], ny = y + ns[i][1];
           final no = game.map.isValid(nx, ny)
               ? game.map.at(nx, ny).ownerNationId
               : null;
-          if (no != t.ownerNationId) c.drawLine(sides[i][0], sides[i][1], p);
+          if (no != t.ownerNationId) {
+            c.drawLine(edges[i][0], edges[i][1], bp);
+          }
         }
       }
+    }
   }
 
-  void _buildings(Canvas c) {
+  void _isoHighlights(Canvas c) {
+    void draw(List<List<int>> points, Color color) {
+      for (final h in points) {
+        if (!game.map.isValid(h[0], h[1])) continue;
+        final t = game.map.at(h[0], h[1]);
+        c.drawPath(
+          _diamond(h[0], h[1], _heightFor(t) + 3),
+          Paint()
+            ..color = color.withValues(alpha: 0.35)
+            ..style = PaintingStyle.fill,
+        );
+      }
+    }
+
+    draw(game.moveHighlights, kColorSuccess);
+    draw(game.attackHighlights, kColorAccent);
+  }
+
+  void _isoBuildings(Canvas c) {
     final tp = TextPainter(textDirection: TextDirection.ltr);
     for (final b in game.buildings.values) {
-      final cx = b.x * kTileSize + kTileSize / 2,
-          cy = b.y * kTileSize + kTileSize / 2;
+      final tile = game.map.at(b.x, b.y);
+      final z = _heightFor(tile) + 8;
+      final o = _center(b.x, b.y, z);
+      final owner = game.nations[b.nationId]?.color ?? kColorGold;
+      c.drawOval(
+        Rect.fromCenter(center: o.translate(0, 18), width: 54, height: 20),
+        Paint()..color = Colors.black.withValues(alpha: 0.24),
+      );
+      final body = RRect.fromRectAndRadius(
+        Rect.fromCenter(center: o.translate(0, 2), width: 42, height: 34),
+        const Radius.circular(5),
+      );
+      c.drawRRect(body, Paint()..color = const Color(0xFFB4A28C));
+      c.drawRRect(
+        body,
+        Paint()
+          ..color = owner.withValues(alpha: 0.9)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3,
+      );
       tp.text = TextSpan(
         text: b.def.emoji,
-        style: TextStyle(fontSize: kTileSize * 0.5),
+        style: const TextStyle(fontSize: 25),
       );
       tp.layout();
-      tp.paint(c, Offset(cx - tp.width / 2, cy - tp.height / 2 - 2));
-      final hp = b.health / b.maxHealth, bw = kTileSize - 8;
-      final bg = Paint()..color = Colors.black.withOpacity(0.5);
-      c.drawRect(
-        Rect.fromLTWH(
-          b.x * kTileSize + 4,
-          b.y * kTileSize + kTileSize - 6,
-          bw,
-          4,
-        ),
-        bg,
-      );
-      final fg = Paint()..color = hp > 0.5 ? kColorSuccess : kColorAccent;
-      c.drawRect(
-        Rect.fromLTWH(
-          b.x * kTileSize + 4,
-          b.y * kTileSize + kTileSize - 6,
-          bw * hp,
-          4,
-        ),
-        fg,
-      );
+      tp.paint(c, Offset(o.dx - tp.width / 2, o.dy - tp.height / 2 - 2));
+      _health(c, o.translate(-22, 27), 44, b.health / b.maxHealth);
       if (b.isConstructing) {
-        final ov = Paint()..color = Colors.yellow.withOpacity(0.18);
-        c.drawRect(
-          Rect.fromLTWH(b.x * kTileSize, b.y * kTileSize, kTileSize, kTileSize),
-          ov,
+        c.drawPath(
+          _diamond(b.x, b.y, z + 1),
+          Paint()..color = kColorGold.withValues(alpha: 0.24),
         );
       }
     }
   }
 
-  void _units(Canvas c) {
+  void _isoUnits(Canvas c) {
     final tp = TextPainter(textDirection: TextDirection.ltr);
     for (final u in game.units.values) {
-      final cx = u.x * kTileSize + kTileSize / 2,
-          cy = u.y * kTileSize + kTileSize / 2;
+      final tile = game.map.at(u.x, u.y);
+      final o = _center(u.x, u.y, _heightFor(tile) + 12);
       final col = game.nations[u.nationId]?.color ?? Colors.grey;
+      c.drawOval(
+        Rect.fromCenter(center: o.translate(0, 18), width: 38, height: 14),
+        Paint()..color = Colors.black.withValues(alpha: 0.28),
+      );
+      c.drawCircle(o, 17, Paint()..color = col.withValues(alpha: 0.65));
       c.drawCircle(
-        Offset(cx, cy - 3),
-        (kTileSize * 0.3).clamp(10, 20),
-        Paint()..color = col.withOpacity(0.55),
+        o,
+        19,
+        Paint()
+          ..color = col
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2,
       );
       tp.text = TextSpan(
         text: u.def.emoji,
-        style: TextStyle(fontSize: kTileSize * 0.38),
+        style: const TextStyle(fontSize: 21),
       );
       tp.layout();
-      tp.paint(c, Offset(cx - tp.width / 2, cy - tp.height / 2 - 3));
-      final hp = u.health / u.maxHealth, bw = kTileSize - 10;
-      c.drawRect(
-        Rect.fromLTWH(
-          u.x * kTileSize + 5,
-          u.y * kTileSize + kTileSize - 7,
-          bw,
-          4,
-        ),
-        Paint()..color = Colors.black.withOpacity(0.55),
-      );
-      c.drawRect(
-        Rect.fromLTWH(
-          u.x * kTileSize + 5,
-          u.y * kTileSize + kTileSize - 7,
-          bw * hp,
-          4,
-        ),
-        Paint()..color = hp > 0.5 ? kColorSuccess : kColorAccent,
-      );
-      if (u.hasMoved && u.hasAttacked) {
-        c.drawRect(
-          Rect.fromLTWH(u.x * kTileSize, u.y * kTileSize, kTileSize, kTileSize),
-          Paint()..color = Colors.black.withOpacity(0.38),
-        );
-      }
+      tp.paint(c, Offset(o.dx - tp.width / 2, o.dy - tp.height / 2));
+      _health(c, o.translate(-18, 24), 36, u.health / u.maxHealth);
     }
   }
 
-  void _highlights(Canvas c) {
-    final mp = Paint()..color = kColorSuccess.withOpacity(0.28);
-    final mb = Paint()
-      ..color = kColorSuccess.withOpacity(0.8)
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke;
-    for (final h in game.moveHighlights) {
-      final r = Rect.fromLTWH(
-        h[0] * kTileSize,
-        h[1] * kTileSize,
-        kTileSize,
-        kTileSize,
-      );
-      c.drawRect(r, mp);
-      c.drawRect(r, mb);
-    }
-    final ap = Paint()..color = kColorAccent.withOpacity(0.32);
-    final ab = Paint()
-      ..color = kColorAccent.withOpacity(0.85)
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke;
-    for (final h in game.attackHighlights) {
-      final r = Rect.fromLTWH(
-        h[0] * kTileSize,
-        h[1] * kTileSize,
-        kTileSize,
-        kTileSize,
-      );
-      c.drawRect(r, ap);
-      c.drawRect(r, ab);
-    }
-  }
-
-  void _selection(Canvas c) {
-    if (game.selX == null || game.selY == null) return;
-    final r = Rect.fromLTWH(
-      game.selX! * kTileSize,
-      game.selY! * kTileSize,
-      kTileSize,
-      kTileSize,
+  void _isoAdmiral(Canvas c) {
+    final nation = game.playerNation;
+    final tx = admiralX.clamp(0, kMapW - 1).floor();
+    final ty = admiralY.clamp(0, kMapH - 1).floor();
+    final tile = game.map.at(tx, ty);
+    final jh = jumpHeight;
+    final o = _center(
+      admiralX - 0.5,
+      admiralY - 0.5,
+      _heightFor(tile) + 18 + jh,
     );
-    final sp = Paint()
-      ..color = kColorGold
-      ..strokeWidth = 2.5
-      ..style = PaintingStyle.stroke;
-    c.drawRect(r, sp);
-    const L = 7.0;
-    void corner(Offset o, List<Offset> ends) {
-      for (final e in ends) c.drawLine(o, e, sp..strokeWidth = 3);
-    }
+    final col = nation?.color ?? kColorGold;
+    // Shadow (smaller when jumping)
+    c.drawOval(
+      Rect.fromCenter(
+        center: o.translate(0, 54 - jh * 0.5),
+        width: 82 - jh * 0.4,
+        height: 26 - jh * 0.2,
+      ),
+      Paint()..color = Colors.black.withValues(alpha: 0.32 - jh * 0.004),
+    );
+    // Glow ring
+    c.drawCircle(
+      o.translate(0, 44),
+      35,
+      Paint()
+        ..color = col.withValues(alpha: 0.78)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 4,
+    );
+    // Body
+    c.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(center: o.translate(0, 5), width: 38, height: 80),
+        const Radius.circular(14),
+      ),
+      Paint()..color = const Color(0xFF264D38),
+    );
+    // Head
+    c.drawCircle(
+      o.translate(0, -44),
+      20,
+      Paint()..color = const Color(0xFFC98A5A),
+    );
+    // Hat
+    c.drawRect(
+      Rect.fromCenter(center: o.translate(0, -64), width: 42, height: 18),
+      Paint()..color = col,
+    );
+    // Emoji
+    final tp = TextPainter(textDirection: TextDirection.ltr);
+    tp.text = TextSpan(
+      text: _admiralEmoji(nation?.name ?? ''),
+      style: const TextStyle(fontSize: 32),
+    );
+    tp.layout();
+    tp.paint(c, Offset(o.dx - tp.width / 2, o.dy - 67));
+    _label(
+      c,
+      o.translate(0, -92),
+      '${nation?.name ?? 'Admiral'} Commander',
+      col,
+    );
+  }
 
-    corner(r.topLeft, [Offset(r.left + L, r.top), Offset(r.left, r.top + L)]);
-    corner(r.topRight, [
-      Offset(r.right - L, r.top),
-      Offset(r.right, r.top + L),
-    ]);
-    corner(r.bottomLeft, [
-      Offset(r.left + L, r.bottom),
-      Offset(r.left, r.bottom - L),
-    ]);
-    corner(r.bottomRight, [
-      Offset(r.right - L, r.bottom),
-      Offset(r.right, r.bottom - L),
-    ]);
+  void _isoSelection(Canvas c) {
+    if (game.selX == null || game.selY == null) return;
+    final tile = game.map.at(game.selX!, game.selY!);
+    c.drawPath(
+      _diamond(game.selX!, game.selY!, _heightFor(tile) + 5),
+      Paint()
+        ..color = kColorGold
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3,
+    );
+  }
+
+  void _health(Canvas c, Offset o, double w, double pct) {
+    c.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(o.dx, o.dy, w, 5),
+        const Radius.circular(3),
+      ),
+      Paint()..color = Colors.black.withValues(alpha: 0.58),
+    );
+    c.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(o.dx, o.dy, w * pct.clamp(0, 1), 5),
+        const Radius.circular(3),
+      ),
+      Paint()..color = pct > 0.45 ? kColorSuccess : kColorAccent,
+    );
+  }
+
+  void _label(Canvas c, Offset o, String text, Color color) {
+    final tp = TextPainter(
+      textDirection: TextDirection.ltr,
+      textAlign: TextAlign.center,
+      text: TextSpan(
+        text: text,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 13,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    )..layout(maxWidth: 180);
+    final r = RRect.fromRectAndRadius(
+      Rect.fromCenter(center: o, width: tp.width + 18, height: 26),
+      const Radius.circular(5),
+    );
+    c.drawRRect(
+      r,
+      Paint()..color = const Color(0xFF07101B).withValues(alpha: 0.76),
+    );
+    c.drawRRect(
+      r,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4,
+    );
+    tp.paint(c, Offset(o.dx - tp.width / 2, o.dy - tp.height / 2));
+  }
+
+  void _treeCluster(Canvas c, int x, int y, double z) {
+    final positions = [
+      _center(x + .1, y, z + 11),
+      _center(x - .1, y + .15, z + 8),
+    ];
+    for (final o in positions) {
+      c.drawRect(
+        Rect.fromCenter(center: o.translate(0, 13), width: 5, height: 16),
+        Paint()..color = const Color(0xFF5A3925),
+      );
+      c.drawPath(
+        Path()
+          ..moveTo(o.dx, o.dy - 18)
+          ..lineTo(o.dx + 16, o.dy + 15)
+          ..lineTo(o.dx - 16, o.dy + 15)
+          ..close(),
+        Paint()..color = const Color(0xFF145A2E),
+      );
+    }
+  }
+
+  void _mountain(Canvas c, int x, int y, double z) {
+    final o = _center(x, y, z + 12);
+    c.drawPath(
+      Path()
+        ..moveTo(o.dx, o.dy - 34)
+        ..lineTo(o.dx + 30, o.dy + 20)
+        ..lineTo(o.dx - 30, o.dy + 20)
+        ..close(),
+      Paint()..color = const Color(0xFF6E6A63),
+    );
+    c.drawPath(
+      Path()
+        ..moveTo(o.dx, o.dy - 34)
+        ..lineTo(o.dx + 10, o.dy - 5)
+        ..lineTo(o.dx - 8, o.dy - 4)
+        ..close(),
+      Paint()..color = const Color(0xFFE7E2D6),
+    );
+  }
+
+  void _waterLines(Canvas c, int x, int y, double z) {
+    final o = _center(x, y, z);
+    final p = Paint()
+      ..color = Colors.white.withValues(alpha: 0.26)
+      ..strokeWidth = 1.2;
+    c.drawLine(o.translate(-18, 0), o.translate(18, 0), p);
+    c.drawLine(o.translate(-10, 8), o.translate(12, 8), p);
+  }
+
+  void _multiUnitHighlights(Canvas c) {
+    if (game.selectedUnitIds.isEmpty) return;
+    for (final id in game.selectedUnitIds) {
+      final u = game.units[id];
+      if (u == null) continue;
+      final tile = game.map.at(u.x, u.y);
+      final o = _center(u.x, u.y, _heightFor(tile) + 12);
+      c.drawCircle(
+        o,
+        22,
+        Paint()
+          ..color = kColorGold.withValues(alpha: 0.55)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.5,
+      );
+    }
+  }
+
+  void _pathOverlay(Canvas c) {
+    if (game.pendingPath.isEmpty) return;
+    final selUnit = game.selUnitId != null ? game.units[game.selUnitId!] : null;
+    if (selUnit == null) return;
+    final p = Paint()
+      ..color = kColorSuccess.withValues(alpha: 0.7)
+      ..strokeWidth = 3
+      ..style = PaintingStyle.stroke;
+    Offset? prev;
+    for (final pt in game.pendingPath) {
+      if (!game.map.isValid(pt[0], pt[1])) continue;
+      final tile = game.map.at(pt[0], pt[1]);
+      final o = _center(pt[0], pt[1], _heightFor(tile) + 8);
+      if (prev != null) c.drawLine(prev, o, p);
+      c.drawCircle(o, 4, Paint()..color = kColorSuccess.withValues(alpha: 0.8));
+      prev = o;
+    }
+  }
+
+  void _commandArrow(Canvas c) {
+    if (dragStart == null || dragCurrent == null) return;
+    final angle = (dragCurrent! - dragStart!).direction;
+    final len = (dragCurrent! - dragStart!).distance;
+    if (len < 10) return;
+    final endTile = sceneToTile(dragCurrent!);
+    final isEnemy =
+        game.map.isValid(endTile.$1, endTile.$2) &&
+        game.map.at(endTile.$1, endTile.$2).ownerNationId != null &&
+        game.map.at(endTile.$1, endTile.$2).ownerNationId !=
+            game.playerNationId;
+    final color = isEnemy ? kColorAccent : kColorSuccess;
+    final glow = Paint()
+      ..color = color.withValues(alpha: 0.35)
+      ..strokeWidth = 10
+      ..style = PaintingStyle.stroke;
+    final line = Paint()
+      ..color = color
+      ..strokeWidth = 4
+      ..style = PaintingStyle.stroke;
+    c.drawLine(dragStart!, dragCurrent!, glow);
+    c.drawLine(dragStart!, dragCurrent!, line);
+    final hl = 18.0;
+    c.drawLine(
+      dragCurrent!,
+      dragCurrent! -
+          Offset.fromDirection(angle, hl) +
+          Offset.fromDirection(angle - 0.5, hl * 0.4),
+      line,
+    );
+    c.drawLine(
+      dragCurrent!,
+      dragCurrent! -
+          Offset.fromDirection(angle, hl) -
+          Offset.fromDirection(angle - 0.5, hl * 0.4),
+      line,
+    );
+    c.drawCircle(dragStart!, 8, Paint()..color = color.withValues(alpha: 0.5));
+    c.drawCircle(dragCurrent!, 6, Paint()..color = color);
+  }
+
+  void _selectionBox(Canvas c) {
+    if (selBoxStart == null || selBoxEnd == null) return;
+    final rect = Rect.fromPoints(selBoxStart!, selBoxEnd!);
+    c.drawRect(rect, Paint()..color = kColorSuccess.withValues(alpha: 0.15));
+    c.drawRect(
+      rect,
+      Paint()
+        ..color = kColorSuccess.withValues(alpha: 0.7)
+        ..strokeWidth = 2
+        ..style = PaintingStyle.stroke,
+    );
+  }
+
+  void _combatEffects(Canvas c) {
+    final now = DateTime.now();
+    game.combatEffects.removeWhere(
+      (e) => now.difference(e.spawned).inMilliseconds > 2000,
+    );
+    final tp = TextPainter(textDirection: TextDirection.ltr);
+    for (final e in game.combatEffects) {
+      final age = now.difference(e.spawned).inMilliseconds;
+      final progress = age / 2000.0;
+      if (!game.map.isValid(e.x, e.y)) continue;
+      final tile = game.map.at(e.x, e.y);
+      final base = _center(e.x, e.y, _heightFor(tile) + 20 + progress * 45);
+      final alpha = (1.0 - progress).clamp(0.0, 1.0);
+      final txt = e.isKill
+          ? '💀'
+          : (e.isCrit ? '💥${e.damage}' : '-${e.damage}');
+      tp.text = TextSpan(
+        text: txt,
+        style: TextStyle(
+          color: e.color.withValues(alpha: alpha),
+          fontSize: e.isKill ? 22.0 : (e.isCrit ? 18.0 : 14.0),
+          fontWeight: FontWeight.bold,
+        ),
+      );
+      tp.layout();
+      tp.paint(c, Offset(base.dx - tp.width / 2, base.dy - tp.height / 2));
+    }
   }
 
   @override
@@ -5392,15 +6598,17 @@ class BuildPanel extends StatelessWidget {
                     margin: const EdgeInsets.only(bottom: 5),
                     padding: const EdgeInsets.all(7),
                     decoration: BoxDecoration(
-                      color: sel ? kColorGoldDark.withOpacity(0.28) : kColorBg,
+                      color: sel
+                          ? kColorGoldDark.withValues(alpha: 0.28)
+                          : kColorBg,
                       border: Border.all(
                         color: sel
                             ? kColorGold
                             : !ageOk
-                            ? kColorBorder.withOpacity(0.25)
+                            ? kColorBorder.withValues(alpha: 0.25)
                             : afford
                             ? kColorBorder
-                            : kColorAccent.withOpacity(0.25),
+                            : kColorAccent.withValues(alpha: 0.25),
                       ),
                       borderRadius: BorderRadius.circular(4),
                     ),
@@ -5468,7 +6676,7 @@ class BuildPanel extends StatelessWidget {
               child: Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(9),
-                color: kColorAccent.withOpacity(0.18),
+                color: kColorAccent.withValues(alpha: 0.18),
                 child: const Text(
                   '✖ Cancel Placement',
                   textAlign: TextAlign.center,
@@ -5578,7 +6786,7 @@ class _UnitPanel extends StatelessWidget {
           width: 72,
           height: 72,
           decoration: BoxDecoration(
-            color: (n?.color ?? Colors.grey).withOpacity(0.18),
+            color: (n?.color ?? Colors.grey).withValues(alpha: 0.18),
             border: Border.all(color: n?.color ?? Colors.grey),
             borderRadius: BorderRadius.circular(6),
           ),
@@ -5711,7 +6919,7 @@ class _BldgPanel extends StatelessWidget {
           width: 72,
           height: 72,
           decoration: BoxDecoration(
-            color: (n?.color ?? Colors.grey).withOpacity(0.18),
+            color: (n?.color ?? Colors.grey).withValues(alpha: 0.18),
             border: Border.all(color: n?.color ?? Colors.grey),
             borderRadius: BorderRadius.circular(6),
           ),
@@ -5818,7 +7026,7 @@ class _BldgPanel extends StatelessWidget {
                           ),
                           borderRadius: BorderRadius.circular(3),
                           color: ok
-                              ? kColorGoldDark.withOpacity(0.12)
+                              ? kColorGoldDark.withValues(alpha: 0.12)
                               : Colors.transparent,
                         ),
                         child: Text(
@@ -5853,7 +7061,7 @@ class _TilePanel extends StatelessWidget {
           width: 72,
           height: 72,
           decoration: BoxDecoration(
-            color: tile.baseColor.withOpacity(0.4),
+            color: tile.baseColor.withValues(alpha: 0.4),
             border: Border.all(color: kColorBorder),
             borderRadius: BorderRadius.circular(6),
           ),
@@ -5909,7 +7117,7 @@ class _DefaultPanel extends StatelessWidget {
             width: 72,
             height: 72,
             decoration: BoxDecoration(
-              color: n.color.withOpacity(0.18),
+              color: n.color.withValues(alpha: 0.18),
               border: Border.all(color: n.color),
               borderRadius: BorderRadius.circular(6),
             ),
@@ -5968,20 +7176,36 @@ class NationPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final alive = game.aliveNations;
-    final total = kMapW * kMapH;
+    // Sort by overall score descending for leaderboard
+    final sorted = List<Nation>.from(alive)
+      ..sort(
+        (a, b) => (b.economyScore + b.militaryScore + b.influenceScore)
+            .compareTo(a.economyScore + a.militaryScore + a.influenceScore),
+      );
+    final maxScore = sorted.isEmpty
+        ? 1
+        : sorted
+              .map((n) => n.economyScore + n.militaryScore + n.influenceScore)
+              .reduce(math.max);
     return Container(
-      width: 238,
-      color: kColorPanel,
+      width: 244,
+      decoration: BoxDecoration(
+        color: kColorPanel.withValues(alpha: 0.95),
+        border: Border(right: BorderSide(color: kColorBorder, width: 1)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(12, 12, 12, 8),
-            child: Text(
+          Container(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+            decoration: BoxDecoration(
+              border: Border(bottom: BorderSide(color: kColorBorder, width: 1)),
+            ),
+            child: const Text(
               'NATIONS',
               style: TextStyle(
                 color: kColorGold,
-                fontSize: 10,
+                fontSize: 11,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 3,
               ),
@@ -5989,21 +7213,23 @@ class NationPanel extends StatelessWidget {
           ),
           Expanded(
             child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              itemCount: alive.length,
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+              itemCount: sorted.length,
               itemBuilder: (_, i) {
-                final n = alive[i];
+                final n = sorted[i];
                 final isP = n.id == game.playerNationId;
                 return Container(
-                  margin: const EdgeInsets.only(bottom: 7),
-                  padding: const EdgeInsets.all(9),
+                  margin: const EdgeInsets.only(bottom: 6),
+                  padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     border: Border.all(
-                      color: isP ? n.color : kColorBorder,
+                      color: isP ? kColorGold : kColorBorder,
                       width: isP ? 1.5 : 1,
                     ),
-                    borderRadius: BorderRadius.circular(5),
-                    color: isP ? n.color.withOpacity(0.07) : Colors.transparent,
+                    borderRadius: BorderRadius.circular(6),
+                    color: isP
+                        ? kColorGold.withValues(alpha: 0.06)
+                        : Colors.transparent,
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -6011,8 +7237,8 @@ class NationPanel extends StatelessWidget {
                       Row(
                         children: [
                           Container(
-                            width: 9,
-                            height: 9,
+                            width: 10,
+                            height: 10,
                             decoration: BoxDecoration(
                               color: n.color,
                               shape: BoxShape.circle,
@@ -6024,61 +7250,79 @@ class NationPanel extends StatelessWidget {
                               n.name,
                               style: TextStyle(
                                 color: n.color,
-                                fontSize: 9,
+                                fontSize: 10,
                                 fontWeight: FontWeight.bold,
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                           if (isP)
-                            const Text(
-                              'YOU',
-                              style: TextStyle(color: kColorGold, fontSize: 7),
+                            Container(
+                              margin: const EdgeInsets.only(right: 4),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                                vertical: 1,
+                              ),
+                              decoration: BoxDecoration(
+                                color: kColorGold.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(3),
+                              ),
+                              child: const Text(
+                                'YOU',
+                                style: TextStyle(
+                                  color: kColorGold,
+                                  fontSize: 7,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ),
                           if (n.isAI)
-                            const Text(
-                              'AI',
-                              style: TextStyle(color: kColorMuted, fontSize: 7),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                                vertical: 1,
+                              ),
+                              decoration: BoxDecoration(
+                                color: kColorMuted.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(3),
+                              ),
+                              child: const Text(
+                                'AI',
+                                style: TextStyle(
+                                  color: kColorMuted,
+                                  fontSize: 7,
+                                ),
+                              ),
                             ),
                         ],
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        '${n.tier.label} · ${n.currentAge.label}',
+                        '${n.tier.label} · ${n.currentAge.label} · 🗺️${n.ownedTiles.length}',
                         style: const TextStyle(color: kColorMuted, fontSize: 7),
                       ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          const Text('🗺️ ', style: TextStyle(fontSize: 8)),
-                          Expanded(
-                            child: LinearProgressIndicator(
-                              value: n.ownedTiles.length / total,
-                              backgroundColor: kColorBorder,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                n.color,
-                              ),
-                              minHeight: 3,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${n.ownedTiles.length}',
-                            style: const TextStyle(
-                              color: kColorMuted,
-                              fontSize: 7,
-                            ),
-                          ),
-                        ],
+                      const SizedBox(height: 5),
+                      // Score bars
+                      _scoreBar(
+                        '⚔️',
+                        n.militaryScore,
+                        maxScore,
+                        n.color.withValues(alpha: 0.8),
                       ),
                       const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          _NS('⚔️', n.militaryScore),
-                          const Spacer(),
-                          _NS('💰', n.economyScore),
-                          const Spacer(),
-                          _NS('🤝', n.influenceScore),
-                        ],
+                      _scoreBar(
+                        '💰',
+                        n.economyScore,
+                        maxScore,
+                        const Color(0xFFD4AF37).withValues(alpha: 0.8),
+                      ),
+                      const SizedBox(height: 2),
+                      _scoreBar(
+                        '🤝',
+                        n.influenceScore,
+                        maxScore,
+                        const Color(0xFF9B59B6).withValues(alpha: 0.8),
                       ),
                     ],
                   ),
@@ -6086,11 +7330,15 @@ class NationPanel extends StatelessWidget {
               },
             ),
           ),
-          Padding(
+          // Terrain legend
+          Container(
             padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              border: Border(top: BorderSide(color: kColorBorder, width: 1)),
+            ),
             child: Wrap(
               spacing: 8,
-              runSpacing: 4,
+              runSpacing: 3,
               children: TerrainType.values.map((t) {
                 final tile = MapTile(x: 0, y: 0, terrain: t);
                 return Row(
@@ -6111,6 +7359,33 @@ class NationPanel extends StatelessWidget {
       ),
     );
   }
+
+  Widget _scoreBar(String icon, int val, int maxVal, Color color) => Row(
+    children: [
+      Text(icon, style: const TextStyle(fontSize: 8)),
+      const SizedBox(width: 3),
+      Expanded(
+        child: Container(
+          height: 4,
+          decoration: BoxDecoration(
+            color: kColorBorder,
+            borderRadius: BorderRadius.circular(2),
+          ),
+          child: FractionallySizedBox(
+            widthFactor: maxVal > 0 ? (val / maxVal).clamp(0.0, 1.0) : 0,
+            child: Container(
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+        ),
+      ),
+      const SizedBox(width: 3),
+      Text(_NS._f(val), style: const TextStyle(color: kColorText, fontSize: 7)),
+    ],
+  );
 }
 
 class _NS extends StatelessWidget {
@@ -6266,17 +7541,17 @@ class _TechDialogState extends State<TechDialog> {
                       padding: const EdgeInsets.all(9),
                       decoration: BoxDecoration(
                         color: done
-                            ? kColorSuccess.withOpacity(0.08)
+                            ? kColorSuccess.withValues(alpha: 0.08)
                             : busy
-                            ? kColorGoldDark.withOpacity(0.18)
+                            ? kColorGoldDark.withValues(alpha: 0.18)
                             : kColorPanel,
                         border: Border.all(
                           color: done
-                              ? kColorSuccess.withOpacity(0.45)
+                              ? kColorSuccess.withValues(alpha: 0.45)
                               : busy
                               ? kColorGold
                               : !ageOk || !prereq
-                              ? kColorBorder.withOpacity(0.3)
+                              ? kColorBorder.withValues(alpha: 0.3)
                               : kColorBorder,
                         ),
                         borderRadius: BorderRadius.circular(5),
@@ -6431,9 +7706,9 @@ class DiplomacyDialog extends StatelessWidget {
                             decoration: BoxDecoration(
                               border: Border.all(
                                 color: war
-                                    ? kColorAccent.withOpacity(0.4)
+                                    ? kColorAccent.withValues(alpha: 0.4)
                                     : ally
-                                    ? kColorSuccess.withOpacity(0.4)
+                                    ? kColorSuccess.withValues(alpha: 0.4)
                                     : kColorBorder,
                               ),
                               borderRadius: BorderRadius.circular(5),
@@ -6444,7 +7719,7 @@ class DiplomacyDialog extends StatelessWidget {
                                   width: 38,
                                   height: 38,
                                   decoration: BoxDecoration(
-                                    color: o.color.withOpacity(0.18),
+                                    color: o.color.withValues(alpha: 0.18),
                                     shape: BoxShape.circle,
                                     border: Border.all(color: o.color),
                                   ),
@@ -6470,7 +7745,7 @@ class DiplomacyDialog extends StatelessWidget {
                                         ),
                                       ),
                                       Text(
-                                        '${o.tier.label}',
+                                        o.tier.label,
                                         style: const TextStyle(
                                           color: kColorMuted,
                                           fontSize: 8,
@@ -6550,9 +7825,9 @@ class _DB extends StatelessWidget {
     child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
-        border: Border.all(color: c.withOpacity(0.6)),
+        border: Border.all(color: c.withValues(alpha: 0.6)),
         borderRadius: BorderRadius.circular(3),
-        color: c.withOpacity(0.1),
+        color: c.withValues(alpha: 0.1),
       ),
       child: Text(
         l,
@@ -6628,7 +7903,9 @@ class _VictoryState extends State<VictoryDialog>
             borderRadius: BorderRadius.circular(10),
             boxShadow: [
               BoxShadow(
-                color: (isP ? kColorGold : kColorAccent).withOpacity(0.28),
+                color: (isP ? kColorGold : kColorAccent).withValues(
+                  alpha: 0.28,
+                ),
                 blurRadius: 36,
                 spreadRadius: 8,
               ),
@@ -6662,7 +7939,9 @@ class _VictoryState extends State<VictoryDialog>
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    border: Border.all(color: winner.color.withOpacity(0.45)),
+                    border: Border.all(
+                      color: winner.color.withValues(alpha: 0.45),
+                    ),
                     borderRadius: BorderRadius.circular(5),
                   ),
                   child: Row(
@@ -6720,7 +7999,7 @@ class _VictoryState extends State<VictoryDialog>
                 style: ElevatedButton.styleFrom(
                   backgroundColor: isP
                       ? kColorGoldDark
-                      : kColorAccent.withOpacity(0.3),
+                      : kColorAccent.withValues(alpha: 0.3),
                   padding: const EdgeInsets.symmetric(
                     horizontal: 30,
                     vertical: 13,
