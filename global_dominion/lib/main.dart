@@ -4935,7 +4935,7 @@ class _GameScreenState extends State<GameScreen> {
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: widget.game,
     builder: (_, _) => Scaffold(
-      backgroundColor: const Color(0xFF07101B),
+      backgroundColor: const Color(0xFF06101A),
       body: Stack(
         children: [
           Positioned.fill(child: GameMapWidget(game: widget.game)),
@@ -4952,13 +4952,13 @@ class _GameScreenState extends State<GameScreen> {
           ),
           Positioned(
             left: 0,
-            top: 48,
-            bottom: 120,
+            top: 62,
+            bottom: 150,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 220),
-              width: _nationsOpen ? 244 : 0,
+              width: _nationsOpen ? 210 : 0,
               child: OverflowBox(
-                maxWidth: 244,
+                maxWidth: 210,
                 alignment: Alignment.centerLeft,
                 child: NationPanel(game: widget.game),
               ),
@@ -4976,7 +4976,7 @@ class _GameScreenState extends State<GameScreen> {
           ),
           Positioned(
             right: 14,
-            top: 60,
+            top: 76,
             child: _ActionRail(
               onCenter: () {},
               onBuild: () =>
@@ -4992,7 +4992,7 @@ class _GameScreenState extends State<GameScreen> {
           ),
           Positioned(
             left: 12,
-            bottom: 130,
+            bottom: 160,
             child: _EventLog(game: widget.game),
           ),
         ],
@@ -5084,22 +5084,28 @@ class _BottomToolbarState extends State<BottomToolbar> {
     Widget? selInfo;
     if (multiSel) {
       selInfo = Container(
-        height: 38,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        height: 42,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
         decoration: BoxDecoration(
-          color: kColorPanel.withValues(alpha: 0.94),
-          border: const Border(top: BorderSide(color: kColorGold, width: 1.2)),
+          color: const Color(0xEE060C18),
+          border: Border(
+            top: BorderSide(
+              color: kColorGold.withValues(alpha: 0.40),
+              width: 1.2,
+            ),
+          ),
         ),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: kColorGold.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
+                color: kColorGold.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: kColorGold.withValues(alpha: 0.35)),
               ),
               child: Text(
-                '⚔️ ${game.selectedUnitIds.length} units selected',
+                '⚔️  ${game.selectedUnitIds.length} units selected',
                 style: const TextStyle(
                   color: kColorGold,
                   fontSize: 10,
@@ -5114,13 +5120,16 @@ class _BottomToolbarState extends State<BottomToolbar> {
                 game.rebuild();
               },
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   border: Border.all(color: kColorBorder),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(14),
                 ),
                 child: const Text(
-                  '✖ Clear',
+                  '✕  Clear',
                   style: TextStyle(color: kColorMuted, fontSize: 9),
                 ),
               ),
@@ -5134,26 +5143,32 @@ class _BottomToolbarState extends State<BottomToolbar> {
           ? (unit.health / unit.maxHealth).clamp(0.0, 1.0)
           : 0.0;
       selInfo = Container(
-        height: 42,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        height: 48,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
         decoration: BoxDecoration(
-          color: kColorPanel.withValues(alpha: 0.94),
-          border: const Border(top: BorderSide(color: kColorGold, width: 1.2)),
+          color: const Color(0xEE060C18),
+          border: Border(
+            top: BorderSide(
+              color: kColorGold.withValues(alpha: 0.40),
+              width: 1.2,
+            ),
+          ),
         ),
         child: Row(
           children: [
             Container(
-              width: 28,
-              height: 28,
+              width: 32,
+              height: 32,
               decoration: BoxDecoration(
-                color: kColorBorder.withValues(alpha: 0.3),
+                color: kColorGold.withValues(alpha: 0.10),
                 shape: BoxShape.circle,
+                border: Border.all(color: kColorGold.withValues(alpha: 0.30)),
               ),
               child: Center(
-                child: Text(d.emoji, style: const TextStyle(fontSize: 15)),
+                child: Text(d.emoji, style: const TextStyle(fontSize: 16)),
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 10),
             Expanded(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -5163,19 +5178,19 @@ class _BottomToolbarState extends State<BottomToolbar> {
                     d.name,
                     style: const TextStyle(
                       color: kColorText,
-                      fontSize: 10,
+                      fontSize: 11,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 3),
                   Row(
                     children: [
                       SizedBox(
-                        width: 70,
+                        width: 80,
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(3),
                           child: Container(
-                            height: 4,
+                            height: 5,
                             color: kColorBorder,
                             child: FractionallySizedBox(
                               alignment: Alignment.centerLeft,
@@ -5189,19 +5204,27 @@ class _BottomToolbarState extends State<BottomToolbar> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 5),
+                      const SizedBox(width: 6),
                       Text(
-                        '${unit.health}/${unit.maxHealth}',
-                        style: const TextStyle(color: kColorMuted, fontSize: 8),
+                        '${unit.health}/${unit.maxHealth} HP',
+                        style: const TextStyle(color: kColorMuted, fontSize: 9),
                       ),
                     ],
                   ),
                 ],
               ),
             ),
-            Text(
-              '⚔${d.attack} 🛡${d.defense} 🏃${d.speed}',
-              style: const TextStyle(color: kColorMuted, fontSize: 9),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.04),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: kColorBorder),
+              ),
+              child: Text(
+                '⚔ ${d.attack}  🛡 ${d.defense}  🏃 ${d.speed}',
+                style: const TextStyle(color: kColorMuted, fontSize: 9),
+              ),
             ),
             const SizedBox(width: 10),
             GestureDetector(
@@ -5210,13 +5233,16 @@ class _BottomToolbarState extends State<BottomToolbar> {
                 game.rebuild();
               },
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   border: Border.all(color: kColorBorder),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(14),
                 ),
                 child: const Text(
-                  '✖ Desel',
+                  '✕ Deselect',
                   style: TextStyle(color: kColorMuted, fontSize: 9),
                 ),
               ),
@@ -5230,26 +5256,32 @@ class _BottomToolbarState extends State<BottomToolbar> {
           ? (building.health / building.maxHealth).clamp(0.0, 1.0)
           : 0.0;
       selInfo = Container(
-        height: 42,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        height: 48,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
         decoration: BoxDecoration(
-          color: kColorPanel.withValues(alpha: 0.94),
-          border: const Border(top: BorderSide(color: kColorGold, width: 1.2)),
+          color: const Color(0xEE060C18),
+          border: Border(
+            top: BorderSide(
+              color: kColorGold.withValues(alpha: 0.40),
+              width: 1.2,
+            ),
+          ),
         ),
         child: Row(
           children: [
             Container(
-              width: 28,
-              height: 28,
+              width: 32,
+              height: 32,
               decoration: BoxDecoration(
-                color: kColorBorder.withValues(alpha: 0.3),
+                color: kColorGold.withValues(alpha: 0.10),
                 shape: BoxShape.circle,
+                border: Border.all(color: kColorGold.withValues(alpha: 0.30)),
               ),
               child: Center(
-                child: Text(d.emoji, style: const TextStyle(fontSize: 15)),
+                child: Text(d.emoji, style: const TextStyle(fontSize: 16)),
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 10),
             Expanded(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -5259,19 +5291,19 @@ class _BottomToolbarState extends State<BottomToolbar> {
                     d.name,
                     style: const TextStyle(
                       color: kColorText,
-                      fontSize: 10,
+                      fontSize: 11,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 3),
                   Row(
                     children: [
                       SizedBox(
-                        width: 60,
+                        width: 80,
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(3),
                           child: Container(
-                            height: 4,
+                            height: 5,
                             color: kColorBorder,
                             child: FractionallySizedBox(
                               alignment: Alignment.centerLeft,
@@ -5285,31 +5317,31 @@ class _BottomToolbarState extends State<BottomToolbar> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 5),
+                      const SizedBox(width: 6),
                       if (building.isConstructing)
                         Text(
-                          '⏳${building.buildTicksLeft}t',
+                          '⏳ Building… ${building.buildTicksLeft}t',
                           style: const TextStyle(
                             color: kColorGold,
-                            fontSize: 8,
+                            fontSize: 9,
                             fontWeight: FontWeight.bold,
                           ),
                         )
                       else if (building.trainingUnitDefId != null)
                         Text(
-                          '🎯${kUnitDefs[building.trainingUnitDefId!]?.name ?? '?'}: ${building.trainingTicksLeft}t',
+                          '🎯 Training: ${kUnitDefs[building.trainingUnitDefId!]?.name ?? '?'} (${building.trainingTicksLeft}t)',
                           style: const TextStyle(
                             color: kColorGold,
-                            fontSize: 8,
+                            fontSize: 9,
                             fontWeight: FontWeight.bold,
                           ),
                         )
                       else
                         Text(
-                          '${building.health}/${building.maxHealth}',
+                          '${building.health}/${building.maxHealth} HP',
                           style: const TextStyle(
                             color: kColorMuted,
-                            fontSize: 8,
+                            fontSize: 9,
                           ),
                         ),
                     ],
@@ -5331,20 +5363,22 @@ class _BottomToolbarState extends State<BottomToolbar> {
                   child: Tooltip(
                     message: ud.name,
                     child: Container(
-                      margin: const EdgeInsets.only(left: 4),
-                      padding: const EdgeInsets.all(4),
+                      margin: const EdgeInsets.only(left: 5),
+                      padding: const EdgeInsets.all(5),
                       decoration: BoxDecoration(
                         color: ok
-                            ? kColorGold.withValues(alpha: 0.1)
+                            ? kColorGold.withValues(alpha: 0.12)
                             : Colors.transparent,
                         border: Border.all(
-                          color: ok ? kColorGoldDark : kColorBorder,
+                          color: ok
+                              ? kColorGold.withValues(alpha: 0.45)
+                              : kColorBorder,
                         ),
-                        borderRadius: BorderRadius.circular(5),
+                        borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
                         ud.emoji,
-                        style: const TextStyle(fontSize: 14),
+                        style: const TextStyle(fontSize: 16),
                       ),
                     ),
                   ),
@@ -5365,9 +5399,12 @@ class _BottomToolbarState extends State<BottomToolbar> {
         ?selInfo,
         // Category pill-tabs
         Container(
-          height: 34,
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          color: kColorBg,
+          height: 38,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+          decoration: const BoxDecoration(
+            color: Color(0xFF080F1C),
+            border: Border(top: BorderSide(color: kColorBorder, width: 1)),
+          ),
           child: Row(
             children: [
               ...List.generate(
@@ -5379,24 +5416,26 @@ class _BottomToolbarState extends State<BottomToolbar> {
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 150),
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
+                        horizontal: 11,
+                        vertical: 5,
                       ),
                       decoration: BoxDecoration(
                         color: widget.cat == i
-                            ? kColorGold.withValues(alpha: 0.16)
-                            : Colors.transparent,
+                            ? kColorGold.withValues(alpha: 0.18)
+                            : Colors.white.withValues(alpha: 0.04),
                         border: Border.all(
-                          color: widget.cat == i ? kColorGold : kColorBorder,
-                          width: widget.cat == i ? 1.2 : 1,
+                          color: widget.cat == i
+                              ? kColorGold
+                              : kColorBorder.withValues(alpha: 0.55),
+                          width: widget.cat == i ? 1.3 : 0.8,
                         ),
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
                         '${_cats[i]} ${_labs[i]}',
                         style: TextStyle(
                           color: widget.cat == i ? kColorGold : kColorMuted,
-                          fontSize: 8,
+                          fontSize: 9,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -5438,10 +5477,15 @@ class _BottomToolbarState extends State<BottomToolbar> {
         ),
         // Building card row, with carousel nav arrows
         Container(
-          height: 92,
-          decoration: const BoxDecoration(
-            color: kColorPanel,
-            border: Border(top: BorderSide(color: kColorBorder, width: 1)),
+          height: 112,
+          decoration: BoxDecoration(
+            color: const Color(0xEE060C18),
+            border: Border(
+              top: BorderSide(
+                color: kColorGold.withValues(alpha: 0.18),
+                width: 1,
+              ),
+            ),
           ),
           child: Row(
             children: [
@@ -5516,39 +5560,46 @@ class _BuildCard extends StatelessWidget {
         : (afford ? kColorText : kColorAccent);
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        width: 80,
-        margin: const EdgeInsets.only(right: 7),
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 7),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        width: 96,
+        margin: const EdgeInsets.only(right: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
         decoration: BoxDecoration(
           gradient: selected
               ? LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    kColorGoldDark.withValues(alpha: 0.35),
-                    kColorGoldDark.withValues(alpha: 0.12),
+                    kColorGold.withValues(alpha: 0.22),
+                    kColorGoldDark.withValues(alpha: 0.10),
                   ],
                 )
-              : null,
-          color: selected ? null : kColorBg,
+              : LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.white.withValues(alpha: locked ? 0.02 : 0.04),
+                    Colors.white.withValues(alpha: 0.01),
+                  ],
+                ),
           border: Border.all(
             color: selected
                 ? kColorGold
                 : locked
-                ? kColorBorder.withValues(alpha: 0.3)
+                ? kColorBorder.withValues(alpha: 0.25)
                 : afford
-                ? kColorBorder
-                : kColorAccent.withValues(alpha: 0.3),
-            width: selected ? 1.4 : 1,
+                ? kColorBorder.withValues(alpha: 0.55)
+                : kColorAccent.withValues(alpha: 0.35),
+            width: selected ? 1.5 : 1,
           ),
-          borderRadius: BorderRadius.circular(7),
+          borderRadius: BorderRadius.circular(8),
           boxShadow: selected
               ? [
                   BoxShadow(
-                    color: kColorGold.withValues(alpha: 0.25),
-                    blurRadius: 10,
-                    spreadRadius: 1,
+                    color: kColorGold.withValues(alpha: 0.30),
+                    blurRadius: 12,
+                    spreadRadius: 0,
                   ),
                 ]
               : null,
@@ -5559,53 +5610,64 @@ class _BuildCard extends StatelessWidget {
             Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
+                // Icon circle
                 Container(
-                  width: 30,
-                  height: 30,
+                  width: 48,
+                  height: 48,
                   decoration: BoxDecoration(
-                    color: (selected ? kColorGold : kColorBorder).withValues(
-                      alpha: locked ? 0.08 : 0.18,
-                    ),
+                    color: selected
+                        ? kColorGold.withValues(alpha: 0.18)
+                        : kColorBorder.withValues(alpha: locked ? 0.08 : 0.22),
                     shape: BoxShape.circle,
+                    border: selected
+                        ? Border.all(
+                            color: kColorGold.withValues(alpha: 0.50),
+                            width: 1,
+                          )
+                        : null,
                   ),
                   child: Center(
                     child: Opacity(
-                      opacity: locked ? 0.4 : 1,
+                      opacity: locked ? 0.35 : 1.0,
                       child: Text(
                         def.emoji,
-                        style: const TextStyle(fontSize: 17),
+                        style: const TextStyle(fontSize: 24),
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
+                // Name
                 Text(
                   def.name,
-                  maxLines: 1,
+                  maxLines: 2,
+                  textAlign: TextAlign.center,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: labelCol,
-                    fontSize: 8,
+                    fontSize: 9,
                     fontWeight: FontWeight.bold,
+                    height: 1.2,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 3),
+                // Cost badge
                 if (def.cost.containsKey('gold'))
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 5,
-                      vertical: 1,
+                      horizontal: 7,
+                      vertical: 2,
                     ),
                     decoration: BoxDecoration(
                       color: (afford && !locked ? kColorGold : kColorAccent)
-                          .withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(8),
+                          .withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
-                      '💰${def.cost['gold']!.toInt()}',
+                      '💰 ${def.cost['gold']!.toInt()}',
                       style: TextStyle(
                         color: afford && !locked ? kColorGold : kColorAccent,
-                        fontSize: 7,
+                        fontSize: 8,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -5614,15 +5676,19 @@ class _BuildCard extends StatelessWidget {
             ),
             if (locked)
               Positioned(
-                top: -2,
-                right: -2,
+                top: -3,
+                right: -3,
                 child: Container(
-                  padding: const EdgeInsets.all(2),
-                  decoration: const BoxDecoration(
-                    color: kColorBg,
+                  width: 16,
+                  height: 16,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0A0E1A),
                     shape: BoxShape.circle,
+                    border: Border.all(color: kColorBorder, width: 0.8),
                   ),
-                  child: const Text('🔒', style: TextStyle(fontSize: 9)),
+                  child: const Center(
+                    child: Text('🔒', style: TextStyle(fontSize: 8)),
+                  ),
                 ),
               ),
           ],
@@ -5718,23 +5784,15 @@ class _ActionRail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    width: 54,
-    padding: const EdgeInsets.symmetric(vertical: 8),
+    width: 48,
     decoration: BoxDecoration(
-      gradient: LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          const Color(0xFF4D402D).withValues(alpha: 0.88),
-          const Color(0xFF332A1C).withValues(alpha: 0.88),
-        ],
-      ),
-      borderRadius: BorderRadius.circular(6),
-      border: Border.all(color: kColorGold.withValues(alpha: 0.25)),
+      color: const Color(0xEE060C18),
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(color: kColorGold.withValues(alpha: 0.18)),
       boxShadow: [
         BoxShadow(
-          color: Colors.black.withValues(alpha: 0.35),
-          blurRadius: 16,
+          color: Colors.black.withValues(alpha: 0.45),
+          blurRadius: 20,
           offset: const Offset(0, 8),
         ),
       ],
@@ -5744,11 +5802,11 @@ class _ActionRail extends StatelessWidget {
       children: [
         _rail('◎', onCenter, 'Center Camera'),
         _railDiv(),
-        _rail('🏗', onBuild, 'Build'),
-        _rail('✖', onCancel, 'Cancel / Deselect'),
+        _rail('↔', onBuild, 'Build Mode'),
+        _rail('✕', onCancel, 'Cancel / Deselect'),
         _railDiv(),
         _rail('⚔', onTech, 'Research'),
-        _rail('📊', onNations, 'Nations'),
+        _rail('👥', onNations, 'Nations'),
         _rail('💬', onDipl, 'Diplomacy'),
       ],
     ),
@@ -5757,25 +5815,27 @@ class _ActionRail extends StatelessWidget {
   static Widget _railDiv() => Container(
     width: 28,
     height: 1,
-    margin: const EdgeInsets.symmetric(vertical: 3),
-    color: Colors.white.withValues(alpha: 0.08),
+    margin: const EdgeInsets.symmetric(vertical: 2),
+    color: kColorGold.withValues(alpha: 0.12),
   );
 
   static Widget _rail(String icon, VoidCallback cb, String tip) => Tooltip(
     message: tip,
+    preferBelow: false,
     child: InkWell(
       onTap: cb,
-      borderRadius: BorderRadius.circular(5),
-      child: SizedBox(
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
         width: 46,
-        height: 44,
+        height: 46,
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(6)),
         child: Center(
           child: Text(
             icon,
             style: const TextStyle(
-              color: Color(0xFFEADDC4),
-              fontSize: 21,
-              fontWeight: FontWeight.bold,
+              color: Color(0xFFD4C9A8),
+              fontSize: 19,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ),
@@ -5933,30 +5993,30 @@ class TopBar extends StatelessWidget {
     final col = n?.color ?? kColorGold;
     final name = n?.name ?? 'Admiral';
     return Container(
-      height: 56,
+      height: 62,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [kColorPanel, Color.lerp(kColorPanel, kColorBg, 0.55)!],
-        ),
-        border: const Border(
-          bottom: BorderSide(color: kColorGoldDark, width: 1.2),
+        color: const Color(0xE6080F1C),
+        border: Border(
+          bottom: BorderSide(
+            color: kColorGold.withValues(alpha: 0.28),
+            width: 1,
+          ),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.45),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
+            color: Colors.black.withValues(alpha: 0.55),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Nation-color identity stripe
-          Container(width: 4, height: double.infinity, color: col),
-          const SizedBox(width: 10),
-          // Resource pills
+          // Nation accent strip
+          Container(width: 3, height: 62, color: col),
+          const SizedBox(width: 12),
+          // Resource group — left
           Expanded(
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
@@ -5964,125 +6024,78 @@ class TopBar extends StatelessWidget {
                 children: [
                   _ResPill('💰', r?.gold.floor() ?? 0, kColorGold),
                   _ResPill('🌾', r?.food.floor() ?? 0, kColorSuccess),
-                  _ResPill('🪵', r?.wood.floor() ?? 0, const Color(0xFFAD8A56)),
-                  _ResPill('🪨', r?.stone.floor() ?? 0, kColorMuted),
-                  _ResPill('⚙️', r?.iron.floor() ?? 0, const Color(0xFF93A8C2)),
-                  _ResPill('🛢️', r?.oil.floor() ?? 0, const Color(0xFF8A8A8A)),
+                  _ResPill('🪵', r?.wood.floor() ?? 0, const Color(0xFFBD9A60)),
                   _ResPill(
+                    '🪨',
+                    r?.stone.floor() ?? 0,
+                    const Color(0xFF94A3B8),
+                  ),
+                  _ResPill('⚙️', r?.iron.floor() ?? 0, const Color(0xFF93A8C2)),
+                  _ResPill('🛢️', r?.oil.floor() ?? 0, const Color(0xFF9CA3AF)),
+                  _ResPillCapped(
                     '👥',
                     r?.population ?? 0,
+                    r?.populationCap ?? 20,
                     kColorText,
-                    max: r?.populationCap,
                   ),
                   _ResPill(
                     '🔬',
                     r?.researchPoints ?? 0,
                     const Color(0xFF60A5FA),
                   ),
-                  const SizedBox(width: 6),
-                  if (n != null)
-                    GestureDetector(
-                      onTap: () => game.advanceAge(game.playerNationId!),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: _CutCornerFrame(
-                          cut: 7,
-                          borderColor: kColorGold,
-                          fill: kColorGoldDark.withValues(alpha: 0.22),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 6,
-                            ),
-                            child: Text(
-                              '${n.tier.label} · ${n.currentAge.label}  ⬆',
-                              style: const TextStyle(
-                                color: kColorGold,
-                                fontSize: 9,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 0.3,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
                 ],
               ),
             ),
           ),
-          const _VDiv(),
-          _TopIconBtn('🔬', onTech, 'Tech Tree'),
-          _TopIconBtn('🤝', onDipl, 'Diplomacy'),
-          _TopIconBtn('📊', onNations, 'Nations'),
-          const _VDiv(),
+          // Age badge — tap to advance
+          if (n != null)
+            GestureDetector(
+              onTap: () => game.advanceAge(game.playerNationId!),
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 7,
+                ),
+                decoration: BoxDecoration(
+                  color: kColorGoldDark.withValues(alpha: 0.20),
+                  border: Border.all(color: kColorGold.withValues(alpha: 0.60)),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  '${n.tier.label} · ${n.currentAge.label}',
+                  style: const TextStyle(
+                    color: kColorGold,
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+            ),
+          // Research button
           GestureDetector(
             onTap: onTech,
             child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 6),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              margin: const EdgeInsets.only(right: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
               decoration: BoxDecoration(
-                border: Border.all(color: kColorGold.withValues(alpha: 0.55)),
+                color: kColorGold.withValues(alpha: 0.12),
+                border: Border.all(color: kColorGold.withValues(alpha: 0.50)),
                 borderRadius: BorderRadius.circular(4),
-                color: kColorGold.withValues(alpha: 0.08),
               ),
               child: const Text(
-                'RESEARCH',
+                'Research',
                 style: TextStyle(
                   color: kColorGold,
-                  fontSize: 8,
+                  fontSize: 10,
                   fontWeight: FontWeight.bold,
-                  letterSpacing: 1,
+                  letterSpacing: 0.3,
                 ),
               ),
             ),
           ),
-          _CutCornerFrame(
-            cut: 8,
-            borderColor: col,
-            fill: col.withValues(alpha: 0.18),
-            child: Container(
-              width: 40,
-              height: 40,
-              alignment: Alignment.center,
-              child: Text(
-                _admiralEmoji(name),
-                style: const TextStyle(fontSize: 21),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                name,
-                style: TextStyle(
-                  color: col,
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    n?.currentAge.label ?? 'Ancient',
-                    style: const TextStyle(color: kColorMuted, fontSize: 8),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    'T:${game.tick}',
-                    style: const TextStyle(color: kColorMuted, fontSize: 7),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(width: 8),
+          // Settings icon
           _TopIconBtn(
             '⚙️',
             () {
@@ -6101,6 +6114,59 @@ class TopBar extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 6),
+          // Admiral portrait + name block
+          Container(
+            margin: const EdgeInsets.only(right: 10, left: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: col.withValues(alpha: 0.12),
+              border: Border.all(color: col.withValues(alpha: 0.45)),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Avatar frame
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: col.withValues(alpha: 0.22),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: col.withValues(alpha: 0.65)),
+                  ),
+                  child: Center(
+                    child: Text(
+                      _admiralEmoji(name),
+                      style: const TextStyle(fontSize: 20),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: TextStyle(
+                        color: col,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.2,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      '− ${n?.currentAge.label ?? "Ancient Age"}',
+                      style: const TextStyle(color: kColorMuted, fontSize: 9),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -6117,29 +6183,51 @@ class _ResPill extends StatelessWidget {
   final String icon;
   final int val;
   final Color tint;
-  final int? max;
-  const _ResPill(this.icon, this.val, this.tint, {this.max});
+  const _ResPill(this.icon, this.val, this.tint);
   @override
   Widget build(BuildContext context) {
-    final capped = max != null && val >= max!;
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 3),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      decoration: BoxDecoration(
-        color: tint.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: tint.withValues(alpha: 0.35)),
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 5),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(icon, style: const TextStyle(fontSize: 12)),
+          Text(icon, style: const TextStyle(fontSize: 14)),
           const SizedBox(width: 4),
           Text(
-            max != null ? '$val/$max' : TopBar._f(val),
+            TopBar._f(val),
+            style: const TextStyle(
+              color: kColorText,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Capped resource pill (for population)
+class _ResPillCapped extends StatelessWidget {
+  final String icon;
+  final int val, cap;
+  final Color tint;
+  const _ResPillCapped(this.icon, this.val, this.cap, this.tint);
+  @override
+  Widget build(BuildContext context) {
+    final capped = val >= cap;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 5),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(icon, style: const TextStyle(fontSize: 14)),
+          const SizedBox(width: 4),
+          Text(
+            '$val/$cap',
             style: TextStyle(
               color: capped ? kColorAccent : kColorText,
-              fontSize: 10,
+              fontSize: 11,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -6195,12 +6283,12 @@ class _GameMapWidgetState extends State<GameMapWidget>
       final sc =
           math.min(
             s.width / (kMapW * kTileSize),
-            (s.height - 140) / (kMapH * kTileSize),
+            (s.height - 160) / (kMapH * kTileSize),
           ) *
           0.72;
       final matrix = _tc.value.clone()
         ..setIdentity()
-        ..translate(s.width * 0.34, 34.0)
+        ..translate(s.width * 0.34, 50.0)
         ..scale(sc);
       _tc.value = matrix;
     });
@@ -7709,28 +7797,30 @@ class NationPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final alive = game.aliveNations;
-    // Sort by overall score descending for leaderboard
     final sorted = List<Nation>.from(alive)
       ..sort(
         (a, b) => (b.economyScore + b.militaryScore + b.influenceScore)
             .compareTo(a.economyScore + a.militaryScore + a.influenceScore),
       );
-    final maxScore = sorted.isEmpty
-        ? 1
-        : sorted
-              .map((n) => n.economyScore + n.militaryScore + n.influenceScore)
-              .reduce(math.max);
     return Container(
-      width: 244,
+      width: 210,
       decoration: BoxDecoration(
-        color: kColorPanel.withValues(alpha: 0.96),
-        border: const Border(
-          right: BorderSide(color: kColorGoldDark, width: 1),
+        color: const Color(0xEE080F1C),
+        borderRadius: const BorderRadius.only(bottomRight: Radius.circular(10)),
+        border: Border(
+          right: BorderSide(
+            color: kColorGold.withValues(alpha: 0.20),
+            width: 1,
+          ),
+          bottom: BorderSide(
+            color: kColorGold.withValues(alpha: 0.20),
+            width: 1,
+          ),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.35),
-            blurRadius: 14,
+            color: Colors.black.withValues(alpha: 0.50),
+            blurRadius: 18,
             offset: const Offset(4, 0),
           ),
         ],
@@ -7738,11 +7828,15 @@ class NationPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Header
           Container(
-            padding: const EdgeInsets.fromLTRB(14, 12, 12, 10),
-            decoration: const BoxDecoration(
+            padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+            decoration: BoxDecoration(
               border: Border(
-                bottom: BorderSide(color: kColorGoldDark, width: 1),
+                bottom: BorderSide(
+                  color: kColorGold.withValues(alpha: 0.22),
+                  width: 1,
+                ),
               ),
             ),
             child: Row(
@@ -7751,85 +7845,69 @@ class NationPanel extends StatelessWidget {
                   'NATIONS',
                   style: TextStyle(
                     color: kColorGold,
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.bold,
-                    letterSpacing: 3,
+                    letterSpacing: 2,
                   ),
                 ),
                 const Spacer(),
                 Text(
-                  '${sorted.length} alive',
-                  style: const TextStyle(color: kColorMuted, fontSize: 8),
+                  '▾',
+                  style: TextStyle(
+                    color: kColorGold.withValues(alpha: 0.60),
+                    fontSize: 14,
+                  ),
                 ),
               ],
             ),
           ),
+          // Nation cards
           Expanded(
             child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 7),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
               itemCount: sorted.length,
               itemBuilder: (_, i) {
                 final n = sorted[i];
                 final isP = n.id == game.playerNationId;
-                final rank = i + 1;
-                final frameCol = isP ? kColorGold : kColorBorder;
                 return Container(
-                  margin: const EdgeInsets.only(bottom: 6),
-                  padding: const EdgeInsets.fromLTRB(8, 7, 8, 8),
+                  margin: const EdgeInsets.only(bottom: 5),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
-                    border: Border(
-                      left: BorderSide(color: n.color, width: 3),
-                      top: BorderSide(color: frameCol, width: isP ? 1.2 : 1),
-                      right: BorderSide(color: frameCol, width: isP ? 1.2 : 1),
-                      bottom: BorderSide(color: frameCol, width: isP ? 1.2 : 1),
-                    ),
-                    borderRadius: BorderRadius.circular(5),
                     color: isP
-                        ? kColorGold.withValues(alpha: 0.06)
-                        : Colors.white.withValues(alpha: 0.015),
+                        ? n.color.withValues(alpha: 0.10)
+                        : Colors.white.withValues(alpha: 0.025),
+                    border: Border.all(
+                      color: isP
+                          ? n.color.withValues(alpha: 0.50)
+                          : kColorBorder.withValues(alpha: 0.50),
+                      width: isP ? 1.2 : 0.8,
+                    ),
+                    borderRadius: BorderRadius.circular(6),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Row 1: dot + name + badge
                       Row(
                         children: [
-                          rank == 1
-                              ? _CutCornerFrame(
-                                  cut: 4,
-                                  borderColor: kColorGold,
-                                  fill: kColorGoldDark.withValues(alpha: 0.32),
-                                  child: const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: Center(
-                                      child: Text(
-                                        '👑',
-                                        style: TextStyle(fontSize: 9),
-                                      ),
-                                    ),
-                                  ),
-                                )
-                              : SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: Center(
-                                    child: Text(
-                                      '#$rank',
-                                      style: const TextStyle(
-                                        color: kColorMuted,
-                                        fontSize: 8,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                          const SizedBox(width: 6),
+                          Container(
+                            width: 9,
+                            height: 9,
+                            decoration: BoxDecoration(
+                              color: n.color,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 7),
                           Expanded(
                             child: Text(
                               n.name,
                               style: TextStyle(
-                                color: n.color,
-                                fontSize: 10,
+                                color: isP ? n.color : kColorText,
+                                fontSize: 11,
                                 fontWeight: FontWeight.bold,
                               ),
                               maxLines: 1,
@@ -7838,71 +7916,61 @@ class NationPanel extends StatelessWidget {
                           ),
                           if (isP)
                             Container(
-                              margin: const EdgeInsets.only(left: 4),
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 4,
-                                vertical: 1,
+                                horizontal: 5,
+                                vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color: kColorGold.withValues(alpha: 0.2),
+                                color: n.color.withValues(alpha: 0.25),
                                 borderRadius: BorderRadius.circular(3),
                               ),
-                              child: const Text(
+                              child: Text(
                                 'YOU',
                                 style: TextStyle(
-                                  color: kColorGold,
-                                  fontSize: 7,
+                                  color: n.color,
+                                  fontSize: 8,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-                            ),
-                          if (n.isAI)
+                            )
+                          else if (n.isAI)
                             Container(
-                              margin: const EdgeInsets.only(left: 4),
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 4,
-                                vertical: 1,
+                                horizontal: 5,
+                                vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color: kColorMuted.withValues(alpha: 0.15),
+                                color: kColorMuted.withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(3),
                               ),
                               child: const Text(
                                 'AI',
                                 style: TextStyle(
                                   color: kColorMuted,
-                                  fontSize: 7,
+                                  fontSize: 8,
                                 ),
                               ),
                             ),
                         ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${n.tier.label} · ${n.currentAge.label} · 🗺️${n.ownedTiles.length}',
-                        style: const TextStyle(color: kColorMuted, fontSize: 7),
-                      ),
                       const SizedBox(height: 6),
-                      // Score bars
-                      _scoreBar(
-                        '⚔️',
-                        n.militaryScore,
-                        maxScore,
-                        n.color.withValues(alpha: 0.85),
-                      ),
-                      const SizedBox(height: 3),
-                      _scoreBar(
-                        '💰',
-                        n.economyScore,
-                        maxScore,
-                        kColorGold.withValues(alpha: 0.85),
-                      ),
-                      const SizedBox(height: 3),
-                      _scoreBar(
-                        '🤝',
-                        n.influenceScore,
-                        maxScore,
-                        const Color(0xFFB47CDB),
+                      // Row 2: compact stats
+                      Row(
+                        children: [
+                          _NationStat(
+                            '♥',
+                            n.militaryScore,
+                            const Color(0xFFE57373),
+                          ),
+                          const SizedBox(width: 12),
+                          _NationStat('💰', n.economyScore, kColorGold),
+                          const SizedBox(width: 12),
+                          _NationStat(
+                            '♥',
+                            n.resources.population,
+                            const Color(0xFF81C784),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -7910,83 +7978,31 @@ class NationPanel extends StatelessWidget {
               },
             ),
           ),
-          // Terrain legend
-          Container(
-            padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-            decoration: const BoxDecoration(
-              border: Border(top: BorderSide(color: kColorBorder, width: 1)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'TERRAIN',
-                  style: TextStyle(
-                    color: kColorMuted,
-                    fontSize: 7,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 2,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Wrap(
-                  spacing: 9,
-                  runSpacing: 4,
-                  children: TerrainType.values.map((t) {
-                    final tile = MapTile(x: 0, y: 0, terrain: t);
-                    return Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(tile.emoji, style: const TextStyle(fontSize: 9)),
-                        const SizedBox(width: 3),
-                        Text(
-                          t.name,
-                          style: const TextStyle(
-                            color: kColorMuted,
-                            fontSize: 7,
-                          ),
-                        ),
-                      ],
-                    );
-                  }).toList(),
-                ),
-              ],
-            ),
-          ),
         ],
       ),
     );
   }
+}
 
-  Widget _scoreBar(String icon, int val, int maxVal, Color color) => Row(
+class _NationStat extends StatelessWidget {
+  final String icon;
+  final int val;
+  final Color color;
+  const _NationStat(this.icon, this.val, this.color);
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
     children: [
-      SizedBox(
-        width: 12,
-        child: Text(icon, style: const TextStyle(fontSize: 8)),
-      ),
-      Expanded(
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(3),
-          child: Container(
-            height: 5,
-            color: kColorBorder,
-            child: FractionallySizedBox(
-              alignment: Alignment.centerLeft,
-              widthFactor: maxVal > 0 ? (val / maxVal).clamp(0.0, 1.0) : 0,
-              child: Container(color: color),
-            ),
-          ),
+      Text(
+        icon,
+        style: TextStyle(
+          color: color,
+          fontSize: 9,
+          fontWeight: FontWeight.bold,
         ),
       ),
-      const SizedBox(width: 4),
-      SizedBox(
-        width: 24,
-        child: Text(
-          _NS._f(val),
-          textAlign: TextAlign.right,
-          style: const TextStyle(color: kColorText, fontSize: 7),
-        ),
-      ),
+      const SizedBox(width: 3),
+      Text(_NS._f(val), style: const TextStyle(color: kColorText, fontSize: 9)),
     ],
   );
 }
