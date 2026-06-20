@@ -3869,147 +3869,186 @@ class _SinglePlayerSetupState extends State<SinglePlayerSetupScreen> {
         Container(
           width: 300,
           color: kColorPanel,
-          padding: const EdgeInsets.all(24),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 16),
-              const Text(
-                'SINGLE PLAYER',
-                style: TextStyle(
-                  color: kColorGold,
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 3,
-                ),
-              ),
-              const SizedBox(height: 28),
-              const Text(
-                'NATION NAME',
-                style: TextStyle(
-                  color: kColorMuted,
-                  fontSize: 9,
-                  letterSpacing: 2,
-                ),
-              ),
-              const SizedBox(height: 6),
-              TextFormField(
-                initialValue: _nationName,
-                style: const TextStyle(color: kColorText),
-                decoration: const InputDecoration(hintText: 'Enter name...'),
-                onChanged: (v) => setState(() => _nationName = v),
-              ),
-              const SizedBox(height: 18),
-              const Text(
-                'NATION COLOR',
-                style: TextStyle(
-                  color: kColorMuted,
-                  fontSize: 9,
-                  letterSpacing: 2,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: List.generate(
-                  8,
-                  (i) => GestureDetector(
-                    onTap: () => setState(() => _colorIdx = i),
-                    child: Container(
-                      width: 30,
-                      height: 30,
-                      decoration: BoxDecoration(
-                        color: kNationColors[i],
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: _colorIdx == i
-                              ? Colors.white
-                              : Colors.transparent,
-                          width: 2,
+              // Scrollable form area
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Back button at top
+                      GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: Row(
+                          children: const [
+                            Icon(
+                              Icons.arrow_back_ios,
+                              color: kColorMuted,
+                              size: 14,
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              'Back',
+                              style: TextStyle(
+                                color: kColorMuted,
+                                fontSize: 12,
+                                letterSpacing: 1,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 18),
-              const Text(
-                'AI OPPONENTS',
-                style: TextStyle(
-                  color: kColorMuted,
-                  fontSize: 9,
-                  letterSpacing: 2,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [1, 3, 5, 7]
-                    .map(
-                      (n) => Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: _Chip(
-                          label: '$n',
-                          sel: _aiCount == n,
-                          onTap: () => setState(() => _aiCount = n),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'SINGLE PLAYER',
+                        style: TextStyle(
+                          color: kColorGold,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 3,
                         ),
                       ),
-                    )
-                    .toList(),
-              ),
-              const SizedBox(height: 18),
-              const Text(
-                'DIFFICULTY',
-                style: TextStyle(
-                  color: kColorMuted,
-                  fontSize: 9,
-                  letterSpacing: 2,
+                      const SizedBox(height: 20),
+                      const Text(
+                        'NATION NAME',
+                        style: TextStyle(
+                          color: kColorMuted,
+                          fontSize: 9,
+                          letterSpacing: 2,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      TextFormField(
+                        initialValue: _nationName,
+                        style: const TextStyle(color: kColorText),
+                        decoration: const InputDecoration(
+                          hintText: 'Enter name...',
+                        ),
+                        onChanged: (v) => setState(() => _nationName = v),
+                      ),
+                      const SizedBox(height: 14),
+                      const Text(
+                        'NATION COLOR',
+                        style: TextStyle(
+                          color: kColorMuted,
+                          fontSize: 9,
+                          letterSpacing: 2,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: List.generate(
+                          8,
+                          (i) => GestureDetector(
+                            onTap: () => setState(() => _colorIdx = i),
+                            child: Container(
+                              width: 30,
+                              height: 30,
+                              decoration: BoxDecoration(
+                                color: kNationColors[i],
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: _colorIdx == i
+                                      ? Colors.white
+                                      : Colors.transparent,
+                                  width: 2,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      const Text(
+                        'AI OPPONENTS',
+                        style: TextStyle(
+                          color: kColorMuted,
+                          fontSize: 9,
+                          letterSpacing: 2,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [1, 3, 5, 7]
+                            .map(
+                              (n) => Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: _Chip(
+                                  label: '$n',
+                                  sel: _aiCount == n,
+                                  onTap: () => setState(() => _aiCount = n),
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                      const SizedBox(height: 14),
+                      const Text(
+                        'DIFFICULTY',
+                        style: TextStyle(
+                          color: kColorMuted,
+                          fontSize: 9,
+                          letterSpacing: 2,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          _Chip(
+                            label: 'Easy',
+                            sel: _difficulty == 0,
+                            onTap: () => setState(() => _difficulty = 0),
+                          ),
+                          const SizedBox(width: 8),
+                          _Chip(
+                            label: 'Normal',
+                            sel: _difficulty == 1,
+                            onTap: () => setState(() => _difficulty = 1),
+                          ),
+                          const SizedBox(width: 8),
+                          _Chip(
+                            label: 'Hard',
+                            sel: _difficulty == 2,
+                            onTap: () => setState(() => _difficulty = 2),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  _Chip(
-                    label: 'Easy',
-                    sel: _difficulty == 0,
-                    onTap: () => setState(() => _difficulty = 0),
-                  ),
-                  const SizedBox(width: 8),
-                  _Chip(
-                    label: 'Normal',
-                    sel: _difficulty == 1,
-                    onTap: () => setState(() => _difficulty = 1),
-                  ),
-                  const SizedBox(width: 8),
-                  _Chip(
-                    label: 'Hard',
-                    sel: _difficulty == 2,
-                    onTap: () => setState(() => _difficulty = 2),
-                  ),
-                ],
-              ),
-              const Spacer(),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: kColorBorder),
-                        foregroundColor: kColorMuted,
+              // Fixed bottom bar with Start button
+              Container(
+                padding: const EdgeInsets.fromLTRB(24, 10, 24, 16),
+                decoration: const BoxDecoration(
+                  border: Border(top: BorderSide(color: kColorBorder)),
+                ),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 44,
+                  child: ElevatedButton(
+                    onPressed: _start,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: kColorGold,
+                      foregroundColor: Colors.black,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
                       ),
-                      child: const Text('BACK'),
+                    ),
+                    child: const Text(
+                      '▶  START GAME',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.5,
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    flex: 2,
-                    child: ElevatedButton(
-                      onPressed: _start,
-                      child: const Text('▶  START'),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ],
           ),
