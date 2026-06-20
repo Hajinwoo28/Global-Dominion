@@ -5362,7 +5362,7 @@ class _BottomToolbarState extends State<BottomToolbar> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (selInfo != null) selInfo,
+        ?selInfo,
         // Category pill-tabs
         Container(
           height: 34,
@@ -5856,8 +5856,7 @@ class _CutCornerFrame extends StatelessWidget {
     this.borderColor = kColorGold,
     this.fill = kColorPanel,
     this.cut = 9.0,
-    this.borderWidth = 1.4,
-  });
+  }) : borderWidth = 1.4;
   @override
   Widget build(BuildContext context) => ClipPath(
     clipper: _CutCornerClipper(cut: cut),
@@ -5874,7 +5873,7 @@ class _CutCornerFrame extends StatelessWidget {
 
 class _VDiv extends StatelessWidget {
   final double height;
-  const _VDiv({this.height = 28.0});
+  const _VDiv() : height = 28.0;
   @override
   Widget build(BuildContext context) => Container(
     width: 1,
