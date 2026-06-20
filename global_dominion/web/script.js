@@ -87,10 +87,53 @@ function initTrailer() {
   });
 }
 
+function initDownloadButtons() {
+  const downloadBtns = document.querySelectorAll('.download-btn');
+  const messages = {
+    'Download for Windows': { icon: '🖥️', title: 'Windows Version', msg: 'Coming soon! The Windows installer will be available for download here.' },
+    'Download on Android': { icon: '📱', title: 'Android Version', msg: 'Coming soon! The Android APK will be available on Google Play.' },
+    'Download on iOS': { icon: '🍎', title: 'iOS Version', msg: 'Coming soon! The iOS app will be available on the App Store.' },
+    'Launch in Browser': { icon: '🌐', title: 'Web Version', msg: 'Launching the web version...\n\nIf the game does not load, make sure you are running it via Flutter:\nflutter run -d chrome' },
+  };
+
+  downloadBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const text = btn.textContent.trim();
+      const info = messages[text];
+      if (!info) return;
+
+      // Create modal
+      const overlay = document.createElement('div');
+      overlay.className = 'download-modal-overlay';
+      overlay.innerHTML = `
+        <div class="download-modal">
+          <div class="download-modal-icon">${info.icon}</div>
+          <h3 class="download-modal-title">${info.title}</h3>
+          <p class="download-modal-msg">${info.msg}</p>
+          <button class="download-modal-btn">OK</button>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+
+      // Animate in
+      requestAnimationFrame(() => overlay.classList.add('show'));
+
+      // Close handler
+      const close = () => {
+        overlay.classList.remove('show');
+        setTimeout(() => overlay.remove(), 300);
+      };
+      overlay.querySelector('.download-modal-btn').addEventListener('click', close);
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    });
+  });
+}
+
 function init() {
   initSmoothScroll();
   initGallery();
   initTrailer();
+  initDownloadButtons();
   activateNavLink();
   window.addEventListener('scroll', activateNavLink);
   window.addEventListener('scroll', updateStats);
