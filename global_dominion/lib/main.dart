@@ -44,6 +44,14 @@ const Color kColorText = Color(0xFFE8E0CC);
 const Color kColorMuted = Color(0xFF6B7280);
 const Color kColorSuccess = Color(0xFF22C55E);
 
+// ── Gold-military HUD palette (Admiral redesign pass) ──────────────────────
+const Color kColorBronzeHi = Color(0xFFE8C77A);
+const Color kColorBronzeMid = Color(0xFFAD7B2E);
+const Color kColorBronzeLow = Color(0xFF5C3A14);
+const Color kColorHudBg1 = Color(0xFF1C140B);
+const Color kColorHudBg2 = Color(0xFF0B0805);
+const Color kColorParchment = Color(0xFFE9DCC0);
+
 const List<Color> kNationColors = [
   Color(0xFFEF4444),
   Color(0xFF3B82F6),
@@ -1799,6 +1807,14 @@ class GameState extends ChangeNotifier {
   // Player
   String? playerNationId;
   String? localPlayerId;
+  String playerAdmiralName = '';
+
+  bool get isHajinwooAdmiral =>
+      playerAdmiralName.trim().toLowerCase() == 'hajinwoo';
+
+  String get admiralDisplayName => playerAdmiralName.trim().isEmpty
+      ? '${playerNation?.name ?? "My Empire"} Commander'
+      : playerAdmiralName.trim();
 
   // Victory
   VictoryType? victoryType;
@@ -1835,6 +1851,7 @@ class GameState extends ChangeNotifier {
     required int seed,
     required String playerNationName,
     required Color playerColor,
+    String playerAdmiralName = '',
   }) {
     gameId = 'sp_${DateTime.now().millisecondsSinceEpoch}';
     tick = 0;
@@ -1844,6 +1861,7 @@ class GameState extends ChangeNotifier {
     events.clear();
     chatMessages.clear();
     phase = GamePhase.playing;
+    this.playerAdmiralName = playerAdmiralName;
 
     map = GameMap();
     map.generate(seed, aiCount + 1);
@@ -3860,6 +3878,7 @@ class SinglePlayerSetupScreen extends StatefulWidget {
 
 class _SinglePlayerSetupState extends State<SinglePlayerSetupScreen> {
   String _nationName = 'My Empire';
+  String _admiralName = '';
   int _colorIdx = 0, _aiCount = 3, _difficulty = 1;
 
   @override
@@ -3927,6 +3946,24 @@ class _SinglePlayerSetupState extends State<SinglePlayerSetupScreen> {
                           hintText: 'Enter name...',
                         ),
                         onChanged: (v) => setState(() => _nationName = v),
+                      ),
+                      const SizedBox(height: 14),
+                      const Text(
+                        'ADMIRAL NAME',
+                        style: TextStyle(
+                          color: kColorMuted,
+                          fontSize: 9,
+                          letterSpacing: 2,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      TextFormField(
+                        initialValue: _admiralName,
+                        style: const TextStyle(color: kColorText),
+                        decoration: const InputDecoration(
+                          hintText: 'Your commander\'s name (optional)...',
+                        ),
+                        onChanged: (v) => setState(() => _admiralName = v),
                       ),
                       const SizedBox(height: 14),
                       const Text(
@@ -4143,6 +4180,7 @@ class _SinglePlayerSetupState extends State<SinglePlayerSetupScreen> {
       seed: math.Random().nextInt(99999),
       playerNationName: _nationName.isEmpty ? 'My Empire' : _nationName,
       playerColor: kNationColors[_colorIdx],
+      playerAdmiralName: _admiralName.trim(),
     );
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => GameScreen(game: widget.game)),
@@ -5669,6 +5707,46 @@ String _admiralEmoji(String nationName) {
   return '🧑‍✈️';
 }
 
+// ── Admiral character palette ───────────────────────────────────────────
+// Drives both the on-map character and the HUD portrait so they stay in
+// sync. The "Hajinwoo" account gets a distinct original swordsman-commander
+// look (deep-green hair, dark fieldcoat, twin short blades) — inspired by
+// the wandering-swordsman archetype without reproducing any copyrighted
+// character's specific design.
+class AdmiralLook {
+  final Color hair;
+  final Color coat;
+  final Color trim;
+  final Color skin;
+  final bool twinBlades;
+  const AdmiralLook({
+    required this.hair,
+    required this.coat,
+    required this.trim,
+    required this.skin,
+    this.twinBlades = false,
+  });
+}
+
+AdmiralLook admiralLookFor(GameState game) {
+  final nationColor = game.playerNation?.color ?? kColorGold;
+  if (game.isHajinwooAdmiral) {
+    return const AdmiralLook(
+      hair: Color(0xFF3E7A4C),
+      coat: Color(0xFF1B2B22),
+      trim: Color(0xFF2E5A3E),
+      skin: Color(0xFFC98A5A),
+      twinBlades: true,
+    );
+  }
+  return AdmiralLook(
+    hair: const Color(0xFF2B2118),
+    coat: const Color(0xFF26201A),
+    trim: nationColor,
+    skin: const Color(0xFFC98A5A),
+  );
+}
+
 class GameMapWidget extends StatefulWidget {
   final GameState game;
   const GameMapWidget({super.key, required this.game});
@@ -6067,26 +6145,61 @@ class MapPainter extends CustomPainter {
         colors: [Color(0xFFD2F0FF), Color(0xFF7FB86B), Color(0xFF0B141E)],
       ).createShader(Offset.zero & size);
     c.drawRect(Offset.zero & size, haze);
+    const sun = Offset(sceneWidth - 280, 150);
     c.drawCircle(
-      const Offset(sceneWidth - 280, 150),
+      sun,
+      80,
+      Paint()
+        ..color = const Color(0xFFFFD274).withValues(alpha: 0.18)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 26),
+    );
+    c.drawCircle(
+      sun,
       42,
       Paint()..color = const Color(0xFFFFD274).withValues(alpha: 0.75),
     );
+    c.drawCircle(sun, 30, Paint()..color = const Color(0xFFFFF3D6));
   }
 
   void _isoTerrain(Canvas c) {
-    final stroke = Paint()
-      ..color = Colors.black.withValues(alpha: 0.16)
+    final hiStroke = Paint()
+      ..color = Colors.white.withValues(alpha: 0.22)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.9;
+      ..strokeWidth = 1.1;
+    final loStroke = Paint()
+      ..color = Colors.black.withValues(alpha: 0.30)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.1;
     for (int y = 0; y < kMapH; y++) {
       for (int x = 0; x < kMapW; x++) {
         final t = game.map.at(x, y);
         final h = _heightFor(t);
+        final baseColor = _terrainColor(t.terrain);
+
+        // Slab "thickness": a darker duplicate beneath each land tile
+        // gives the chunky stacked-plateau look from the reference art
+        // instead of flat floating diamonds.
+        if (h > 0) {
+          c.drawPath(
+            _diamond(x, y, h * 0.35),
+            Paint()..color = Color.lerp(baseColor, Colors.black, 0.45)!,
+          );
+        }
+
         final tile = _diamond(x, y, h);
-        final base = Paint()..color = _terrainColor(t.terrain);
-        c.drawPath(tile, base);
-        c.drawPath(tile, stroke);
+        c.drawPath(tile, Paint()..color = baseColor);
+
+        // Two-tone bevel: lit edge toward the back, shadowed edge toward
+        // the front — a cheap embossed/3D feel on every tile.
+        final top = tileToScene(x + 0.5, y, h);
+        final right = tileToScene(x + 1, y + 0.5, h);
+        final bottom = tileToScene(x + 0.5, y + 1, h);
+        final left = tileToScene(x, y + 0.5, h);
+        c.drawLine(left, top, hiStroke);
+        c.drawLine(top, right, hiStroke);
+        c.drawLine(right, bottom, loStroke);
+        c.drawLine(bottom, left, loStroke);
+
         if (t.terrain == TerrainType.forest) _treeCluster(c, x, y, h);
         if (t.terrain == TerrainType.mountain) _mountain(c, x, y, h);
         if (t.terrain == TerrainType.water) _waterLines(c, x, y, h);
@@ -6239,7 +6352,6 @@ class MapPainter extends CustomPainter {
   }
 
   void _isoAdmiral(Canvas c) {
-    final nation = game.playerNation;
     final tx = admiralX.clamp(0, kMapW - 1).floor();
     final ty = admiralY.clamp(0, kMapH - 1).floor();
     final tile = game.map.at(tx, ty);
@@ -6249,58 +6361,206 @@ class MapPainter extends CustomPainter {
       admiralY - 0.5,
       _heightFor(tile) + 18 + jh,
     );
-    final col = nation?.color ?? kColorGold;
-    // Shadow (smaller when jumping)
+    final look = admiralLookFor(game);
+    final col = look.trim;
+
+    // Soft ground shadow (shrinks while airborne)
     c.drawOval(
       Rect.fromCenter(
         center: o.translate(0, 54 - jh * 0.5),
-        width: 82 - jh * 0.4,
-        height: 26 - jh * 0.2,
+        width: 80 - jh * 0.4,
+        height: 24 - jh * 0.2,
       ),
-      Paint()..color = Colors.black.withValues(alpha: 0.32 - jh * 0.004),
+      Paint()
+        ..color = Colors.black.withValues(alpha: 0.30 - jh * 0.004)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
     );
-    // Glow ring
+
+    // Ground glow ring
     c.drawCircle(
       o.translate(0, 44),
-      35,
+      33,
       Paint()
-        ..color = col.withValues(alpha: 0.78)
+        ..color = col.withValues(alpha: 0.7)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 4,
+        ..strokeWidth = 3.5,
     );
-    // Body
+
+    final lift = jh * 0.3; // legs tuck up slightly mid-jump
+
+    // Back leg + cape (drawn first, sit "behind" the torso)
+    _adLeg(c, o, -9, lift, look.coat);
+    final cape = Path()
+      ..moveTo(o.dx - 16, o.dy - 18)
+      ..lineTo(o.dx + 16, o.dy - 18)
+      ..quadraticBezierTo(o.dx + 22, o.dy + 25, o.dx + 12, o.dy + 48)
+      ..lineTo(o.dx - 12, o.dy + 48)
+      ..quadraticBezierTo(o.dx - 22, o.dy + 25, o.dx - 16, o.dy - 18)
+      ..close();
+    c.drawPath(cape, Paint()..color = col.withValues(alpha: 0.88));
+
+    // Front leg
+    _adLeg(c, o, 9, -lift, look.coat);
+
+    // Torso (tapered fieldcoat)
+    final torso = Path()
+      ..moveTo(o.dx - 18, o.dy - 24)
+      ..lineTo(o.dx + 18, o.dy - 24)
+      ..lineTo(o.dx + 21, o.dy + 26)
+      ..lineTo(o.dx - 21, o.dy + 26)
+      ..close();
+    c.drawPath(torso, Paint()..color = look.coat);
+    c.drawLine(
+      Offset(o.dx - 18, o.dy - 22),
+      Offset(o.dx - 21, o.dy + 24),
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.16)
+        ..strokeWidth = 2,
+    );
+
+    // Open lapel / collar
+    c.drawPath(
+      Path()
+        ..moveTo(o.dx - 12, o.dy - 22)
+        ..lineTo(o.dx, o.dy + 2)
+        ..lineTo(o.dx + 12, o.dy - 22),
+      Paint()
+        ..color = look.skin.withValues(alpha: 0.9)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 7,
+    );
+
+    // Sash + rank medallion
     c.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromCenter(center: o.translate(0, 5), width: 38, height: 80),
-        const Radius.circular(14),
+        Rect.fromCenter(center: o.translate(0, 13), width: 42, height: 7),
+        const Radius.circular(3),
       ),
-      Paint()..color = const Color(0xFF264D38),
+      Paint()..color = kColorBronzeMid,
     );
-    // Head
+    c.drawCircle(o.translate(0, 13), 6, Paint()..color = kColorBronzeHi);
     c.drawCircle(
-      o.translate(0, -44),
-      20,
-      Paint()..color = const Color(0xFFC98A5A),
+      o.translate(0, 13),
+      6,
+      Paint()
+        ..color = col
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6,
     );
-    // Hat
+
+    // Shoulder pauldrons (rank insignia)
+    for (final s in [-1, 1]) {
+      c.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(
+            center: o.translate(19.0 * s, -22),
+            width: 12,
+            height: 9,
+          ),
+          const Radius.circular(3),
+        ),
+        Paint()..color = col,
+      );
+    }
+
+    // Arms
+    for (final s in [-1, 1]) {
+      c.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(
+            center: o.translate(24.0 * s, -2),
+            width: 10,
+            height: 30,
+          ),
+          const Radius.circular(5),
+        ),
+        Paint()..color = look.coat,
+      );
+    }
+
+    // Sidearm(s) sheathed on the back
+    if (look.twinBlades) {
+      _adBlade(c, o, -6, 0.5);
+      _adBlade(c, o, 6, -0.5);
+    } else {
+      _adBlade(c, o, 0, 0.45);
+    }
+
+    // Head + hair
+    c.drawCircle(o.translate(0, -44), 19, Paint()..color = look.skin);
+    c.drawPath(
+      Path()
+        ..moveTo(o.dx - 19, o.dy - 46)
+        ..quadraticBezierTo(o.dx - 22, o.dy - 70, o.dx, o.dy - 66)
+        ..quadraticBezierTo(o.dx + 22, o.dy - 70, o.dx + 19, o.dy - 46)
+        ..quadraticBezierTo(o.dx, o.dy - 56, o.dx - 19, o.dy - 46)
+        ..close(),
+      Paint()..color = look.hair,
+    );
+    if (game.isHajinwooAdmiral) {
+      for (final dx in [-12.0, 0.0, 12.0]) {
+        c.drawPath(
+          Path()
+            ..moveTo(o.dx + dx - 5, o.dy - 60)
+            ..lineTo(o.dx + dx, o.dy - 78)
+            ..lineTo(o.dx + dx + 5, o.dy - 60)
+            ..close(),
+          Paint()..color = look.hair,
+        );
+      }
+    }
     c.drawRect(
-      Rect.fromCenter(center: o.translate(0, -64), width: 42, height: 18),
-      Paint()..color = col,
+      Rect.fromCenter(center: o.translate(0, -52), width: 38, height: 5),
+      Paint()..color = kColorBronzeMid,
     );
-    // Emoji
-    final tp = TextPainter(textDirection: TextDirection.ltr);
-    tp.text = TextSpan(
-      text: _admiralEmoji(nation?.name ?? ''),
-      style: const TextStyle(fontSize: 32),
+
+    _label(c, o.translate(0, -96), game.admiralDisplayName, col);
+  }
+
+  void _adLeg(Canvas c, Offset o, double sideOffset, double lift, Color color) {
+    c.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(
+          center: o.translate(sideOffset, 38 - lift * 0.4),
+          width: 13,
+          height: 32 - lift * 0.3,
+        ),
+        const Radius.circular(5),
+      ),
+      Paint()..color = color,
     );
-    tp.layout();
-    tp.paint(c, Offset(o.dx - tp.width / 2, o.dy - 67));
-    _label(
-      c,
-      o.translate(0, -92),
-      '${nation?.name ?? 'Admiral'} Commander',
-      col,
+    c.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(
+          center: o.translate(sideOffset, 54 - lift * 0.6),
+          width: 16,
+          height: 10,
+        ),
+        const Radius.circular(3),
+      ),
+      Paint()..color = const Color(0xFF1A1410),
     );
+  }
+
+  void _adBlade(Canvas c, Offset o, double dx, double angle) {
+    c.save();
+    c.translate(o.dx + dx, o.dy - 8);
+    c.rotate(angle);
+    c.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(-2.5, -38, 5, 46),
+        const Radius.circular(2),
+      ),
+      Paint()..color = kColorParchment,
+    );
+    c.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(-5, 6, 10, 8),
+        const Radius.circular(2),
+      ),
+      Paint()..color = kColorBronzeMid,
+    );
+    c.restore();
   }
 
   void _isoSelection(Canvas c) {
@@ -6369,6 +6629,12 @@ class MapPainter extends CustomPainter {
       _center(x - .1, y + .15, z + 8),
     ];
     for (final o in positions) {
+      c.drawOval(
+        Rect.fromCenter(center: o.translate(0, 16), width: 30, height: 10),
+        Paint()
+          ..color = Colors.black.withValues(alpha: 0.22)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5),
+      );
       c.drawRect(
         Rect.fromCenter(center: o.translate(0, 13), width: 5, height: 16),
         Paint()..color = const Color(0xFF5A3925),
@@ -6381,16 +6647,49 @@ class MapPainter extends CustomPainter {
           ..close(),
         Paint()..color = const Color(0xFF145A2E),
       );
+      c.drawPath(
+        Path()
+          ..moveTo(o.dx, o.dy - 18)
+          ..lineTo(o.dx + 16, o.dy + 15)
+          ..lineTo(o.dx, o.dy + 15)
+          ..close(),
+        Paint()..color = Colors.black.withValues(alpha: 0.14),
+      );
+      c.drawPath(
+        Path()
+          ..moveTo(o.dx, o.dy - 18)
+          ..lineTo(o.dx - 6, o.dy - 1)
+          ..lineTo(o.dx, o.dy - 1)
+          ..close(),
+        Paint()..color = Colors.white.withValues(alpha: 0.18),
+      );
     }
   }
 
   void _mountain(Canvas c, int x, int y, double z) {
+    final back = _center(x - .12, y - .1, z + 18);
+    c.drawPath(
+      Path()
+        ..moveTo(back.dx, back.dy - 26)
+        ..lineTo(back.dx + 22, back.dy + 14)
+        ..lineTo(back.dx - 22, back.dy + 14)
+        ..close(),
+      Paint()..color = const Color(0xFF58544E),
+    );
     final o = _center(x, y, z + 12);
     c.drawPath(
       Path()
         ..moveTo(o.dx, o.dy - 34)
         ..lineTo(o.dx + 30, o.dy + 20)
+        ..lineTo(o.dx, o.dy + 20)
+        ..close(),
+      Paint()..color = const Color(0xFF817A6F),
+    );
+    c.drawPath(
+      Path()
+        ..moveTo(o.dx, o.dy - 34)
         ..lineTo(o.dx - 30, o.dy + 20)
+        ..lineTo(o.dx, o.dy + 20)
         ..close(),
       Paint()..color = const Color(0xFF6E6A63),
     );
@@ -6406,6 +6705,10 @@ class MapPainter extends CustomPainter {
 
   void _waterLines(Canvas c, int x, int y, double z) {
     final o = _center(x, y, z);
+    c.drawOval(
+      Rect.fromCenter(center: o.translate(-6, -4), width: 30, height: 12),
+      Paint()..color = Colors.white.withValues(alpha: 0.07),
+    );
     final p = Paint()
       ..color = Colors.white.withValues(alpha: 0.26)
       ..strokeWidth = 1.2;
