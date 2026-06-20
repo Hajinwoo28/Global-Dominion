@@ -34,6 +34,13 @@ const int kAiTickMs = 2500; // AI action interval
 const int kEcoVictoryTicks = 300; // 5 min at top economy
 const int kTerritoryVictoryPct = 75;
 
+// Admin / debug tooling — local dev convenience only. These are compiled
+// straight into the client, so anyone who decompiles the app can read them.
+// Fine for solo testing; before a public multiplayer release this check
+// belongs server-side, not in the Flutter binary.
+const String kAdminUsername = 'Hajinwoo';
+const String kAdminPassword = 'BuunjaxPuccaV2';
+
 const Color kColorBg = Color(0xFF0A0E1A);
 const Color kColorPanel = Color(0xFF111827);
 const Color kColorBorder = Color(0xFF1E2D45);
@@ -43,14 +50,6 @@ const Color kColorAccent = Color(0xFFE53935);
 const Color kColorText = Color(0xFFE8E0CC);
 const Color kColorMuted = Color(0xFF6B7280);
 const Color kColorSuccess = Color(0xFF22C55E);
-
-// ── Gold-military HUD palette (Admiral redesign pass) ──────────────────────
-const Color kColorBronzeHi = Color(0xFFE8C77A);
-const Color kColorBronzeMid = Color(0xFFAD7B2E);
-const Color kColorBronzeLow = Color(0xFF5C3A14);
-const Color kColorHudBg1 = Color(0xFF1C140B);
-const Color kColorHudBg2 = Color(0xFF0B0805);
-const Color kColorParchment = Color(0xFFE9DCC0);
 
 const List<Color> kNationColors = [
   Color(0xFFEF4444),
@@ -127,6 +126,25 @@ enum ActionType {
 enum DiplomacyAction { ally, declareWar, makePeace, embargo }
 
 enum BuildingCat { economic, military, defensive, technology, special }
+
+enum WeatherType { clear, rain, storm, snow, fog }
+
+extension WeatherTypeLabel on WeatherType {
+  String get label => const {
+    WeatherType.clear: 'Clear',
+    WeatherType.rain: 'Rain',
+    WeatherType.storm: 'Storm',
+    WeatherType.snow: 'Snow',
+    WeatherType.fog: 'Fog',
+  }[this]!;
+  String get icon => const {
+    WeatherType.clear: '☀️',
+    WeatherType.rain: '🌧️',
+    WeatherType.storm: '⛈️',
+    WeatherType.snow: '❄️',
+    WeatherType.fog: '🌫️',
+  }[this]!;
+}
 
 extension AgeLabel on Age {
   String get label => const {
@@ -1803,18 +1821,11 @@ class GameState extends ChangeNotifier {
   Map<String, GameUnit> units = {};
   GamePhase phase = GamePhase.menu;
   int tick = 0;
+  WeatherType currentWeather = WeatherType.clear;
 
   // Player
   String? playerNationId;
   String? localPlayerId;
-  String playerAdmiralName = '';
-
-  bool get isHajinwooAdmiral =>
-      playerAdmiralName.trim().toLowerCase() == 'hajinwoo';
-
-  String get admiralDisplayName => playerAdmiralName.trim().isEmpty
-      ? '${playerNation?.name ?? "My Empire"} Commander'
-      : playerAdmiralName.trim();
 
   // Victory
   VictoryType? victoryType;
@@ -1851,7 +1862,6 @@ class GameState extends ChangeNotifier {
     required int seed,
     required String playerNationName,
     required Color playerColor,
-    String playerAdmiralName = '',
   }) {
     gameId = 'sp_${DateTime.now().millisecondsSinceEpoch}';
     tick = 0;
@@ -1861,7 +1871,6 @@ class GameState extends ChangeNotifier {
     events.clear();
     chatMessages.clear();
     phase = GamePhase.playing;
-    this.playerAdmiralName = playerAdmiralName;
 
     map = GameMap();
     map.generate(seed, aiCount + 1);
@@ -3878,7 +3887,6 @@ class SinglePlayerSetupScreen extends StatefulWidget {
 
 class _SinglePlayerSetupState extends State<SinglePlayerSetupScreen> {
   String _nationName = 'My Empire';
-  String _admiralName = '';
   int _colorIdx = 0, _aiCount = 3, _difficulty = 1;
 
   @override
@@ -3888,204 +3896,147 @@ class _SinglePlayerSetupState extends State<SinglePlayerSetupScreen> {
         Container(
           width: 300,
           color: kColorPanel,
+          padding: const EdgeInsets.all(24),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Scrollable form area
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Back button at top
-                      GestureDetector(
-                        onTap: () => Navigator.pop(context),
-                        child: Row(
-                          children: const [
-                            Icon(
-                              Icons.arrow_back_ios,
-                              color: kColorMuted,
-                              size: 14,
-                            ),
-                            SizedBox(width: 4),
-                            Text(
-                              'Back',
-                              style: TextStyle(
-                                color: kColorMuted,
-                                fontSize: 12,
-                                letterSpacing: 1,
-                              ),
-                            ),
-                          ],
+              const SizedBox(height: 16),
+              const Text(
+                'SINGLE PLAYER',
+                style: TextStyle(
+                  color: kColorGold,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 3,
+                ),
+              ),
+              const SizedBox(height: 28),
+              const Text(
+                'NATION NAME',
+                style: TextStyle(
+                  color: kColorMuted,
+                  fontSize: 9,
+                  letterSpacing: 2,
+                ),
+              ),
+              const SizedBox(height: 6),
+              TextFormField(
+                initialValue: _nationName,
+                style: const TextStyle(color: kColorText),
+                decoration: const InputDecoration(hintText: 'Enter name...'),
+                onChanged: (v) => setState(() => _nationName = v),
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'NATION COLOR',
+                style: TextStyle(
+                  color: kColorMuted,
+                  fontSize: 9,
+                  letterSpacing: 2,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: List.generate(
+                  8,
+                  (i) => GestureDetector(
+                    onTap: () => setState(() => _colorIdx = i),
+                    child: Container(
+                      width: 30,
+                      height: 30,
+                      decoration: BoxDecoration(
+                        color: kNationColors[i],
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: _colorIdx == i
+                              ? Colors.white
+                              : Colors.transparent,
+                          width: 2,
                         ),
                       ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'SINGLE PLAYER',
-                        style: TextStyle(
-                          color: kColorGold,
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 3,
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      const Text(
-                        'NATION NAME',
-                        style: TextStyle(
-                          color: kColorMuted,
-                          fontSize: 9,
-                          letterSpacing: 2,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      TextFormField(
-                        initialValue: _nationName,
-                        style: const TextStyle(color: kColorText),
-                        decoration: const InputDecoration(
-                          hintText: 'Enter name...',
-                        ),
-                        onChanged: (v) => setState(() => _nationName = v),
-                      ),
-                      const SizedBox(height: 14),
-                      const Text(
-                        'ADMIRAL NAME',
-                        style: TextStyle(
-                          color: kColorMuted,
-                          fontSize: 9,
-                          letterSpacing: 2,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      TextFormField(
-                        initialValue: _admiralName,
-                        style: const TextStyle(color: kColorText),
-                        decoration: const InputDecoration(
-                          hintText: 'Your commander\'s name (optional)...',
-                        ),
-                        onChanged: (v) => setState(() => _admiralName = v),
-                      ),
-                      const SizedBox(height: 14),
-                      const Text(
-                        'NATION COLOR',
-                        style: TextStyle(
-                          color: kColorMuted,
-                          fontSize: 9,
-                          letterSpacing: 2,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: List.generate(
-                          8,
-                          (i) => GestureDetector(
-                            onTap: () => setState(() => _colorIdx = i),
-                            child: Container(
-                              width: 30,
-                              height: 30,
-                              decoration: BoxDecoration(
-                                color: kNationColors[i],
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: _colorIdx == i
-                                      ? Colors.white
-                                      : Colors.transparent,
-                                  width: 2,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      const Text(
-                        'AI OPPONENTS',
-                        style: TextStyle(
-                          color: kColorMuted,
-                          fontSize: 9,
-                          letterSpacing: 2,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [1, 3, 5, 7]
-                            .map(
-                              (n) => Padding(
-                                padding: const EdgeInsets.only(right: 8),
-                                child: _Chip(
-                                  label: '$n',
-                                  sel: _aiCount == n,
-                                  onTap: () => setState(() => _aiCount = n),
-                                ),
-                              ),
-                            )
-                            .toList(),
-                      ),
-                      const SizedBox(height: 14),
-                      const Text(
-                        'DIFFICULTY',
-                        style: TextStyle(
-                          color: kColorMuted,
-                          fontSize: 9,
-                          letterSpacing: 2,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          _Chip(
-                            label: 'Easy',
-                            sel: _difficulty == 0,
-                            onTap: () => setState(() => _difficulty = 0),
-                          ),
-                          const SizedBox(width: 8),
-                          _Chip(
-                            label: 'Normal',
-                            sel: _difficulty == 1,
-                            onTap: () => setState(() => _difficulty = 1),
-                          ),
-                          const SizedBox(width: 8),
-                          _Chip(
-                            label: 'Hard',
-                            sel: _difficulty == 2,
-                            onTap: () => setState(() => _difficulty = 2),
-                          ),
-                        ],
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ),
-              // Fixed bottom bar with Start button
-              Container(
-                padding: const EdgeInsets.fromLTRB(24, 10, 24, 16),
-                decoration: const BoxDecoration(
-                  border: Border(top: BorderSide(color: kColorBorder)),
+              const SizedBox(height: 18),
+              const Text(
+                'AI OPPONENTS',
+                style: TextStyle(
+                  color: kColorMuted,
+                  fontSize: 9,
+                  letterSpacing: 2,
                 ),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 44,
-                  child: ElevatedButton(
-                    onPressed: _start,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: kColorGold,
-                      foregroundColor: Colors.black,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(6),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [1, 3, 5, 7]
+                    .map(
+                      (n) => Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: _Chip(
+                          label: '$n',
+                          sel: _aiCount == n,
+                          onTap: () => setState(() => _aiCount = n),
+                        ),
                       ),
-                    ),
-                    child: const Text(
-                      '▶  START GAME',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.5,
+                    )
+                    .toList(),
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'DIFFICULTY',
+                style: TextStyle(
+                  color: kColorMuted,
+                  fontSize: 9,
+                  letterSpacing: 2,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  _Chip(
+                    label: 'Easy',
+                    sel: _difficulty == 0,
+                    onTap: () => setState(() => _difficulty = 0),
+                  ),
+                  const SizedBox(width: 8),
+                  _Chip(
+                    label: 'Normal',
+                    sel: _difficulty == 1,
+                    onTap: () => setState(() => _difficulty = 1),
+                  ),
+                  const SizedBox(width: 8),
+                  _Chip(
+                    label: 'Hard',
+                    sel: _difficulty == 2,
+                    onTap: () => setState(() => _difficulty = 2),
+                  ),
+                ],
+              ),
+              const Spacer(),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: kColorBorder),
+                        foregroundColor: kColorMuted,
                       ),
+                      child: const Text('BACK'),
                     ),
                   ),
-                ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton(
+                      onPressed: _start,
+                      child: const Text('▶  START'),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -4180,7 +4131,6 @@ class _SinglePlayerSetupState extends State<SinglePlayerSetupScreen> {
       seed: math.Random().nextInt(99999),
       playerNationName: _nationName.isEmpty ? 'My Empire' : _nationName,
       playerColor: kNationColors[_colorIdx],
-      playerAdmiralName: _admiralName.trim(),
     );
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => GameScreen(game: widget.game)),
@@ -5099,6 +5049,26 @@ class _BottomToolbarState extends State<BottomToolbar> {
     BuildingCat.technology,
     BuildingCat.special,
   ];
+  final ScrollController _buildScroll = ScrollController();
+
+  @override
+  void dispose() {
+    _buildScroll.dispose();
+    super.dispose();
+  }
+
+  void _scrollBy(double delta) {
+    if (!_buildScroll.hasClients) return;
+    final target = (_buildScroll.offset + delta).clamp(
+      0.0,
+      _buildScroll.position.maxScrollExtent,
+    );
+    _buildScroll.animateTo(
+      target,
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOut,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -5110,21 +5080,31 @@ class _BottomToolbarState extends State<BottomToolbar> {
         : null;
     final multiSel = game.selectedUnitIds.isNotEmpty;
 
-    // Selection info overlay
+    // Selection info overlay — docked card above the build menu
     Widget? selInfo;
     if (multiSel) {
       selInfo = Container(
-        height: 32,
+        height: 38,
         padding: const EdgeInsets.symmetric(horizontal: 12),
-        color: kColorPanel.withValues(alpha: 0.92),
+        decoration: BoxDecoration(
+          color: kColorPanel.withValues(alpha: 0.94),
+          border: const Border(top: BorderSide(color: kColorGold, width: 1.2)),
+        ),
         child: Row(
           children: [
-            Text(
-              '⚔️ ${game.selectedUnitIds.length} units selected',
-              style: const TextStyle(
-                color: kColorGold,
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: kColorGold.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '⚔️ ${game.selectedUnitIds.length} units selected',
+                style: const TextStyle(
+                  color: kColorGold,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
             const Spacer(),
@@ -5133,9 +5113,16 @@ class _BottomToolbarState extends State<BottomToolbar> {
                 game.clearMultiSelection();
                 game.rebuild();
               },
-              child: const Text(
-                '✖ Clear',
-                style: TextStyle(color: kColorMuted, fontSize: 10),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  border: Border.all(color: kColorBorder),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Text(
+                  '✖ Clear',
+                  style: TextStyle(color: kColorMuted, fontSize: 9),
+                ),
               ),
             ),
           ],
@@ -5143,41 +5130,95 @@ class _BottomToolbarState extends State<BottomToolbar> {
       );
     } else if (unit != null) {
       final d = unit.def;
+      final hpFrac = unit.maxHealth > 0
+          ? (unit.health / unit.maxHealth).clamp(0.0, 1.0)
+          : 0.0;
       selInfo = Container(
-        height: 36,
+        height: 42,
         padding: const EdgeInsets.symmetric(horizontal: 12),
-        color: kColorPanel.withValues(alpha: 0.92),
+        decoration: BoxDecoration(
+          color: kColorPanel.withValues(alpha: 0.94),
+          border: const Border(top: BorderSide(color: kColorGold, width: 1.2)),
+        ),
         child: Row(
           children: [
-            Text(d.emoji, style: const TextStyle(fontSize: 18)),
-            const SizedBox(width: 6),
-            Text(
-              d.name,
-              style: const TextStyle(
-                color: kColorText,
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: kColorBorder.withValues(alpha: 0.3),
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Text(d.emoji, style: const TextStyle(fontSize: 15)),
               ),
             ),
             const SizedBox(width: 8),
-            Text(
-              'HP:${unit.health}/${unit.maxHealth}',
-              style: const TextStyle(color: kColorMuted, fontSize: 9),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    d.name,
+                    style: const TextStyle(
+                      color: kColorText,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      SizedBox(
+                        width: 70,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(3),
+                          child: Container(
+                            height: 4,
+                            color: kColorBorder,
+                            child: FractionallySizedBox(
+                              alignment: Alignment.centerLeft,
+                              widthFactor: hpFrac,
+                              child: Container(
+                                color: hpFrac > 0.4
+                                    ? kColorSuccess
+                                    : kColorAccent,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        '${unit.health}/${unit.maxHealth}',
+                        style: const TextStyle(color: kColorMuted, fontSize: 8),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(width: 8),
             Text(
               '⚔${d.attack} 🛡${d.defense} 🏃${d.speed}',
               style: const TextStyle(color: kColorMuted, fontSize: 9),
             ),
-            const Spacer(),
+            const SizedBox(width: 10),
             GestureDetector(
               onTap: () {
                 game.clearSelection();
                 game.rebuild();
               },
-              child: const Text(
-                '✖ Desel',
-                style: TextStyle(color: kColorMuted, fontSize: 10),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  border: Border.all(color: kColorBorder),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Text(
+                  '✖ Desel',
+                  style: TextStyle(color: kColorMuted, fontSize: 9),
+                ),
               ),
             ),
           ],
@@ -5185,42 +5226,97 @@ class _BottomToolbarState extends State<BottomToolbar> {
       );
     } else if (building != null && building.nationId == game.playerNationId) {
       final d = building.def;
+      final hpFrac = building.maxHealth > 0
+          ? (building.health / building.maxHealth).clamp(0.0, 1.0)
+          : 0.0;
       selInfo = Container(
-        height: 36,
+        height: 42,
         padding: const EdgeInsets.symmetric(horizontal: 12),
-        color: kColorPanel.withValues(alpha: 0.92),
+        decoration: BoxDecoration(
+          color: kColorPanel.withValues(alpha: 0.94),
+          border: const Border(top: BorderSide(color: kColorGold, width: 1.2)),
+        ),
         child: Row(
           children: [
-            Text(d.emoji, style: const TextStyle(fontSize: 18)),
-            const SizedBox(width: 6),
-            Text(
-              d.name,
-              style: const TextStyle(
-                color: kColorText,
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: kColorBorder.withValues(alpha: 0.3),
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Text(d.emoji, style: const TextStyle(fontSize: 15)),
               ),
             ),
             const SizedBox(width: 8),
-            Text(
-              'HP:${building.health}/${building.maxHealth}',
-              style: const TextStyle(color: kColorMuted, fontSize: 9),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    d.name,
+                    style: const TextStyle(
+                      color: kColorText,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      SizedBox(
+                        width: 60,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(3),
+                          child: Container(
+                            height: 4,
+                            color: kColorBorder,
+                            child: FractionallySizedBox(
+                              alignment: Alignment.centerLeft,
+                              widthFactor: hpFrac,
+                              child: Container(
+                                color: hpFrac > 0.4
+                                    ? kColorSuccess
+                                    : kColorAccent,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                      if (building.isConstructing)
+                        Text(
+                          '⏳${building.buildTicksLeft}t',
+                          style: const TextStyle(
+                            color: kColorGold,
+                            fontSize: 8,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        )
+                      else if (building.trainingUnitDefId != null)
+                        Text(
+                          '🎯${kUnitDefs[building.trainingUnitDefId!]?.name ?? '?'}: ${building.trainingTicksLeft}t',
+                          style: const TextStyle(
+                            color: kColorGold,
+                            fontSize: 8,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        )
+                      else
+                        Text(
+                          '${building.health}/${building.maxHealth}',
+                          style: const TextStyle(
+                            color: kColorMuted,
+                            fontSize: 8,
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-            if (building.isConstructing) ...[
-              const SizedBox(width: 8),
-              Text(
-                '⏳${building.buildTicksLeft}t',
-                style: const TextStyle(color: kColorGold, fontSize: 9),
-              ),
-            ],
-            if (building.trainingUnitDefId != null) ...[
-              const SizedBox(width: 8),
-              Text(
-                '🎯${kUnitDefs[building.trainingUnitDefId!]?.name ?? '?'}: ${building.trainingTicksLeft}t',
-                style: const TextStyle(color: kColorGold, fontSize: 9),
-              ),
-            ],
-            const Spacer(),
             // Train buttons
             if (d.unlocks.isNotEmpty && !building.isConstructing)
               ...d.unlocks.map((uid) {
@@ -5233,15 +5329,18 @@ class _BottomToolbarState extends State<BottomToolbar> {
                     game.trainUnit(game.playerNationId!, building.id, uid);
                   },
                   child: Tooltip(
-                    message: '${ud.name}',
+                    message: ud.name,
                     child: Container(
                       margin: const EdgeInsets.only(left: 4),
-                      padding: const EdgeInsets.all(3),
+                      padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
+                        color: ok
+                            ? kColorGold.withValues(alpha: 0.1)
+                            : Colors.transparent,
                         border: Border.all(
                           color: ok ? kColorGoldDark : kColorBorder,
                         ),
-                        borderRadius: BorderRadius.circular(3),
+                        borderRadius: BorderRadius.circular(5),
                       ),
                       child: Text(
                         ud.emoji,
@@ -5264,30 +5363,35 @@ class _BottomToolbarState extends State<BottomToolbar> {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (selInfo != null) selInfo,
-        // Category tabs
+        // Category pill-tabs
         Container(
-          height: 28,
+          height: 34,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           color: kColorBg,
           child: Row(
             children: [
-              const SizedBox(width: 8),
               ...List.generate(
                 5,
-                (i) => GestureDetector(
-                  onTap: () => widget.onCat(i),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    decoration: BoxDecoration(
-                      border: Border(
-                        bottom: BorderSide(
-                          color: widget.cat == i
-                              ? kColorGold
-                              : Colors.transparent,
-                          width: 2,
-                        ),
+                (i) => Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: GestureDetector(
+                    onTap: () => widget.onCat(i),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
                       ),
-                    ),
-                    child: Center(
+                      decoration: BoxDecoration(
+                        color: widget.cat == i
+                            ? kColorGold.withValues(alpha: 0.16)
+                            : Colors.transparent,
+                        border: Border.all(
+                          color: widget.cat == i ? kColorGold : kColorBorder,
+                          width: widget.cat == i ? 1.2 : 1,
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                       child: Text(
                         '${_cats[i]} ${_labs[i]}',
                         style: TextStyle(
@@ -5300,7 +5404,7 @@ class _BottomToolbarState extends State<BottomToolbar> {
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
+              const Spacer(),
               if (game.pendingBuildDefId != null)
                 GestureDetector(
                   onTap: () {
@@ -5308,19 +5412,23 @@ class _BottomToolbarState extends State<BottomToolbar> {
                     game.rebuild();
                   },
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 5,
+                    ),
                     decoration: BoxDecoration(
                       color: kColorAccent.withValues(alpha: 0.18),
-                      borderRadius: BorderRadius.circular(3),
+                      border: Border.all(
+                        color: kColorAccent.withValues(alpha: 0.5),
+                      ),
+                      borderRadius: BorderRadius.circular(16),
                     ),
-                    child: const Center(
-                      child: Text(
-                        '✖ Cancel',
-                        style: TextStyle(
-                          color: kColorAccent,
-                          fontSize: 9,
-                          fontWeight: FontWeight.bold,
-                        ),
+                    child: const Text(
+                      '✖ Cancel',
+                      style: TextStyle(
+                        color: kColorAccent,
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
@@ -5328,93 +5436,223 @@ class _BottomToolbarState extends State<BottomToolbar> {
             ],
           ),
         ),
-        // Building card row
+        // Building card row, with carousel nav arrows
         Container(
-          height: 80,
-          color: kColorPanel,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            itemCount: defs.length,
-            itemBuilder: (_, i) {
-              final d = defs[i];
-              final afford = n?.resources.canAfford(d.cost) == true;
-              final ageOk = d.requiredAge.index2 <= (n?.currentAge.index2 ?? 0);
-              final sel = game.pendingBuildDefId == d.id;
-              return GestureDetector(
-                onTap: () {
-                  if (!ageOk) {
-                    game.addEvent(
-                      '❌ Requires ${d.requiredAge.label}!',
-                      color: kColorAccent,
+          height: 92,
+          decoration: const BoxDecoration(
+            color: kColorPanel,
+            border: Border(top: BorderSide(color: kColorBorder, width: 1)),
+          ),
+          child: Row(
+            children: [
+              _NavArrow(icon: '‹', onTap: () => _scrollBy(-220)),
+              Expanded(
+                child: ListView.builder(
+                  controller: _buildScroll,
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 8,
+                  ),
+                  itemCount: defs.length,
+                  itemBuilder: (_, i) {
+                    final d = defs[i];
+                    final afford = n?.resources.canAfford(d.cost) == true;
+                    final ageOk =
+                        d.requiredAge.index2 <= (n?.currentAge.index2 ?? 0);
+                    final sel = game.pendingBuildDefId == d.id;
+                    return _BuildCard(
+                      def: d,
+                      selected: sel,
+                      afford: afford,
+                      ageOk: ageOk,
+                      onTap: () {
+                        if (!ageOk) {
+                          game.addEvent(
+                            '❌ Requires ${d.requiredAge.label}!',
+                            color: kColorAccent,
+                          );
+                          return;
+                        }
+                        game.pendingBuildDefId = d.id;
+                        game.addEvent(
+                          '👆 Tap territory to place ${d.name}',
+                          color: kColorGold,
+                        );
+                        game.rebuild();
+                      },
                     );
-                    return;
-                  }
-                  game.pendingBuildDefId = d.id;
-                  game.addEvent(
-                    '👆 Tap territory to place ${d.name}',
-                    color: kColorGold,
-                  );
-                  game.rebuild();
-                },
-                child: Container(
-                  width: 78,
-                  margin: const EdgeInsets.only(right: 6),
-                  padding: const EdgeInsets.all(5),
-                  decoration: BoxDecoration(
-                    color: sel
-                        ? kColorGoldDark.withValues(alpha: 0.28)
-                        : kColorBg,
-                    border: Border.all(
-                      color: sel
-                          ? kColorGold
-                          : !ageOk
-                          ? kColorBorder.withValues(alpha: 0.25)
-                          : afford
-                          ? kColorBorder
-                          : kColorAccent.withValues(alpha: 0.25),
-                    ),
-                    borderRadius: BorderRadius.circular(5),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(d.emoji, style: const TextStyle(fontSize: 20)),
-                      const SizedBox(height: 2),
-                      Text(
-                        d.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: !ageOk
-                              ? kColorMuted
-                              : afford
-                              ? kColorText
-                              : kColorAccent,
-                          fontSize: 8,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      if (!ageOk)
-                        Text('🔒', style: const TextStyle(fontSize: 7))
-                      else if (d.cost.containsKey('gold'))
-                        Text(
-                          '💰${d.cost['gold']!.toInt()}',
-                          style: TextStyle(
-                            color: afford ? kColorMuted : kColorAccent,
-                            fontSize: 7,
-                          ),
-                        ),
-                    ],
-                  ),
+                  },
                 ),
-              );
-            },
+              ),
+              _NavArrow(icon: '›', onTap: () => _scrollBy(220)),
+            ],
           ),
         ),
       ],
     );
   }
+}
+
+// ── Build Card (used by Bottom Toolbar) ─────────────────────────────────────
+
+class _BuildCard extends StatelessWidget {
+  final BuildingDef def;
+  final bool selected, afford, ageOk;
+  final VoidCallback onTap;
+  const _BuildCard({
+    required this.def,
+    required this.selected,
+    required this.afford,
+    required this.ageOk,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final locked = !ageOk;
+    final labelCol = locked
+        ? kColorMuted
+        : (afford ? kColorText : kColorAccent);
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 80,
+        margin: const EdgeInsets.only(right: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 7),
+        decoration: BoxDecoration(
+          gradient: selected
+              ? LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    kColorGoldDark.withValues(alpha: 0.35),
+                    kColorGoldDark.withValues(alpha: 0.12),
+                  ],
+                )
+              : null,
+          color: selected ? null : kColorBg,
+          border: Border.all(
+            color: selected
+                ? kColorGold
+                : locked
+                ? kColorBorder.withValues(alpha: 0.3)
+                : afford
+                ? kColorBorder
+                : kColorAccent.withValues(alpha: 0.3),
+            width: selected ? 1.4 : 1,
+          ),
+          borderRadius: BorderRadius.circular(7),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: kColorGold.withValues(alpha: 0.25),
+                    blurRadius: 10,
+                    spreadRadius: 1,
+                  ),
+                ]
+              : null,
+        ),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    color: (selected ? kColorGold : kColorBorder).withValues(
+                      alpha: locked ? 0.08 : 0.18,
+                    ),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Opacity(
+                      opacity: locked ? 0.4 : 1,
+                      child: Text(
+                        def.emoji,
+                        style: const TextStyle(fontSize: 17),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  def.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: labelCol,
+                    fontSize: 8,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                if (def.cost.containsKey('gold'))
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 5,
+                      vertical: 1,
+                    ),
+                    decoration: BoxDecoration(
+                      color: (afford && !locked ? kColorGold : kColorAccent)
+                          .withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '💰${def.cost['gold']!.toInt()}',
+                      style: TextStyle(
+                        color: afford && !locked ? kColorGold : kColorAccent,
+                        fontSize: 7,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            if (locked)
+              Positioned(
+                top: -2,
+                right: -2,
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: const BoxDecoration(
+                    color: kColorBg,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Text('🔒', style: TextStyle(fontSize: 9)),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NavArrow extends StatelessWidget {
+  final String icon;
+  final VoidCallback onTap;
+  const _NavArrow({required this.icon, required this.onTap});
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      width: 24,
+      margin: const EdgeInsets.symmetric(horizontal: 2),
+      alignment: Alignment.center,
+      child: Text(
+        icon,
+        style: const TextStyle(
+          color: kColorGold,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    ),
+  );
 }
 
 // ── Event Log Overlay ────────────────────────────────────────────────────────
@@ -5428,11 +5666,19 @@ class _EventLog extends StatelessWidget {
     if (recent.isEmpty) return const SizedBox.shrink();
     return Container(
       constraints: const BoxConstraints(maxWidth: 320, maxHeight: 110),
-      padding: const EdgeInsets.all(8),
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF07101B).withValues(alpha: 0.78),
+        color: const Color(0xFF07101B).withValues(alpha: 0.82),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+        border: Border(
+          left: BorderSide(
+            color: kColorGoldDark.withValues(alpha: 0.7),
+            width: 2,
+          ),
+          top: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
+          right: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
+          bottom: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
+        ),
       ),
       child: ListView.builder(
         shrinkWrap: true,
@@ -5441,7 +5687,7 @@ class _EventLog extends StatelessWidget {
         itemBuilder: (_, i) {
           final e = recent[i];
           return Padding(
-            padding: const EdgeInsets.only(bottom: 2),
+            padding: const EdgeInsets.only(bottom: 3),
             child: Text(
               e.message,
               style: TextStyle(
@@ -5475,9 +5721,16 @@ class _ActionRail extends StatelessWidget {
     width: 54,
     padding: const EdgeInsets.symmetric(vertical: 8),
     decoration: BoxDecoration(
-      color: const Color(0xFF4D402D).withValues(alpha: 0.82),
+      gradient: LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          const Color(0xFF4D402D).withValues(alpha: 0.88),
+          const Color(0xFF332A1C).withValues(alpha: 0.88),
+        ],
+      ),
       borderRadius: BorderRadius.circular(6),
-      border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      border: Border.all(color: kColorGold.withValues(alpha: 0.25)),
       boxShadow: [
         BoxShadow(
           color: Colors.black.withValues(alpha: 0.35),
@@ -5490,8 +5743,10 @@ class _ActionRail extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         _rail('◎', onCenter, 'Center Camera'),
+        _railDiv(),
         _rail('🏗', onBuild, 'Build'),
         _rail('✖', onCancel, 'Cancel / Deselect'),
+        _railDiv(),
         _rail('⚔', onTech, 'Research'),
         _rail('📊', onNations, 'Nations'),
         _rail('💬', onDipl, 'Diplomacy'),
@@ -5499,23 +5754,159 @@ class _ActionRail extends StatelessWidget {
     ),
   );
 
+  static Widget _railDiv() => Container(
+    width: 28,
+    height: 1,
+    margin: const EdgeInsets.symmetric(vertical: 3),
+    color: Colors.white.withValues(alpha: 0.08),
+  );
+
   static Widget _rail(String icon, VoidCallback cb, String tip) => Tooltip(
     message: tip,
     child: InkWell(
       onTap: cb,
+      borderRadius: BorderRadius.circular(5),
       child: SizedBox(
         width: 46,
-        height: 46,
+        height: 44,
         child: Center(
           child: Text(
             icon,
             style: const TextStyle(
               color: Color(0xFFEADDC4),
-              fontSize: 22,
+              fontSize: 21,
               fontWeight: FontWeight.bold,
             ),
           ),
         ),
+      ),
+    ),
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SECTION 19B ▸ HUD SHARED WIDGETS — Cut-Corner Rank Badge System
+// ══════════════════════════════════════════════════════════════════════════════
+// A recurring clipped-corner silhouette (echoes a wax seal / rank insignia)
+// reserved for identity elements: the Admiral portrait, the Age/Tier badge,
+// and the #1 leaderboard crest. Everything else in the HUD stays plain
+// rounded-rect so this motif keeps reading as a deliberate signature.
+
+class _CutCornerClipper extends CustomClipper<Path> {
+  final double cut;
+  const _CutCornerClipper({this.cut = 9});
+  @override
+  Path getClip(Size size) {
+    final w = size.width, h = size.height, c = cut;
+    return Path()
+      ..moveTo(c, 0)
+      ..lineTo(w, 0)
+      ..lineTo(w, h - c)
+      ..lineTo(w - c, h)
+      ..lineTo(0, h)
+      ..lineTo(0, c)
+      ..close();
+  }
+
+  @override
+  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
+}
+
+class _CutCornerBorderPainter extends CustomPainter {
+  final Color color;
+  final double cut, strokeWidth;
+  _CutCornerBorderPainter({
+    required this.color,
+    this.cut = 9,
+    this.strokeWidth = 1.4,
+  });
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width, h = size.height, c = cut;
+    final path = Path()
+      ..moveTo(c, 0)
+      ..lineTo(w, 0)
+      ..lineTo(w, h - c)
+      ..lineTo(w - c, h)
+      ..lineTo(0, h)
+      ..lineTo(0, c)
+      ..close();
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _CutCornerBorderPainter old) =>
+      old.color != color || old.cut != cut || old.strokeWidth != strokeWidth;
+}
+
+class _CutCornerFrame extends StatelessWidget {
+  final Widget child;
+  final Color borderColor;
+  final Color fill;
+  final double cut;
+  final double borderWidth;
+  const _CutCornerFrame({
+    required this.child,
+    this.borderColor = kColorGold,
+    this.fill = kColorPanel,
+    this.cut = 9,
+    this.borderWidth = 1.4,
+  });
+  @override
+  Widget build(BuildContext context) => ClipPath(
+    clipper: _CutCornerClipper(cut: cut),
+    child: CustomPaint(
+      painter: _CutCornerBorderPainter(
+        color: borderColor,
+        cut: cut,
+        strokeWidth: borderWidth,
+      ),
+      child: Container(color: fill, child: child),
+    ),
+  );
+}
+
+class _VDiv extends StatelessWidget {
+  final double height;
+  const _VDiv({this.height = 28});
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 1,
+    height: height,
+    margin: const EdgeInsets.symmetric(horizontal: 4),
+    color: kColorBorder,
+  );
+}
+
+class _TopIconBtn extends StatelessWidget {
+  final String icon;
+  final VoidCallback onTap;
+  final String tip;
+  final VoidCallback? onLongPress;
+  const _TopIconBtn(this.icon, this.onTap, this.tip, {this.onLongPress});
+  @override
+  Widget build(BuildContext context) => Tooltip(
+    message: tip,
+    child: InkWell(
+      onTap: onTap,
+      onLongPress: onLongPress,
+      borderRadius: BorderRadius.circular(4),
+      child: Container(
+        width: 34,
+        height: 34,
+        margin: const EdgeInsets.symmetric(horizontal: 2),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.03),
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+        ),
+        child: Center(child: Text(icon, style: const TextStyle(fontSize: 15))),
       ),
     ),
   );
@@ -5543,54 +5934,76 @@ class TopBar extends StatelessWidget {
     final col = n?.color ?? kColorGold;
     final name = n?.name ?? 'Admiral';
     return Container(
-      height: 48,
+      height: 56,
       decoration: BoxDecoration(
-        color: kColorPanel,
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [kColorPanel, Color.lerp(kColorPanel, kColorBg, 0.55)!],
+        ),
+        border: const Border(
+          bottom: BorderSide(color: kColorGoldDark, width: 1.2),
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.4),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withValues(alpha: 0.45),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
       child: Row(
         children: [
-          Container(width: 1, height: 30, color: kColorBorder),
+          // Nation-color identity stripe
+          Container(width: 4, height: double.infinity, color: col),
+          const SizedBox(width: 10),
+          // Resource pills
           Expanded(
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  _R('💰', r?.gold.floor() ?? 0),
-                  _R('🌾', r?.food.floor() ?? 0),
-                  _R('🪵', r?.wood.floor() ?? 0),
-                  _R('🪨', r?.stone.floor() ?? 0),
-                  _R('⚙️', r?.iron.floor() ?? 0),
-                  _R('🛢️', r?.oil.floor() ?? 0),
-                  _R('👥', r?.population ?? 0, max: r?.populationCap),
-                  _R('🔬', r?.researchPoints ?? 0),
-                  const SizedBox(width: 8),
+                  _ResPill('💰', r?.gold.floor() ?? 0, kColorGold),
+                  _ResPill('🌾', r?.food.floor() ?? 0, kColorSuccess),
+                  _ResPill('🪵', r?.wood.floor() ?? 0, const Color(0xFFAD8A56)),
+                  _ResPill('🪨', r?.stone.floor() ?? 0, kColorMuted),
+                  _ResPill('⚙️', r?.iron.floor() ?? 0, const Color(0xFF93A8C2)),
+                  _ResPill('🛢️', r?.oil.floor() ?? 0, const Color(0xFF8A8A8A)),
+                  _ResPill(
+                    '👥',
+                    r?.population ?? 0,
+                    kColorText,
+                    max: r?.populationCap,
+                  ),
+                  _ResPill(
+                    '🔬',
+                    r?.researchPoints ?? 0,
+                    const Color(0xFF60A5FA),
+                  ),
+                  const SizedBox(width: 6),
                   if (n != null)
                     GestureDetector(
                       onTap: () => game.advanceAge(game.playerNationId!),
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 4),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 7,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: kColorGoldDark),
-                          borderRadius: BorderRadius.circular(3),
-                          color: kColorGoldDark.withValues(alpha: 0.2),
-                        ),
-                        child: Text(
-                          '${n.tier.label} · ${n.currentAge.label} ⬆',
-                          style: const TextStyle(
-                            color: kColorGold,
-                            fontSize: 8,
-                            fontWeight: FontWeight.bold,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: _CutCornerFrame(
+                          cut: 7,
+                          borderColor: kColorGold,
+                          fill: kColorGoldDark.withValues(alpha: 0.22),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            child: Text(
+                              '${n.tier.label} · ${n.currentAge.label}  ⬆',
+                              style: const TextStyle(
+                                color: kColorGold,
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -5599,29 +6012,47 @@ class TopBar extends StatelessWidget {
               ),
             ),
           ),
-          Container(width: 1, height: 30, color: kColorBorder),
-          _IB('🔬', onTech, 'Tech Tree'),
-          _IB('🤝', onDipl, 'Diplomacy'),
-          _IB('📊', onNations, 'Nations'),
-          Container(width: 1, height: 30, color: kColorBorder),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6),
+          const _VDiv(),
+          _TopIconBtn('🔬', onTech, 'Tech Tree'),
+          _TopIconBtn('🤝', onDipl, 'Diplomacy'),
+          _TopIconBtn('📊', onNations, 'Nations'),
+          const _VDiv(),
+          GestureDetector(
+            onTap: onTech,
             child: Container(
-              width: 36,
-              height: 36,
+              margin: const EdgeInsets.symmetric(horizontal: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
               decoration: BoxDecoration(
-                color: col.withValues(alpha: 0.22),
-                shape: BoxShape.circle,
-                border: Border.all(color: col.withValues(alpha: 0.7)),
+                border: Border.all(color: kColorGold.withValues(alpha: 0.55)),
+                borderRadius: BorderRadius.circular(4),
+                color: kColorGold.withValues(alpha: 0.08),
               ),
-              child: Center(
-                child: Text(
-                  _admiralEmoji(name),
-                  style: const TextStyle(fontSize: 20),
+              child: const Text(
+                'RESEARCH',
+                style: TextStyle(
+                  color: kColorGold,
+                  fontSize: 8,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1,
                 ),
               ),
             ),
           ),
+          _CutCornerFrame(
+            cut: 8,
+            borderColor: col,
+            fill: col.withValues(alpha: 0.18),
+            child: Container(
+              width: 40,
+              height: 40,
+              alignment: Alignment.center,
+              child: Text(
+                _admiralEmoji(name),
+                style: const TextStyle(fontSize: 21),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
           Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -5630,67 +6061,93 @@ class TopBar extends StatelessWidget {
                 name,
                 style: TextStyle(
                   color: col,
-                  fontSize: 10,
+                  fontSize: 11,
                   fontWeight: FontWeight.bold,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              Text(
-                n?.currentAge.label ?? 'Ancient',
-                style: const TextStyle(color: kColorMuted, fontSize: 8),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    n?.currentAge.label ?? 'Ancient',
+                    style: const TextStyle(color: kColorMuted, fontSize: 8),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'T:${game.tick}',
+                    style: const TextStyle(color: kColorMuted, fontSize: 7),
+                  ),
+                ],
               ),
             ],
           ),
-          const SizedBox(width: 10),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6),
-            child: Text(
-              'T:${game.tick}',
-              style: const TextStyle(color: kColorMuted, fontSize: 9),
+          const SizedBox(width: 8),
+          _TopIconBtn(
+            '⚙️',
+            () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Settings — coming soon'),
+                  duration: Duration(seconds: 1),
+                  backgroundColor: kColorPanel,
+                ),
+              );
+            },
+            'Settings',
+            onLongPress: () => showDialog(
+              context: context,
+              builder: (_) => AdminLoginDialog(game: game),
             ),
           ),
+          const SizedBox(width: 6),
         ],
       ),
     );
   }
-
-  static Widget _R(String icon, int val, {int? max}) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 5),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(icon, style: const TextStyle(fontSize: 12)),
-        const SizedBox(width: 3),
-        Text(
-          max != null ? '$val/$max' : _f(val),
-          style: TextStyle(
-            color: max != null && val >= max ? kColorAccent : kColorText,
-            fontSize: 10,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ],
-    ),
-  );
 
   static String _f(int v) {
     if (v >= 1000000) return '${(v / 1000000).toStringAsFixed(1)}M';
     if (v >= 1000) return '${(v / 1000).toStringAsFixed(1)}K';
     return '$v';
   }
+}
 
-  static Widget _IB(String icon, VoidCallback cb, String tip) => Tooltip(
-    message: tip,
-    child: InkWell(
-      onTap: cb,
-      child: SizedBox(
-        width: 38,
-        height: 46,
-        child: Center(child: Text(icon, style: const TextStyle(fontSize: 17))),
+class _ResPill extends StatelessWidget {
+  final String icon;
+  final int val;
+  final Color tint;
+  final int? max;
+  const _ResPill(this.icon, this.val, this.tint, {this.max});
+  @override
+  Widget build(BuildContext context) {
+    final capped = max != null && val >= max!;
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: tint.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: tint.withValues(alpha: 0.35)),
       ),
-    ),
-  );
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(icon, style: const TextStyle(fontSize: 12)),
+          const SizedBox(width: 4),
+          Text(
+            max != null ? '$val/$max' : TopBar._f(val),
+            style: TextStyle(
+              color: capped ? kColorAccent : kColorText,
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -5705,46 +6162,6 @@ String _admiralEmoji(String nationName) {
   if (n.contains('sultan') || n.contains('ottoman')) return '🕌';
   if (n.contains('crimson') || n.contains('roman')) return '🛡️';
   return '🧑‍✈️';
-}
-
-// ── Admiral character palette ───────────────────────────────────────────
-// Drives both the on-map character and the HUD portrait so they stay in
-// sync. The "Hajinwoo" account gets a distinct original swordsman-commander
-// look (deep-green hair, dark fieldcoat, twin short blades) — inspired by
-// the wandering-swordsman archetype without reproducing any copyrighted
-// character's specific design.
-class AdmiralLook {
-  final Color hair;
-  final Color coat;
-  final Color trim;
-  final Color skin;
-  final bool twinBlades;
-  const AdmiralLook({
-    required this.hair,
-    required this.coat,
-    required this.trim,
-    required this.skin,
-    this.twinBlades = false,
-  });
-}
-
-AdmiralLook admiralLookFor(GameState game) {
-  final nationColor = game.playerNation?.color ?? kColorGold;
-  if (game.isHajinwooAdmiral) {
-    return const AdmiralLook(
-      hair: Color(0xFF3E7A4C),
-      coat: Color(0xFF1B2B22),
-      trim: Color(0xFF2E5A3E),
-      skin: Color(0xFFC98A5A),
-      twinBlades: true,
-    );
-  }
-  return AdmiralLook(
-    hair: const Color(0xFF2B2118),
-    coat: const Color(0xFF26201A),
-    trim: nationColor,
-    skin: const Color(0xFFC98A5A),
-  );
 }
 
 class GameMapWidget extends StatefulWidget {
@@ -6145,61 +6562,26 @@ class MapPainter extends CustomPainter {
         colors: [Color(0xFFD2F0FF), Color(0xFF7FB86B), Color(0xFF0B141E)],
       ).createShader(Offset.zero & size);
     c.drawRect(Offset.zero & size, haze);
-    const sun = Offset(sceneWidth - 280, 150);
     c.drawCircle(
-      sun,
-      80,
-      Paint()
-        ..color = const Color(0xFFFFD274).withValues(alpha: 0.18)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 26),
-    );
-    c.drawCircle(
-      sun,
+      const Offset(sceneWidth - 280, 150),
       42,
       Paint()..color = const Color(0xFFFFD274).withValues(alpha: 0.75),
     );
-    c.drawCircle(sun, 30, Paint()..color = const Color(0xFFFFF3D6));
   }
 
   void _isoTerrain(Canvas c) {
-    final hiStroke = Paint()
-      ..color = Colors.white.withValues(alpha: 0.22)
+    final stroke = Paint()
+      ..color = Colors.black.withValues(alpha: 0.16)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.1;
-    final loStroke = Paint()
-      ..color = Colors.black.withValues(alpha: 0.30)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.1;
+      ..strokeWidth = 0.9;
     for (int y = 0; y < kMapH; y++) {
       for (int x = 0; x < kMapW; x++) {
         final t = game.map.at(x, y);
         final h = _heightFor(t);
-        final baseColor = _terrainColor(t.terrain);
-
-        // Slab "thickness": a darker duplicate beneath each land tile
-        // gives the chunky stacked-plateau look from the reference art
-        // instead of flat floating diamonds.
-        if (h > 0) {
-          c.drawPath(
-            _diamond(x, y, h * 0.35),
-            Paint()..color = Color.lerp(baseColor, Colors.black, 0.45)!,
-          );
-        }
-
         final tile = _diamond(x, y, h);
-        c.drawPath(tile, Paint()..color = baseColor);
-
-        // Two-tone bevel: lit edge toward the back, shadowed edge toward
-        // the front — a cheap embossed/3D feel on every tile.
-        final top = tileToScene(x + 0.5, y, h);
-        final right = tileToScene(x + 1, y + 0.5, h);
-        final bottom = tileToScene(x + 0.5, y + 1, h);
-        final left = tileToScene(x, y + 0.5, h);
-        c.drawLine(left, top, hiStroke);
-        c.drawLine(top, right, hiStroke);
-        c.drawLine(right, bottom, loStroke);
-        c.drawLine(bottom, left, loStroke);
-
+        final base = Paint()..color = _terrainColor(t.terrain);
+        c.drawPath(tile, base);
+        c.drawPath(tile, stroke);
         if (t.terrain == TerrainType.forest) _treeCluster(c, x, y, h);
         if (t.terrain == TerrainType.mountain) _mountain(c, x, y, h);
         if (t.terrain == TerrainType.water) _waterLines(c, x, y, h);
@@ -6352,6 +6734,7 @@ class MapPainter extends CustomPainter {
   }
 
   void _isoAdmiral(Canvas c) {
+    final nation = game.playerNation;
     final tx = admiralX.clamp(0, kMapW - 1).floor();
     final ty = admiralY.clamp(0, kMapH - 1).floor();
     final tile = game.map.at(tx, ty);
@@ -6361,206 +6744,58 @@ class MapPainter extends CustomPainter {
       admiralY - 0.5,
       _heightFor(tile) + 18 + jh,
     );
-    final look = admiralLookFor(game);
-    final col = look.trim;
-
-    // Soft ground shadow (shrinks while airborne)
+    final col = nation?.color ?? kColorGold;
+    // Shadow (smaller when jumping)
     c.drawOval(
       Rect.fromCenter(
         center: o.translate(0, 54 - jh * 0.5),
-        width: 80 - jh * 0.4,
-        height: 24 - jh * 0.2,
+        width: 82 - jh * 0.4,
+        height: 26 - jh * 0.2,
       ),
-      Paint()
-        ..color = Colors.black.withValues(alpha: 0.30 - jh * 0.004)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+      Paint()..color = Colors.black.withValues(alpha: 0.32 - jh * 0.004),
     );
-
-    // Ground glow ring
+    // Glow ring
     c.drawCircle(
       o.translate(0, 44),
-      33,
+      35,
       Paint()
-        ..color = col.withValues(alpha: 0.7)
+        ..color = col.withValues(alpha: 0.78)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 3.5,
+        ..strokeWidth = 4,
     );
-
-    final lift = jh * 0.3; // legs tuck up slightly mid-jump
-
-    // Back leg + cape (drawn first, sit "behind" the torso)
-    _adLeg(c, o, -9, lift, look.coat);
-    final cape = Path()
-      ..moveTo(o.dx - 16, o.dy - 18)
-      ..lineTo(o.dx + 16, o.dy - 18)
-      ..quadraticBezierTo(o.dx + 22, o.dy + 25, o.dx + 12, o.dy + 48)
-      ..lineTo(o.dx - 12, o.dy + 48)
-      ..quadraticBezierTo(o.dx - 22, o.dy + 25, o.dx - 16, o.dy - 18)
-      ..close();
-    c.drawPath(cape, Paint()..color = col.withValues(alpha: 0.88));
-
-    // Front leg
-    _adLeg(c, o, 9, -lift, look.coat);
-
-    // Torso (tapered fieldcoat)
-    final torso = Path()
-      ..moveTo(o.dx - 18, o.dy - 24)
-      ..lineTo(o.dx + 18, o.dy - 24)
-      ..lineTo(o.dx + 21, o.dy + 26)
-      ..lineTo(o.dx - 21, o.dy + 26)
-      ..close();
-    c.drawPath(torso, Paint()..color = look.coat);
-    c.drawLine(
-      Offset(o.dx - 18, o.dy - 22),
-      Offset(o.dx - 21, o.dy + 24),
-      Paint()
-        ..color = Colors.white.withValues(alpha: 0.16)
-        ..strokeWidth = 2,
-    );
-
-    // Open lapel / collar
-    c.drawPath(
-      Path()
-        ..moveTo(o.dx - 12, o.dy - 22)
-        ..lineTo(o.dx, o.dy + 2)
-        ..lineTo(o.dx + 12, o.dy - 22),
-      Paint()
-        ..color = look.skin.withValues(alpha: 0.9)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 7,
-    );
-
-    // Sash + rank medallion
+    // Body
     c.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromCenter(center: o.translate(0, 13), width: 42, height: 7),
-        const Radius.circular(3),
+        Rect.fromCenter(center: o.translate(0, 5), width: 38, height: 80),
+        const Radius.circular(14),
       ),
-      Paint()..color = kColorBronzeMid,
+      Paint()..color = const Color(0xFF264D38),
     );
-    c.drawCircle(o.translate(0, 13), 6, Paint()..color = kColorBronzeHi);
+    // Head
     c.drawCircle(
-      o.translate(0, 13),
-      6,
-      Paint()
-        ..color = col
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6,
+      o.translate(0, -44),
+      20,
+      Paint()..color = const Color(0xFFC98A5A),
     );
-
-    // Shoulder pauldrons (rank insignia)
-    for (final s in [-1, 1]) {
-      c.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(
-            center: o.translate(19.0 * s, -22),
-            width: 12,
-            height: 9,
-          ),
-          const Radius.circular(3),
-        ),
-        Paint()..color = col,
-      );
-    }
-
-    // Arms
-    for (final s in [-1, 1]) {
-      c.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(
-            center: o.translate(24.0 * s, -2),
-            width: 10,
-            height: 30,
-          ),
-          const Radius.circular(5),
-        ),
-        Paint()..color = look.coat,
-      );
-    }
-
-    // Sidearm(s) sheathed on the back
-    if (look.twinBlades) {
-      _adBlade(c, o, -6, 0.5);
-      _adBlade(c, o, 6, -0.5);
-    } else {
-      _adBlade(c, o, 0, 0.45);
-    }
-
-    // Head + hair
-    c.drawCircle(o.translate(0, -44), 19, Paint()..color = look.skin);
-    c.drawPath(
-      Path()
-        ..moveTo(o.dx - 19, o.dy - 46)
-        ..quadraticBezierTo(o.dx - 22, o.dy - 70, o.dx, o.dy - 66)
-        ..quadraticBezierTo(o.dx + 22, o.dy - 70, o.dx + 19, o.dy - 46)
-        ..quadraticBezierTo(o.dx, o.dy - 56, o.dx - 19, o.dy - 46)
-        ..close(),
-      Paint()..color = look.hair,
-    );
-    if (game.isHajinwooAdmiral) {
-      for (final dx in [-12.0, 0.0, 12.0]) {
-        c.drawPath(
-          Path()
-            ..moveTo(o.dx + dx - 5, o.dy - 60)
-            ..lineTo(o.dx + dx, o.dy - 78)
-            ..lineTo(o.dx + dx + 5, o.dy - 60)
-            ..close(),
-          Paint()..color = look.hair,
-        );
-      }
-    }
+    // Hat
     c.drawRect(
-      Rect.fromCenter(center: o.translate(0, -52), width: 38, height: 5),
-      Paint()..color = kColorBronzeMid,
+      Rect.fromCenter(center: o.translate(0, -64), width: 42, height: 18),
+      Paint()..color = col,
     );
-
-    _label(c, o.translate(0, -96), game.admiralDisplayName, col);
-  }
-
-  void _adLeg(Canvas c, Offset o, double sideOffset, double lift, Color color) {
-    c.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromCenter(
-          center: o.translate(sideOffset, 38 - lift * 0.4),
-          width: 13,
-          height: 32 - lift * 0.3,
-        ),
-        const Radius.circular(5),
-      ),
-      Paint()..color = color,
+    // Emoji
+    final tp = TextPainter(textDirection: TextDirection.ltr);
+    tp.text = TextSpan(
+      text: _admiralEmoji(nation?.name ?? ''),
+      style: const TextStyle(fontSize: 32),
     );
-    c.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromCenter(
-          center: o.translate(sideOffset, 54 - lift * 0.6),
-          width: 16,
-          height: 10,
-        ),
-        const Radius.circular(3),
-      ),
-      Paint()..color = const Color(0xFF1A1410),
+    tp.layout();
+    tp.paint(c, Offset(o.dx - tp.width / 2, o.dy - 67));
+    _label(
+      c,
+      o.translate(0, -92),
+      '${nation?.name ?? 'Admiral'} Commander',
+      col,
     );
-  }
-
-  void _adBlade(Canvas c, Offset o, double dx, double angle) {
-    c.save();
-    c.translate(o.dx + dx, o.dy - 8);
-    c.rotate(angle);
-    c.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(-2.5, -38, 5, 46),
-        const Radius.circular(2),
-      ),
-      Paint()..color = kColorParchment,
-    );
-    c.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(-5, 6, 10, 8),
-        const Radius.circular(2),
-      ),
-      Paint()..color = kColorBronzeMid,
-    );
-    c.restore();
   }
 
   void _isoSelection(Canvas c) {
@@ -6629,12 +6864,6 @@ class MapPainter extends CustomPainter {
       _center(x - .1, y + .15, z + 8),
     ];
     for (final o in positions) {
-      c.drawOval(
-        Rect.fromCenter(center: o.translate(0, 16), width: 30, height: 10),
-        Paint()
-          ..color = Colors.black.withValues(alpha: 0.22)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5),
-      );
       c.drawRect(
         Rect.fromCenter(center: o.translate(0, 13), width: 5, height: 16),
         Paint()..color = const Color(0xFF5A3925),
@@ -6647,49 +6876,16 @@ class MapPainter extends CustomPainter {
           ..close(),
         Paint()..color = const Color(0xFF145A2E),
       );
-      c.drawPath(
-        Path()
-          ..moveTo(o.dx, o.dy - 18)
-          ..lineTo(o.dx + 16, o.dy + 15)
-          ..lineTo(o.dx, o.dy + 15)
-          ..close(),
-        Paint()..color = Colors.black.withValues(alpha: 0.14),
-      );
-      c.drawPath(
-        Path()
-          ..moveTo(o.dx, o.dy - 18)
-          ..lineTo(o.dx - 6, o.dy - 1)
-          ..lineTo(o.dx, o.dy - 1)
-          ..close(),
-        Paint()..color = Colors.white.withValues(alpha: 0.18),
-      );
     }
   }
 
   void _mountain(Canvas c, int x, int y, double z) {
-    final back = _center(x - .12, y - .1, z + 18);
-    c.drawPath(
-      Path()
-        ..moveTo(back.dx, back.dy - 26)
-        ..lineTo(back.dx + 22, back.dy + 14)
-        ..lineTo(back.dx - 22, back.dy + 14)
-        ..close(),
-      Paint()..color = const Color(0xFF58544E),
-    );
     final o = _center(x, y, z + 12);
     c.drawPath(
       Path()
         ..moveTo(o.dx, o.dy - 34)
         ..lineTo(o.dx + 30, o.dy + 20)
-        ..lineTo(o.dx, o.dy + 20)
-        ..close(),
-      Paint()..color = const Color(0xFF817A6F),
-    );
-    c.drawPath(
-      Path()
-        ..moveTo(o.dx, o.dy - 34)
         ..lineTo(o.dx - 30, o.dy + 20)
-        ..lineTo(o.dx, o.dy + 20)
         ..close(),
       Paint()..color = const Color(0xFF6E6A63),
     );
@@ -6705,10 +6901,6 @@ class MapPainter extends CustomPainter {
 
   void _waterLines(Canvas c, int x, int y, double z) {
     final o = _center(x, y, z);
-    c.drawOval(
-      Rect.fromCenter(center: o.translate(-6, -4), width: 30, height: 12),
-      Paint()..color = Colors.white.withValues(alpha: 0.07),
-    );
     final p = Paint()
       ..color = Colors.white.withValues(alpha: 0.26)
       ..strokeWidth = 1.2;
@@ -7532,61 +7724,107 @@ class NationPanel extends StatelessWidget {
     return Container(
       width: 244,
       decoration: BoxDecoration(
-        color: kColorPanel.withValues(alpha: 0.95),
-        border: Border(right: BorderSide(color: kColorBorder, width: 1)),
+        color: kColorPanel.withValues(alpha: 0.96),
+        border: const Border(
+          right: BorderSide(color: kColorGoldDark, width: 1),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.35),
+            blurRadius: 14,
+            offset: const Offset(4, 0),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
-            decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: kColorBorder, width: 1)),
-            ),
-            child: const Text(
-              'NATIONS',
-              style: TextStyle(
-                color: kColorGold,
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 3,
+            padding: const EdgeInsets.fromLTRB(14, 12, 12, 10),
+            decoration: const BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: kColorGoldDark, width: 1),
               ),
+            ),
+            child: Row(
+              children: [
+                const Text(
+                  'NATIONS',
+                  style: TextStyle(
+                    color: kColorGold,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 3,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  '${sorted.length} alive',
+                  style: const TextStyle(color: kColorMuted, fontSize: 8),
+                ),
+              ],
             ),
           ),
           Expanded(
             child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 7),
               itemCount: sorted.length,
               itemBuilder: (_, i) {
                 final n = sorted[i];
                 final isP = n.id == game.playerNationId;
+                final rank = i + 1;
+                final frameCol = isP ? kColorGold : kColorBorder;
                 return Container(
                   margin: const EdgeInsets.only(bottom: 6),
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.fromLTRB(8, 7, 8, 8),
                   decoration: BoxDecoration(
-                    border: Border.all(
-                      color: isP ? kColorGold : kColorBorder,
-                      width: isP ? 1.5 : 1,
+                    border: Border(
+                      left: BorderSide(color: n.color, width: 3),
+                      top: BorderSide(color: frameCol, width: isP ? 1.2 : 1),
+                      right: BorderSide(color: frameCol, width: isP ? 1.2 : 1),
+                      bottom: BorderSide(color: frameCol, width: isP ? 1.2 : 1),
                     ),
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(5),
                     color: isP
                         ? kColorGold.withValues(alpha: 0.06)
-                        : Colors.transparent,
+                        : Colors.white.withValues(alpha: 0.015),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
-                          Container(
-                            width: 10,
-                            height: 10,
-                            decoration: BoxDecoration(
-                              color: n.color,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 5),
+                          rank == 1
+                              ? _CutCornerFrame(
+                                  cut: 4,
+                                  borderColor: kColorGold,
+                                  fill: kColorGoldDark.withValues(alpha: 0.32),
+                                  child: const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: Center(
+                                      child: Text(
+                                        '👑',
+                                        style: TextStyle(fontSize: 9),
+                                      ),
+                                    ),
+                                  ),
+                                )
+                              : SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: Center(
+                                    child: Text(
+                                      '#$rank',
+                                      style: const TextStyle(
+                                        color: kColorMuted,
+                                        fontSize: 8,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                          const SizedBox(width: 6),
                           Expanded(
                             child: Text(
                               n.name,
@@ -7601,7 +7839,7 @@ class NationPanel extends StatelessWidget {
                           ),
                           if (isP)
                             Container(
-                              margin: const EdgeInsets.only(right: 4),
+                              margin: const EdgeInsets.only(left: 4),
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 4,
                                 vertical: 1,
@@ -7621,6 +7859,7 @@ class NationPanel extends StatelessWidget {
                             ),
                           if (n.isAI)
                             Container(
+                              margin: const EdgeInsets.only(left: 4),
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 4,
                                 vertical: 1,
@@ -7639,32 +7878,32 @@ class NationPanel extends StatelessWidget {
                             ),
                         ],
                       ),
-                      const SizedBox(height: 3),
+                      const SizedBox(height: 4),
                       Text(
                         '${n.tier.label} · ${n.currentAge.label} · 🗺️${n.ownedTiles.length}',
                         style: const TextStyle(color: kColorMuted, fontSize: 7),
                       ),
-                      const SizedBox(height: 5),
+                      const SizedBox(height: 6),
                       // Score bars
                       _scoreBar(
                         '⚔️',
                         n.militaryScore,
                         maxScore,
-                        n.color.withValues(alpha: 0.8),
+                        n.color.withValues(alpha: 0.85),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 3),
                       _scoreBar(
                         '💰',
                         n.economyScore,
                         maxScore,
-                        const Color(0xFFD4AF37).withValues(alpha: 0.8),
+                        kColorGold.withValues(alpha: 0.85),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 3),
                       _scoreBar(
                         '🤝',
                         n.influenceScore,
                         maxScore,
-                        const Color(0xFF9B59B6).withValues(alpha: 0.8),
+                        const Color(0xFFB47CDB),
                       ),
                     ],
                   ),
@@ -7674,27 +7913,45 @@ class NationPanel extends StatelessWidget {
           ),
           // Terrain legend
           Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+            decoration: const BoxDecoration(
               border: Border(top: BorderSide(color: kColorBorder, width: 1)),
             ),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 3,
-              children: TerrainType.values.map((t) {
-                final tile = MapTile(x: 0, y: 0, terrain: t);
-                return Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(tile.emoji, style: const TextStyle(fontSize: 9)),
-                    const SizedBox(width: 2),
-                    Text(
-                      t.name,
-                      style: const TextStyle(color: kColorMuted, fontSize: 7),
-                    ),
-                  ],
-                );
-              }).toList(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'TERRAIN',
+                  style: TextStyle(
+                    color: kColorMuted,
+                    fontSize: 7,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 2,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Wrap(
+                  spacing: 9,
+                  runSpacing: 4,
+                  children: TerrainType.values.map((t) {
+                    final tile = MapTile(x: 0, y: 0, terrain: t);
+                    return Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(tile.emoji, style: const TextStyle(fontSize: 9)),
+                        const SizedBox(width: 3),
+                        Text(
+                          t.name,
+                          style: const TextStyle(
+                            color: kColorMuted,
+                            fontSize: 7,
+                          ),
+                        ),
+                      ],
+                    );
+                  }).toList(),
+                ),
+              ],
             ),
           ),
         ],
@@ -7704,28 +7961,33 @@ class NationPanel extends StatelessWidget {
 
   Widget _scoreBar(String icon, int val, int maxVal, Color color) => Row(
     children: [
-      Text(icon, style: const TextStyle(fontSize: 8)),
-      const SizedBox(width: 3),
+      SizedBox(
+        width: 12,
+        child: Text(icon, style: const TextStyle(fontSize: 8)),
+      ),
       Expanded(
-        child: Container(
-          height: 4,
-          decoration: BoxDecoration(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(3),
+          child: Container(
+            height: 5,
             color: kColorBorder,
-            borderRadius: BorderRadius.circular(2),
-          ),
-          child: FractionallySizedBox(
-            widthFactor: maxVal > 0 ? (val / maxVal).clamp(0.0, 1.0) : 0,
-            child: Container(
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius: BorderRadius.circular(2),
-              ),
+            child: FractionallySizedBox(
+              alignment: Alignment.centerLeft,
+              widthFactor: maxVal > 0 ? (val / maxVal).clamp(0.0, 1.0) : 0,
+              child: Container(color: color),
             ),
           ),
         ),
       ),
-      const SizedBox(width: 3),
-      Text(_NS._f(val), style: const TextStyle(color: kColorText, fontSize: 7)),
+      const SizedBox(width: 4),
+      SizedBox(
+        width: 24,
+        child: Text(
+          _NS._f(val),
+          textAlign: TextAlign.right,
+          style: const TextStyle(color: kColorText, fontSize: 7),
+        ),
+      ),
     ],
   );
 }
@@ -8377,5 +8639,574 @@ class _VS extends StatelessWidget {
       ),
       Text(label, style: const TextStyle(color: kColorMuted, fontSize: 8)),
     ],
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SECTION 28 ▸ ADMIN PANEL (hidden — long-press the ⚙️ Settings icon)
+// ══════════════════════════════════════════════════════════════════════════════
+
+class AdminLoginDialog extends StatefulWidget {
+  final GameState game;
+  const AdminLoginDialog({super.key, required this.game});
+  @override
+  State<AdminLoginDialog> createState() => _AdminLoginDialogState();
+}
+
+class _AdminLoginDialogState extends State<AdminLoginDialog> {
+  final _userCtrl = TextEditingController();
+  final _passCtrl = TextEditingController();
+  String? _error;
+
+  @override
+  void dispose() {
+    _userCtrl.dispose();
+    _passCtrl.dispose();
+    super.dispose();
+  }
+
+  void _attempt() {
+    if (_userCtrl.text.trim() == kAdminUsername &&
+        _passCtrl.text == kAdminPassword) {
+      Navigator.of(context).pop();
+      showDialog(
+        context: context,
+        builder: (_) => AdminPanelDialog(game: widget.game),
+      );
+    } else {
+      setState(() => _error = 'Access denied — invalid credentials');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Dialog(
+    backgroundColor: kColorBg,
+    child: SizedBox(
+      width: 320,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                _CutCornerFrame(
+                  cut: 6,
+                  borderColor: kColorGold,
+                  fill: kColorGoldDark.withValues(alpha: 0.25),
+                  child: const SizedBox(
+                    width: 30,
+                    height: 30,
+                    child: Center(
+                      child: Text('🔐', style: TextStyle(fontSize: 16)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    'RESTRICTED ACCESS',
+                    style: TextStyle(
+                      color: kColorGold,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: const Text(
+                    '✖',
+                    style: TextStyle(color: kColorMuted, fontSize: 16),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            _field('Username', _userCtrl, obscure: false),
+            const SizedBox(height: 10),
+            _field('Password', _passCtrl, obscure: true),
+            if (_error != null) ...[
+              const SizedBox(height: 10),
+              Text(
+                _error!,
+                style: const TextStyle(
+                  color: kColorAccent,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: GestureDetector(
+                onTap: _attempt,
+                child: Container(
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                    color: kColorGold.withValues(alpha: 0.18),
+                    border: Border.all(color: kColorGold),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Text(
+                    'AUTHENTICATE',
+                    style: TextStyle(
+                      color: kColorGold,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  Widget _field(
+    String label,
+    TextEditingController c, {
+    required bool obscure,
+  }) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        label,
+        style: const TextStyle(
+          color: kColorMuted,
+          fontSize: 9,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 1,
+        ),
+      ),
+      const SizedBox(height: 4),
+      Container(
+        decoration: BoxDecoration(
+          color: kColorPanel,
+          border: Border.all(color: kColorBorder),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: TextField(
+          controller: c,
+          obscureText: obscure,
+          style: const TextStyle(color: kColorText, fontSize: 12),
+          decoration: const InputDecoration(
+            isDense: true,
+            contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+            border: InputBorder.none,
+          ),
+        ),
+      ),
+    ],
+  );
+}
+
+class AdminPanelDialog extends StatefulWidget {
+  final GameState game;
+  const AdminPanelDialog({super.key, required this.game});
+  @override
+  State<AdminPanelDialog> createState() => _AdminPanelDialogState();
+}
+
+class _AdminPanelDialogState extends State<AdminPanelDialog> {
+  String _query = '';
+  Nation? _target;
+  final _goldCtrl = TextEditingController();
+  final _foodCtrl = TextEditingController();
+  final _woodCtrl = TextEditingController();
+  final _stoneCtrl = TextEditingController();
+  final _ironCtrl = TextEditingController();
+  final _oilCtrl = TextEditingController();
+  final _rpCtrl = TextEditingController();
+  String? _flash;
+
+  @override
+  void dispose() {
+    for (final c in [
+      _goldCtrl,
+      _foodCtrl,
+      _woodCtrl,
+      _stoneCtrl,
+      _ironCtrl,
+      _oilCtrl,
+      _rpCtrl,
+    ]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  void _grant() {
+    final t = _target;
+    if (t == null) return;
+    double parse(TextEditingController c) =>
+        double.tryParse(c.text.trim()) ?? 0;
+    t.resources.gold += parse(_goldCtrl);
+    t.resources.food += parse(_foodCtrl);
+    t.resources.wood += parse(_woodCtrl);
+    t.resources.stone += parse(_stoneCtrl);
+    t.resources.iron += parse(_ironCtrl);
+    t.resources.oil += parse(_oilCtrl);
+    t.resources.researchPoints += parse(_rpCtrl).toInt();
+    widget.game.addEvent(
+      '🛡️ Admin granted resources to ${t.name}',
+      color: kColorGold,
+    );
+    widget.game.rebuild();
+    setState(() => _flash = 'Granted to ${t.name}');
+  }
+
+  void _setWeather(WeatherType w) {
+    widget.game.currentWeather = w;
+    widget.game.addEvent(
+      '🌦️ Admin set weather to ${w.label}',
+      color: kColorGold,
+    );
+    widget.game.rebuild();
+    setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final results = widget.game.nations.values
+        .where(
+          (n) =>
+              _query.isEmpty ||
+              n.name.toLowerCase().contains(_query.toLowerCase()),
+        )
+        .toList();
+    return Dialog(
+      backgroundColor: kColorBg,
+      child: SizedBox(
+        width: 480,
+        height: 580,
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(14),
+              color: kColorPanel,
+              child: Row(
+                children: [
+                  _CutCornerFrame(
+                    cut: 6,
+                    borderColor: kColorGold,
+                    fill: kColorGold.withValues(alpha: 0.18),
+                    child: const SizedBox(
+                      width: 32,
+                      height: 32,
+                      child: Center(
+                        child: Text('🗡️', style: TextStyle(fontSize: 17)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'ZORO',
+                        style: TextStyle(
+                          color: kColorGold,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 2,
+                        ),
+                      ),
+                      Text(
+                        'Administrator · Hajinwoo',
+                        style: TextStyle(color: kColorMuted, fontSize: 9),
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: const Text(
+                      '✖',
+                      style: TextStyle(color: kColorMuted, fontSize: 17),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'SEARCH PLAYER / NATION',
+                      style: TextStyle(
+                        color: kColorMuted,
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: kColorPanel,
+                        border: Border.all(color: kColorBorder),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: TextField(
+                        onChanged: (v) => setState(() => _query = v),
+                        style: const TextStyle(color: kColorText, fontSize: 12),
+                        decoration: const InputDecoration(
+                          isDense: true,
+                          hintText: 'Type a nation / player name…',
+                          hintStyle: TextStyle(
+                            color: kColorMuted,
+                            fontSize: 11,
+                          ),
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 10,
+                          ),
+                          border: InputBorder.none,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 130),
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: results.length,
+                        itemBuilder: (_, i) {
+                          final n = results[i];
+                          final sel = _target?.id == n.id;
+                          return GestureDetector(
+                            onTap: () => setState(() => _target = n),
+                            child: Container(
+                              margin: const EdgeInsets.only(bottom: 4),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: sel
+                                    ? kColorGold.withValues(alpha: 0.1)
+                                    : kColorPanel,
+                                border: Border.all(
+                                  color: sel ? kColorGold : kColorBorder,
+                                ),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: BoxDecoration(
+                                      color: n.color,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      n.name,
+                                      style: TextStyle(
+                                        color: n.color,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                  Text(
+                                    '${n.tier.label} · ${n.currentAge.label}',
+                                    style: const TextStyle(
+                                      color: kColorMuted,
+                                      fontSize: 8,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    if (_target != null) ...[
+                      Text(
+                        'GRANT RESOURCES — ${_target!.name}',
+                        style: const TextStyle(
+                          color: kColorMuted,
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _resInput('💰 Gold', _goldCtrl),
+                          _resInput('🌾 Food', _foodCtrl),
+                          _resInput('🪵 Wood', _woodCtrl),
+                          _resInput('🪨 Stone', _stoneCtrl),
+                          _resInput('⚙️ Iron', _ironCtrl),
+                          _resInput('🛢️ Oil', _oilCtrl),
+                          _resInput('🔬 Research', _rpCtrl),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      GestureDetector(
+                        onTap: _grant,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: kColorGold.withValues(alpha: 0.18),
+                            border: Border.all(color: kColorGold),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'GRANT',
+                            style: TextStyle(
+                              color: kColorGold,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (_flash != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Text(
+                            _flash!,
+                            style: const TextStyle(
+                              color: kColorSuccess,
+                              fontSize: 9,
+                            ),
+                          ),
+                        ),
+                    ] else
+                      const Text(
+                        'Select a nation above to grant resources.',
+                        style: TextStyle(color: kColorMuted, fontSize: 10),
+                      ),
+                    const SizedBox(height: 20),
+                    const Text(
+                      'WEATHER CONTROL',
+                      style: TextStyle(
+                        color: kColorMuted,
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: WeatherType.values.map((w) {
+                        final active = widget.game.currentWeather == w;
+                        return GestureDetector(
+                          onTap: () => _setWeather(w),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: active
+                                  ? kColorGold.withValues(alpha: 0.16)
+                                  : kColorPanel,
+                              border: Border.all(
+                                color: active ? kColorGold : kColorBorder,
+                              ),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Column(
+                              children: [
+                                Text(
+                                  w.icon,
+                                  style: const TextStyle(fontSize: 16),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  w.label,
+                                  style: TextStyle(
+                                    color: active ? kColorGold : kColorMuted,
+                                    fontSize: 8,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 18),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: kColorPanel,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: kColorBorder),
+                      ),
+                      child: const Text(
+                        'Item / loot granting isn\'t wired up yet — this client has no inventory model to hook into. Resources and weather above are fully live.',
+                        style: TextStyle(
+                          color: kColorMuted,
+                          fontSize: 9,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _resInput(String label, TextEditingController c) => SizedBox(
+    width: 130,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(color: kColorMuted, fontSize: 9)),
+        const SizedBox(height: 3),
+        Container(
+          decoration: BoxDecoration(
+            color: kColorPanel,
+            border: Border.all(color: kColorBorder),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: TextField(
+            controller: c,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            style: const TextStyle(color: kColorText, fontSize: 11),
+            decoration: const InputDecoration(
+              isDense: true,
+              hintText: '0',
+              hintStyle: TextStyle(color: kColorMuted, fontSize: 11),
+              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              border: InputBorder.none,
+            ),
+          ),
+        ),
+      ],
+    ),
   );
 }
