@@ -5855,7 +5855,7 @@ class _CutCornerFrame extends StatelessWidget {
     required this.child,
     this.borderColor = kColorGold,
     this.fill = kColorPanel,
-    this.cut = 9,
+    this.cut = 9.0,
     this.borderWidth = 1.4,
   });
   @override
@@ -5874,7 +5874,7 @@ class _CutCornerFrame extends StatelessWidget {
 
 class _VDiv extends StatelessWidget {
   final double height;
-  const _VDiv({this.height = 28});
+  const _VDiv({this.height = 28.0});
   @override
   Widget build(BuildContext context) => Container(
     width: 1,
